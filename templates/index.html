@@ -5,7 +5,7 @@
     <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
     <title>World of the Wand</title>
     <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
-    
+
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         const socket = io({path: "/world-of-the-wand/socket.io"});
@@ -14,7 +14,7 @@
 <body>
     <div id = "commandLog"></div>
     <div id = "gameCanvas"> Summoning World... </div>
-    <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
+    <div id = "mainHeaderStatus"> Pondering the Ethereal Wave... </div>
 
     <div id = "commandInputBox">
         <form id = "commandForm">
@@ -39,6 +39,7 @@
         let GRID_WIDTH = 0;
         let GRID_HEIGHT = 0;
         let GAME_TICK_RATE = 2.0;
+        let prevSelfPlayerState = null; // For tracking changes to narrate
 
         // -- Fog of War -- //
         const FOG_CHAR = '▒';
@@ -55,8 +56,8 @@
         }
 
         function get_direction_str_from_dx_dy(dx, dy) {
-            const mapping = {"0, -1": '^', "0, 1": 'v', "-1, 0": '<', "1, 0": '>'};
-            return mapping[`${dx}, ${dy}`];
+            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'}; // Removed spaces for consistency
+            return mapping[`${dx},${dy}`];
         }
 
         function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
@@ -74,7 +75,7 @@
             if (pf === 's') return {rx: -worldDX, ry: -worldDY};
             if (pf === 'w') return {rx: -worldDY, ry: worldDX};
             if (pf === 'e') return {rx: worldDY, ry: -worldDX};
-            
+
             return { rx: worldDX, ry: worldDY }; // Fallback
         }
 
@@ -85,51 +86,49 @@
         function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
             if (!observerChar) return false;
 
-            // Aura Vision
-            let manhattanDist = manhattanDistance(playerX, playerY, targetX, targetY)
+            let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
             if (scry || manhattanDist <= AURA_VISION_RANGE) {
                 return true;
             }
-            const dxWorld = targetX - observerX;
-            const dyWorld = targetY - observerY;
 
-            let {rx, ry} = getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY);
-            if (manhattanDist === 2 && Math.abs(dxWorld) === 1 && Math.abs(dyWorld) === 1 & rx <= 0) {
+            const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
+            
+            const worldDX = targetX - observerX;
+            const worldDY = targetY - observerY;
+
+            if (manhattanDist === 2 && Math.abs(worldDX) === 1 && Math.abs(worldDY) === 1 && rx <= 0) {
                 return true;
             }
 
-            // Observation Cone!!! Observe! :)
+            // Observation Cone
             if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
                 return true;
             }
 
-            return false; // Not in aura nor observable cone.
+            return false;
         }
 
-        function addLogMessage(message, type = 'info') {
+
+        function addLogMessage(message, type = 'lore') {}
             const logEntry = document.createElement('div');
-            logEntry.classList.add('log-entry');
-            if (type) {
-                logEntry.classList.add(`log-type-${type}`);
-            }
-            // Sanitize text content to prevent accidental HTML injection from messages
-            logEntry.textContent = message; 
+            logEntry.classList.add('log-entry', `log-${type}`);
+            logEntry.textContent = message;
             commandLog.appendChild(logEntry);
-            commandLog.scrollTop = commandLog.scrollHeight; // Auto-scroll to the latest message
+            commandLog.scrollTop = commandLog.scrollHeight;
         }
 
-        function updateStatus(status) { 
-            if (status) { 
-                mainHeaderStatus.textContent = status; 
+        function updateStatus(status) {
+            if (status) {
+                mainHeaderStatus.textContent = status;
             } else if (selfPlayer) {
-                mainHeaderStatus.textContent = "${player.char}: (${player.x}, ${player.y}) | Mana: 175/175 | Wand: 100%"; 
+                // Using template literal correctly
+                mainHeaderStatus.textContent = `${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
             }
         }
 
         function drawGrid() {
-            // Simple grid drawing implementation
             if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
                 gameCanvas.textContent = "The mists obscure your vision... (Awaiting server data)"
                 return;
@@ -143,7 +142,7 @@
                 }
             }
 
-            if (selfPlayer.x >= 0 && selfPlayer.x < GRIDWIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
+            if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
                 displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
             }
 
@@ -176,18 +175,18 @@
             GRID_HEIGHT = data.grid_height;
             GAME_TICK_RATE = data.tick_rate;
             otherPlayers = data.otherPlayers || {};
+            prevSelfPlayerState = { ...selfPlayer };
 
-            // Ensure self is not in otherPlayers list (server should prevent this)
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus();
                 drawGrid();
-                addLogMessage("You have materialized in a foreboding meadow. The world awaits your epic journey!", "server");
+                addLogMessage("Tome: You have materialized in a foreboding meadow. The world awaits your epic journey!", 'lore');
             } else {
                 console.error("Initial state data incomplete or invalid: ", data);
                 updateStatus("Error manifesting world.");
-                addLogMessage("Error: Could not manifest in world.", "error");
+                addLogMessage("Tome warns: Error! Could not manifest in world. The ancient texts are unreadable.", 'event-bad');
             }
         });
 
@@ -195,26 +194,25 @@
             console.log('Player joined: ', newPlayer);
             if (myPlayerID && newPlayer.id !== myPlayerID) {
                 otherPlayers[newPlayer.id] = newPlayer;
-                drawGrid(); //redraw to show the new player (?)
-                addLogMessage("You sense the arrival of another powerful sorcerer.", "game-event");
+                drawGrid();
+                addLogMessage("Tome notes: You sense the arrival of another powerful sorcerer.", 'event-good');
             }
         });
 
         socket.on('player_left', (playerID) => {
             console.log('Player left: ', playerID);
             if (otherPlayers[playerID]) {
-                delete otherPlayers[playerId];
+                delete otherPlayers[playerID];
                 drawGrid();
-                addLogMessage("You sense a powerful sorcerer depart to another plane.", "game-event");
+                addLogMessage("Tome records: A powerful sorcerer has departed to another plane.", 'lore');
             }
         });
 
         socket.on('game_state_update', (allPlayers) => {
-            // console.log('Game state update recieved', allPlayers.length, "players");
             let foundSelf = false;
             const currentOtherPlayers = {};
 
-            for (const playerData of allplayers) {
+            for (const playerData of allPlayers) { 
                 if (playerData.id === myPlayerID) {
                     selfPlayer = playerData;
                     foundSelf = true;
@@ -227,27 +225,63 @@
             if (!foundSelf && myPlayerID) {
                 console.warn("Self not found in game state update. Possible desync or disconnect.");
                 updateStatus("Your connection to this world wavers... (bad connection)");
-                addLogMessage("Warning: Connection to self is unstable.", "error");
+                addLogMessage("Tome's pages flutter: Warning! Your connection to self is unstable.", 'event-bad');
+                // Potentially clear selfPlayer or handle re-connection logic here
+            }
+
+            if (selfPlayer && prevSelfPlayerState) {
+                const moved = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
+                const turned = selfPlayer.char !== prevSelfPlayerState.char;
+
+                if (moved) {
+                    let directionWord = "somewhere";
+                    const dx = selfPlayer.x - prevSelfPlayerState.x;
+                    const dy = selfPlayer.y - prevSelfPlayerState.y;
+                    if (dx === 1 && dy === 0) directionWord = "east";
+                    else if (dx === -1 && dy === 0) directionWord = "west";
+                    else if (dx === 0 && dy === 1) directionWord = "south";
+                    else if (dx === 0 && dy === -1) directionWord = "north";
+                    
+                    let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                    addLogMessage(`Tome traces your path: You venture ${directionWord}, arriving at (${selfPlayer.x}, ${selfPlayer.y}), still facing ${facingDirectionWord}.`, 'lore');
+                } else if (turned) { // Only log turning if not also moved in same tick for less spam
+                    let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                    addLogMessage(`Tome observes: You turn to face ${facingDirectionWord}.`, 'lore');
+                }
+            }
+            if (selfPlayer) { // Update prevSelfPlayerState only if selfPlayer is valid
+                 prevSelfPlayerState = { ...selfPlayer };
             }
 
             drawGrid();
         });
 
+        function getDirectionWord(char) {
+            if (char === '^') return "North";
+            if (char === 'v') return "South";
+            if (char === '<') return "West";
+            if (char === '>') return "East";
+            return "an unknown direction";
+        }
+
+
         socket.on('action_queued', (data) => {
-            addLogMessage(data.message, "server");
+            addLogMessage("Tome takes note... " + data.message, "system");
         });
 
         socket.on('action_failed', (data) => {
-            addLogMessage("Action failed.", "server");
+            // The server's message like "unknown command" should be in data.message
+            addLogMessage("Tome flips through its pages: " + data.message, 'event-bad');
         });
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server.');
             updateStatus("Severed from the Ethereal Plane! (Disconnected)");
-            addLogMessage("Disconnected from server!", "error");
+            addLogMessage("Tome wails: Disconnected from the server! The weave unravels!", 'event-bad');
             selfPlayer = null;
             otherPlayers = {};
-            drawGrid();
+            prevSelfPlayerState = null;
+            drawGrid(); // Redraw to show empty or disconnected state
         });
 
         // -- Command Config -- //
@@ -259,12 +293,10 @@
         };
 
         const DIRECTION_ALIASES = {
-            // Cardinal Directions
             "north":    {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
             "south":    {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
             "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
-            "east":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
-            // Relative Directions
+            "east":     {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
             "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
             "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
         }
@@ -289,14 +321,12 @@
                 if (config.aliases.includes(directionStr)) {
                     if (config.relative) {
                         result.isValid = true;
-                        if          (dirKey === "forward") {
+                        if (dirKey === "forward") {
                             result.char = curFacing;
-                            if      (curFacing === '^') result.dy = -1;
-                            else if (curFacing === 'v') result.dy = 1;
-                            else if (curFacing === '<') result.dx = -1;
-                            else if (curFacing === '>') result.dx = 1;
-                            else result.isValid = false;
-                        } else if   (dirKey === "backward") {
+                            const [dx, dy] = get_dx_dy_from_direction_str(curFacing);
+                            result.dx = dx; result.dy = dy;
+                            if (dx === 0 && dy === 0 && (curFacing !== '^' && curFacing !=='v' && curFacing !=='<' && curFacing !=='>')) result.isValid = false; // Should not happen if curFacing is valid
+                        } else if (dirKey === "backward") {
                             if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
                             else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
@@ -306,22 +336,23 @@
                     } else {
                         result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
                     }
-                    return result; // Match found!
+                    return result;
                 }
             }
             return result;
         }
 
-        let savedCharOffset = 0; 
+        let savedCharOffset = 0;
 
         function escapeHtml(unsafe) {
             return unsafe
                  .replace(/&/g, "&")
                  .replace(/</g, "<")
                  .replace(/>/g, ">")
-             //  .replace(/"/g, """)
+                 .replace(/"/g, '"')
                  .replace(/'/g, "'");
         }
+
 
         function saveCursorPosition() {
             const selection = window.getSelection();
@@ -331,14 +362,13 @@
                 preSelectionRange.selectNodeContents(commandInput);
                 preSelectionRange.setEnd(range.startContainer, range.startOffset);
                 savedCharOffset = preSelectionRange.toString().length;
-                // console.log("Saved offset:", savedCharOffset, "Current text:", commandInput.textContent);
             } else {
                 savedCharOffset = (commandInput.textContent || "").length;
             }
         }
 
         function restoreCursorPosition() {
-            commandInput.focus(); 
+            commandInput.focus();
             const selection = window.getSelection();
             const range = document.createRange();
             let charCount = 0;
@@ -353,22 +383,18 @@
                         if (nextCharCount >= targetOffset) {
                             currentNode = child;
                             nodeCharIndex = targetOffset - charCount;
-                            return true; // Found
+                            return true;
                         }
                         charCount = nextCharCount;
                     } else if (child.nodeType === Node.ELEMENT_NODE) {
-                        // If it's an element (like our span), recurse into it
                         if (findNodeAndOffsetRecursive(child, targetOffset)) {
-                            return true; // Found in child
+                            return true;
                         }
-                        // If not found in child, and the element itself contributes to the visual text length
-                        // (e.g. if spans had padding or borders that affect visual position)
-                        // this part could get more complex. For simple text content, recursing is enough.
                     }
                 }
-                return false; // Not found in this branch
+                return false;
             }
-            
+
             if (findNodeAndOffsetRecursive(commandInput, savedCharOffset)) {
                 try {
                     range.setStart(currentNode, nodeCharIndex);
@@ -376,68 +402,48 @@
                     selection.removeAllRanges();
                     selection.addRange(range);
                 } catch (e) {
-                    // console.warn("Error setting range, fallback to end:", e);
-                    // Fallback for safety
                     range.selectNodeContents(commandInput);
                     range.collapse(false);
                     selection.removeAllRanges();
                     selection.addRange(range);
                 }
             } else {
-                // Fallback: If exact offset not found (e.g. offset > text length), place at end
                 range.selectNodeContents(commandInput);
-                range.collapse(false); 
+                range.collapse(false);
                 selection.removeAllRanges();
                 selection.addRange(range);
             }
         }
-        
+
         function handleCommandInputHighlighting() {
-            // Don't save/restore if we're about to clear the input on submit
             if (commandInput.getAttribute('data-clearing') === 'true') return;
-
-            saveCursorPosition(); 
-
-            const rawText = commandInput.textContent || ""; // Get raw text for processing
-            // If the last char is a space and it's not being represented in innerHTML properly,
-            // we might need special handling.
-            const endsWithSpace = rawText.endsWith(' ');
-
-
-            const words = rawText.split(/(\s+)/); 
+            saveCursorPosition();
+            const rawText = commandInput.textContent || "";
+            const words = rawText.split(/(\s+)/);
             let newHtml = "";
 
             words.forEach((word, index) => {
-                if (word.match(/^\s+$/)) { 
-                    newHtml += word; // Preserve spaces as they are
-                    return;
+                if (word.match(/^\s+$/)) {
+                    newHtml += word; return;
                 }
-                if (word === "") return; 
+                if (word === "") return;
 
                 let isAlias = false;
                 const lowerWord = word.toLowerCase();
-                // Determine if it's the first "semantic" word
                 let isFirstSemanticWord = true;
                 for(let i=0; i<index; i++){
-                    if(words[i].trim() !== ""){
-                        isFirstSemanticWord = false;
-                        break;
-                    }
+                    if(words[i].trim() !== ""){ isFirstSemanticWord = false; break; }
                 }
 
-
-                if (isFirstSemanticWord) { 
-                    for (const canonicalAction in ACTION_ALIASES) {
-                        if (ACTION_ALIASES[canonicalAction].includes(lowerWord)) {
-                            isAlias = true;
-                            break;
-                        }
-                    }
-                } else { 
+                if (isFirstSemanticWord) {
+                    if (parseAction(lowerWord)) isAlias = true;
+                } else {
+                    // Check if it's a direction alias, but only if previous word was a move/look action
+                    // This simple check might not be perfect for multi-word targets after non-move/look actions
+                    // For now, it highlights any known direction alias if not the first word.
                     for (const dirKey in DIRECTION_ALIASES) {
                         if (DIRECTION_ALIASES[dirKey].aliases.includes(lowerWord)) {
-                            isAlias = true;
-                            break;
+                            isAlias = true; break;
                         }
                     }
                 }
@@ -449,52 +455,35 @@
                 }
             });
 
-            // If the raw text ended with a space, but newHtml doesn't (e.g. if space was part of a word that got wrapped)
-            // ensure the space is there. This is a bit of a heuristic.
-            // A better way might be to ensure that split keeps all trailing spaces correctly.
-            // The current split(/(\s+)/) should be okay.
-            // The main problem is that innerHTML might collapse trailing spaces within the div itself
-            // if not styled properly or if the space is the only content.
-            // One trick is to add a zero-width space or   if it's just a space causing issues.
-            // For now, let's trust the newHtml construction.
-
             if (commandInput.innerHTML !== newHtml) {
                  commandInput.innerHTML = newHtml;
             }
-
             restoreCursorPosition();
         }
 
         commandInput.addEventListener('input', handleCommandInputHighlighting);
-
         commandInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
-                event.preventDefault(); 
-                // Temporarily mark that we are clearing, so 'input' event from clear doesn't run highlight
+                event.preventDefault();
                 commandInput.setAttribute('data-clearing', 'true');
                 const submitButton = commandForm.querySelector('button[type="submit"]');
                 if (submitButton) submitButton.click();
-                // Allow a microtask for the click/submit to process before removing the attribute
                 Promise.resolve().then(() => commandInput.removeAttribute('data-clearing'));
             }
-            // No need to call saveCursorPosition here, 'input' event will handle it.
         });
 
-        //todo: implement click targeting
-        //todo: implement dropdown box action selector
         commandForm.addEventListener('submit', (event) => {
-            console.log("Input form submitted!");
             event.preventDefault();
             if (!selfPlayer) {
-                addLogMessage("You are not fully manifest in this realm yet.", "error");
+                addLogMessage("Tome whispers urgently: You are not fully manifest in this realm yet!", 'event-bad');
                 return;
             }
-            const inputText = commandInput.textContent.trim(); // Keep original case for now, parsing functions handle lowercasing
-            commandInput.innerHTML = ''; // Clear input (after getting text)
+            const inputText = commandInput.textContent.trim();
+            commandInput.innerHTML = '';
 
             if (!inputText) return;
 
-            addLogMessage(`> ${inputText}`); // Log the command itself
+            addLogMessage(`> ${inputText}`, 'user-input');
 
             const parts = inputText.split(/\s+/);
             const actionWord = parts[0];
@@ -503,39 +492,44 @@
             const canonicalAction = parseAction(actionWord);
 
             if (!canonicalAction) {
-                addLogMessage(`Your will "${actionWord}" is indecipherable. (Type "help" for guidance - eventually!)`, "error");
+                addLogMessage(`Tome seems puzzled: Your will "${actionWord}" is indecipherable. (Perhaps 'help' will illuminate the path?)`, 'event-bad');
                 commandInput.focus();
                 return;
             }
-            
+
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmit = false;
-            
+
             if (canonicalAction === "move") {
-                const effectiveTargetWord = targetWord || "forward";
+                const effectiveTargetWord = targetWord || "forward"; // Default to "forward" if no direction given
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
-                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, new_char: dirResult.char };
+                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char }; // newChar, not new_char
                     shouldEmit = true;
+                    // Client-side prediction/narration of intent:
+                    // addLogMessage(`Tome prepares to scribe your journey ${effectiveTargetWord}...`, 'system');
                 } else {
-                    addLogMessage(`You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, "error");
+                    addLogMessage(`Tome frowns: You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, 'event-bad');
                 }
             } else if (canonicalAction === "look") {
-                if (!targetWord) {
-                    const dirResult = parseDirection("forward", selfPlayer.char);
-                    commandToSend.details = { dx: 0, dy: 0, new_char: dirResult.char };
+                 const effectiveTargetWord = targetWord || "forward"; // Default to "forward" to just look ahead
+                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char); // Use current facing if "forward"
+                if (dirResult.isValid) {
+                    // For 'look', dx/dy are 0, only char (facing) changes IF a direction is specified
+                    // If just 'look' (interpreted as 'look forward'), char doesn't change here, dx/dy still 0
+                    // The server will handle what 'look' means in terms of game events/text.
+                    // We send the *new* character orientation if they specified a direction to look.
+                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char }; // newChar, not new_char
                     shouldEmit = true;
+                    // addLogMessage(`Tome readies its quill, you peer ${effectiveTargetWord}...`, 'system');
                 } else {
-                    const dirResult = parseDirection(targetWord, selfPlayer.char);
-                    if (dirResult.isValid) {
-                        commandToSend.details = { dx: 0, dy: 0, new_char: dirResult.char };
-                        shouldEmit = true;
-                    } else {
-                        addLogMessage(`You try to peer towards "${targetWord}", but your vision blurs.`, "error");
-                    }
+                     addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
                 }
+            } else if (canonicalAction === "help") {
+                addLogMessage("Tome patiently explains: My pages are still being written for detailed help. For now, try 'move [direction]' (north, south, east, west, forward, backward) or 'look [direction]'.", 'system');
+                // No server emit for client-side help, unless help content comes from server.
             } else {
-                addLogMessage(`The arcane art of "${canonicalAction}" is yet beyond your grasp.`, "error");
+                addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding.`, 'event-bad');
             }
 
             if (shouldEmit) {
@@ -546,8 +540,8 @@
 
         // Initial setup
         drawGrid();
-        if (commandInput) commandInput.focus(); // Autofocus the command input div
-        addLogMessage("Welcome, Wizard. The Ethereal Waves await your command.", "server");
+        if (commandInput) commandInput.focus();
+        addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'system');
 
     </script>
 </body>
