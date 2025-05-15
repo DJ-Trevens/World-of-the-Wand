@@ -46,9 +46,44 @@
         const OBSERVABLE_WIDTH = 1.0 // Cone's width increases by 1 for each step away
         const AURA_VISION_RANGE = 1; // See directly adjacent tiles
 
-        function isVisible(playerX, playerY, playerChar, targetX, targetY) {
+        // -- Helper functions -- //
+        function get_dx_dy_from_direction_str(s) {
+            const mapping = {'^': [0,-1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]}; // Using ^v<> for JS
+            return mapping[s] || [0,0];
+        }
+
+        function get_direction_str_from_dx_dy(dx, dy) {
+            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
+            return mapping[`${dx},${dy}`];
+        }
+
+        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
+            const worldDX = targetX - playerX;
+            const worldDY = targetY - playerY;
+
+            let pf;
+            if (playerFacingChar === '^') pf = 'n';
+            else if (playerFacingChar === 'v') pf = 's';
+            else if (playerFacingChar === '<') pf = 'w';
+            else if (playerFacingChar === '>') pf = 'e';
+            else return { rx: worldDX, ry: worldDY }; // Fallback
+
+            if (pf === 'n') return {rx: worldDX, ry: worldDY};
+            if (pf === 's') return {rx: -worldDX, ry: -worldDY};
+            if (pf === 'w') return {rx: -worldDY, ry: worldDX};
+            if (pf === 'e') return {rx: worldDY, ry: -worldDX};
+            
+            return { rx: worldDX, ry: worldDY }; // Fallback
+        }
+
+        function manhattanDistance(x1, y1, x2, y2) {
+            return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+        }
+
+        function isVisible(playerX, playerY, playerChar, targetX, targetY, scry = false) {
             // Aura Vision
-            if (Math.abs(playerX - targetX) <= AURA_VISION_RANGE && Math.abs(playerY - targetY) <= AURA_VISION_RANGE) {
+            const {rx, ry} = getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY);
+            if (scry || manhattanDistance(playerX, playerY, targetX, targetY) <= AURA_VISION_RANGE) {
                 return true;
             }
 
@@ -118,6 +153,7 @@
                 console.warn("drawGrid: Output string is empty or only whitespace!"); // Debug
             }
             gameCanvas.textContent = output;
+            updateStatus();
         }
 
         // -- WebSocket Event Handlers -- //
