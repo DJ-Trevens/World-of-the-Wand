@@ -64,10 +64,14 @@ def game_loop():
 
                 queuedActions[sid] = None # Clear the action for the player this tick
         # For optimization, later send only data relevant to each client's FOV/range
-        currentPlayerstates = list(players.values())
-        socketio.emit('game_state_update', currentPlayerStates) # Emits to all connected clients
+        current_player_states = list(players.values())
+        socketio.emit('game_state_update', current_player_states) # Emits to all connected clients
         
 # Event Handling #
+@app.route('/')
+def health_check():
+    return "OK", 200
+
 @socketio.on('connect')
 def handle_connect():
     sid = request.sid # Get the ID of the connected client
