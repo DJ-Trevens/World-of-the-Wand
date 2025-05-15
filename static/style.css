@@ -1,37 +1,47 @@
-html, body {
+html {
     height: 100%;
-    margin: 0;
-    padding: 0;
-    font-family: 'Courier New', Courier, monospace;
-    background-color: #1a1a1a;
-    color: #e0e0e0;
-}
-
-body, #gameCanvas, #commmandText, #commandForm, button {
-    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
 }
 
 body {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    padding: 20px;
+    min-height: 100vh;
+    margin: 0;
+    padding: 15px;
     box-sizing: border-box;
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+    align-items: center;
 }
 
-#mainHeaderStatus {
-    font-size: 1.6em;
-    font-weight: bold;
-    color: #275E8C;
-    padding: 12px 20px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #275E8C;
-    min-width: 350px;
-    background-color: #2a2a2a;
+#gameCanvas, #commandForm, button {
+    width: 100%;
+    max-width: 700px;
+    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+}
+
+
+
+#commandLog {
+    width: 100%;
+    max-width: 700px;
+    margin-top: auto;
+    padding: 15px;
+    background-color: #202020;
     border-radius: 5px;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
-    border: 1px solid #3a3a3a;
-    text-align: center;
+    border: 1px solid #303030;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.log-entry {
+    margin-top: 4px; /* Use margin-top due to column-reverse */
+    margin-bottom: 0;
+    word-wrap: break-word;
 }
 
 #gameCanvas {
@@ -44,26 +54,23 @@ body {
     background-color: #0f0f0f;
     text-align: left;
     min-height: 300px;
-    min-width: 200px;
+    flex-grow: 1;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
     border-radius: 3px;
     margin-bottom: 15px;
 }
 
-#commandLog {
-    width: 100%;
-    max-width: 650px;
-    height: 180px;
-    border: 1px solid #303030;
-    background-color: #111111;
-    padding: 10px;
-    margin-bottom: 20px;
-    overflow-y: auto; 
-    font-size: 0.9em;
-    color: #c0c0c0;
-    box-sizing: border-box;
-    border-radius: 3px;
-    line-height: 1.4;
+#mainHeaderStatus {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #275E8C;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    border-bottom: none;
+    background-color: #2a2a2a;
+    border-radius: 5px;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
+    text-align: center;
 }
 
 .log-entry {
@@ -77,7 +84,7 @@ body {
 }
 
 .log-type-success {
-    color: #50c878;
+    color: #66ff66;
 }
 
 .log-type-info {
@@ -129,7 +136,7 @@ body {
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
-    max-width: 400px;
+    max-width: 400px; /* Or adjust as needed */
     margin-right: 10px;
     white-space: nowrap;
     overflow: hidden;
@@ -167,19 +174,22 @@ body {
     color: #5D9CEC;
 }
 
-#commandFeedback.error-feedback {
-    color: #ff6b6b;
+.log-type-error {
+    color: #ff7777;
     font-weight: bold;
 }
-
-/* Specific green emphasis for things that DEMAND attention, if needed elsewhere */
+.log-type-success {
+    color: #66ff66;
+}
+.log-type-info {}
+.log-type-server {
+    color: #9999DD;
+    font-style: italic;
+}
+.log-type-game-event {
+    color: #d0a0d0;
+}
 .text-emphasis-blue {
     color: #275E8C;
-    font-weight: bold;
-}
-
-/* For very specific error messages, */
-.error-feedback {
-    color: #ff7777 !important;
     font-weight: bold;
 }

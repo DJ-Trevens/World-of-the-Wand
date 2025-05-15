@@ -14,9 +14,9 @@
     </script>
 </head>
 <body>
-    <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
+    <div id = "commandLog"></div>
     <div id = "gameCanvas"> Summoning World... </div>
-    <p id = "commandLog"></p>
+    <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
 
     <div id = "commandInputBox">
         <form id = "commandForm">
@@ -301,7 +301,7 @@
                         } else if   (dirKey === "backward") {
                             if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
-                            else if (curFacing === '<') result = {char: '>', dx: 0,  dy: 1,  isValid: true};
+                            else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
                             else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
                             else result.isValid = false;
                         }
