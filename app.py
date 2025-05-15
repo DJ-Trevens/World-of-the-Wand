@@ -2,7 +2,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECURITY_KEY'] = 'security_key' #change later!
+app.config['SECURITY_KEY'] = '06b2afa0d43afc8cfae74073371ccf08561bf0c29f321a8b' #change later!
 socketio = SocketIO(app)
 
 # Game #
