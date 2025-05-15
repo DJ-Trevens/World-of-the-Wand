@@ -1,10 +1,13 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
 app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key') #change later!
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode = 'eventlet')
 
 # Game #
 GRID_WIDTH = 20
@@ -16,7 +19,7 @@ GRID_HEIGHT = 15
 player_state = {
     'id': None, # Set to Session ID on connect
     'x': GRID_WIDTH // 2,
-    'y': GRID_WIDTH // 2,
+    'y': GRID_HEIGHT // 2,
     'char': '^'
 }
 
@@ -66,5 +69,5 @@ def handle_player_move(data):
 def handle_disconnect():
     print(f"Client disconmnected") # Add logic when support for multiple players is added
 
-if __name__ == '__main__':
-    socketio.run(app, debug = True, host = '0.0.0.0')
+#   if __name__ == '__main__':
+#       socketio.run(app, debug = True, host = '0.0.0.0')
