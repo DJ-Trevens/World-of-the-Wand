@@ -14,14 +14,13 @@ GAME_PATH_PREFIX = '/world-of-the-wand'
 
 game_blueprint = Blueprint('game', __name__, template_folder = 'templates', static_folder = 'static', static_url_path = '/static')
 
-@game_blueprint.route('/')
-def index_route():
-    return render_template('index.html')
-
 app.register_blueprint(game_blueprint, url_prefix = GAME_PATH_PREFIX)
 
 socketio = SocketIO(app, async_mode = "eventlet", path = f"{GAME_PATH_PREFIX}/socket.io")
 
+@game_blueprint.route('/')
+def index_route():
+    return render_template('index.html')
 # Game #
 GRID_WIDTH = 30
 GRID_HEIGHT = 15

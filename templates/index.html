@@ -5,9 +5,7 @@
     <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
     <title>World of the Wand</title>
     <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
-
-    <!-- Socket.IO client library (served by Flask-SocketIO) [INTEGRITY CHECK DISABLED FOR DEBUGGING]-->
-    <!-- <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"></script>-->
+    
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         const socket = io({path: "/world-of-the-wand/socket.io"});
@@ -314,7 +312,7 @@
             return result;
         }
 
-         let savedCharOffset = 0;
+        let savedCharOffset = 0; 
 
         function escapeHtml(unsafe) {
             return unsafe
@@ -325,8 +323,6 @@
                  .replace(/'/g, "'");
         }
 
-        
-
         function saveCursorPosition() {
             const selection = window.getSelection();
             if (selection.rangeCount > 0 && commandInput.contains(selection.anchorNode)) {
@@ -335,70 +331,102 @@
                 preSelectionRange.selectNodeContents(commandInput);
                 preSelectionRange.setEnd(range.startContainer, range.startOffset);
                 savedCharOffset = preSelectionRange.toString().length;
+                // console.log("Saved offset:", savedCharOffset, "Current text:", commandInput.textContent);
             } else {
-                // Fallback or if not focused, assume end
                 savedCharOffset = (commandInput.textContent || "").length;
             }
         }
 
         function restoreCursorPosition() {
-            commandInput.focus(); // Ensure it's focused before trying to set selection
+            commandInput.focus(); 
             const selection = window.getSelection();
             const range = document.createRange();
             let charCount = 0;
-            let foundNode = false;
+            let currentNode = null;
+            let nodeCharIndex = 0;
 
-            function findNodeAndOffset(node, offset) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    if (charCount + node.length >= offset) {
-                        range.setStart(node, offset - charCount);
-                        range.collapse(true); // Collapse to the start
-                        foundNode = true;
-                        return true; // Stop iteration
-                    }
-                    charCount += node.length;
-                } else {
-                    for (let i = 0; i < node.childNodes.length; i++) {
-                        if (findNodeAndOffset(node.childNodes[i], offset)) {
-                            return true; // Stop iteration
+            function findNodeAndOffsetRecursive(parentNode, targetOffset) {
+                for (let i = 0; i < parentNode.childNodes.length; i++) {
+                    const child = parentNode.childNodes[i];
+                    if (child.nodeType === Node.TEXT_NODE) {
+                        const nextCharCount = charCount + child.length;
+                        if (nextCharCount >= targetOffset) {
+                            currentNode = child;
+                            nodeCharIndex = targetOffset - charCount;
+                            return true; // Found
                         }
+                        charCount = nextCharCount;
+                    } else if (child.nodeType === Node.ELEMENT_NODE) {
+                        // If it's an element (like our span), recurse into it
+                        if (findNodeAndOffsetRecursive(child, targetOffset)) {
+                            return true; // Found in child
+                        }
+                        // If not found in child, and the element itself contributes to the visual text length
+                        // (e.g. if spans had padding or borders that affect visual position)
+                        // this part could get more complex. For simple text content, recursing is enough.
                     }
                 }
-                return false;
+                return false; // Not found in this branch
             }
-
-            if (findNodeAndOffset(commandInput, savedCharOffset)) {
-                selection.removeAllRanges();
-                selection.addRange(range);
+            
+            if (findNodeAndOffsetRecursive(commandInput, savedCharOffset)) {
+                try {
+                    range.setStart(currentNode, nodeCharIndex);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } catch (e) {
+                    // console.warn("Error setting range, fallback to end:", e);
+                    // Fallback for safety
+                    range.selectNodeContents(commandInput);
+                    range.collapse(false);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
             } else {
-                // Fallback: if the offset is out of bounds (e.g., text was deleted)
-                // or if something went wrong, place cursor at the end.
+                // Fallback: If exact offset not found (e.g. offset > text length), place at end
                 range.selectNodeContents(commandInput);
-                range.collapse(false); // false for end
+                range.collapse(false); 
                 selection.removeAllRanges();
                 selection.addRange(range);
             }
         }
         
         function handleCommandInputHighlighting() {
-            saveCursorPosition(); // Save before changing innerHTML
+            // Don't save/restore if we're about to clear the input on submit
+            if (commandInput.getAttribute('data-clearing') === 'true') return;
 
-            const text = commandInput.textContent || "";
-            const words = text.split(/(\s+)/); 
+            saveCursorPosition(); 
+
+            const rawText = commandInput.textContent || ""; // Get raw text for processing
+            // If the last char is a space and it's not being represented in innerHTML properly,
+            // we might need special handling.
+            const endsWithSpace = rawText.endsWith(' ');
+
+
+            const words = rawText.split(/(\s+)/); 
             let newHtml = "";
 
-            words.forEach((word) => {
+            words.forEach((word, index) => {
                 if (word.match(/^\s+$/)) { 
-                    newHtml += word; 
+                    newHtml += word; // Preserve spaces as they are
                     return;
                 }
                 if (word === "") return; 
 
                 let isAlias = false;
                 const lowerWord = word.toLowerCase();
-                const firstWordInCommand = newHtml.trim().length === 0; 
+                // Determine if it's the first "semantic" word
+                let isFirstSemanticWord = true;
+                for(let i=0; i<index; i++){
+                    if(words[i].trim() !== ""){
+                        isFirstSemanticWord = false;
+                        break;
+                    }
+                }
 
-                if (firstWordInCommand) { 
+
+                if (isFirstSemanticWord) { 
                     for (const canonicalAction in ACTION_ALIASES) {
                         if (ACTION_ALIASES[canonicalAction].includes(lowerWord)) {
                             isAlias = true;
@@ -420,26 +448,36 @@
                     newHtml += escapeHtml(word);
                 }
             });
-            
-            // Only update innerHTML if it has actually changed to avoid unnecessary re-renders and cursor jumps
+
+            // If the raw text ended with a space, but newHtml doesn't (e.g. if space was part of a word that got wrapped)
+            // ensure the space is there. This is a bit of a heuristic.
+            // A better way might be to ensure that split keeps all trailing spaces correctly.
+            // The current split(/(\s+)/) should be okay.
+            // The main problem is that innerHTML might collapse trailing spaces within the div itself
+            // if not styled properly or if the space is the only content.
+            // One trick is to add a zero-width space or   if it's just a space causing issues.
+            // For now, let's trust the newHtml construction.
+
             if (commandInput.innerHTML !== newHtml) {
                  commandInput.innerHTML = newHtml;
             }
 
-            restoreCursorPosition(); // Restore after innerHTML might have changed
+            restoreCursorPosition();
         }
 
         commandInput.addEventListener('input', handleCommandInputHighlighting);
-        // No need for keyup/mouseup for saveSelection if 'input' event is sufficient
 
         commandInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault(); 
+                // Temporarily mark that we are clearing, so 'input' event from clear doesn't run highlight
+                commandInput.setAttribute('data-clearing', 'true');
                 const submitButton = commandForm.querySelector('button[type="submit"]');
-                if (submitButton) submitButton.click(); 
+                if (submitButton) submitButton.click();
+                // Allow a microtask for the click/submit to process before removing the attribute
+                Promise.resolve().then(() => commandInput.removeAttribute('data-clearing'));
             }
-            // Consider saving cursor on specific keys if 'input' isn't enough
-            // else { saveCursorPosition(); } // Maybe too aggressive
+            // No need to call saveCursorPosition here, 'input' event will handle it.
         });
 
         //todo: implement click targeting
