@@ -20,8 +20,7 @@
     <script src = "https://cdn.socket.io/4.7.5/socket.io.min.js" integrity = "sha384-2huaZvOR9iDzHqslqNzYWMF7A7kW5HTv6grfonu3IHDEwuO0TVRFnThtGNgNHrXL" crossorigin = "anonymous"></script>
 </head>
 <body>
-    <h1>World of the Wand (Prerelease 1.0)</h1>
-    <div id = "statusBar"> Pondering... </div>
+    <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
     <div id = "gameCanvas"> Summoning World... </div>
 
     <!-- Command Input Box -->
@@ -36,7 +35,7 @@
 
     <script>
         const gameCanvas = document.getElementById('hameCanvas');
-        const statusBar = document.getElementById('statusBar');
+        const statusBar = document.getElementById('mainHeaderStatus');
         const socket = io();
 
         const commandForm = document.getElementById('commandForm');
@@ -93,6 +92,14 @@
             return false; // Not in aura nor observable cone.
         }
 
+        function updateStatus() {
+            if (player) {
+                mainHeaderStatus.textContent = `${player.char}: (${player.x}, ${player.y}) | Mana: 175/175 | Wand: 100%`;
+            } else {
+                mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
+            }
+        }
+
         function drawGrid() {
             // Simple grid drawing implementation
             if (!player || GRID_WIDTH === 0) {
@@ -120,13 +127,12 @@
                 console.warn("drawGrid: Output string is empty or only whitespace!"); // Debug
             }
             gameCanvas.textContent = output;
-            statusBar.textContent = '${player.char}: (${player.x}, ${player.y}) | Mana: ... | Wand: ...';
         }
 
         // -- WebSocket Event Handlers -- //
         socket.on('connect', () => {
             console.log('Connected to server!');
-            statusBar.textContent = "Connected. Waiting for game state..."; //Make this more in-universe
+            updateStatus();
         });
 
         socket.on('initial_state', (data) => {
@@ -135,11 +141,11 @@
             GRID_WIDTH = data.grid_width;
             GRID_HEIGHT = data.grid_height;
             if (player && typeof GRID_WIDTH === 'number' && typeof GRID_HEIGHT === 'number' && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
-                statusBar.textContent = "Game Ready!";
+                updateStatus();
                 drawGrid();
             } else {
                 console.error("Initial state data incomplete or invalid:", data);
-                statusBar.textContent = "Error receiving initial world state.";
+                statusBar.textContent = "Error manifesting world.";
             }
         });
 

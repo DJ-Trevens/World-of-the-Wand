@@ -1,43 +1,94 @@
 body {
     font-family: 'Courier New', Courier, monospace;
-    background-color: #222;
-    color: #dddddd;
+    background-color: #1a1a1a;
+    color: #e0e0e0;
     margin: 20px;
+    text-align: center;
+}
+
+#mainHeaderStatus {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: #50c878;
+    padding: 10px 15px;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #50c878;
+    display: inline-block;
+    min-width: 300px;
+    background-color: #282828;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0,.3);
 }
 
 #gameCanvas {
     white-space: pre;
-    line-height: 1;
+    line-height: 1.1;
     font-size: 20px;
-    border: 1px solid #555;
-    padding: 10px;
+    border: 1px solid #383838;
+    padding: 15px;
     display: inline-block;
-    color: #a0a0a0;
-    background-color: red !important;
-    min-height: 50px;
-    min-width: 50px;
+    color: #c0c0c0;
+    background-color: #0d0d0d;
+    text-align: left;
+    min-height: 200px;
+    min-width: 100px;
 }
 
-#statusBar {
-    margin-bottom: 15px;
-    padding: 5px;
-    background-color: #333;
-    border: 1px solid #444;
-    color: #8f8;
-    min-height: 1.2em;
+#commandInputBox {
+    margin-top: 25px;
+    display: inline-block;
+    text-align: left;
+}
+
+#commandForm label {
+    color: #b0b0b0;
+    margin-right: 8px;
 }
 
 #commandText {
-    background-color: #333;
-    color: #eee;
-    border: 1px solid #555;
-    padding: 5px;
+    background-color: #252525;
+    color: #e0e0e0;
+    border: 1px solid #404040;
+    padding: 8px;
+    margin-right: 8px;
+    border-radius: 4px;
+    width: 250px; /* Adjust as needed */
 }
 
 #commandText:focus {
-    outline: 1px solid #ffa500;
+    outline: none;
+    border-color: #50c878;
+    box-shadow: 0 0 5px rgba(80, 200, 120, 0.5);
 }
 
-h1 {
-    color: #ffa500
+#commandForm button {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+    border: 1px solid #505050;
+    padding: 8px 15px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-weight: bold;
+}
+
+#commandForm button:hover {
+    background-color: #4a4a4a;
+    border-color: #50c878;
+}
+
+#commandFeedback {
+    /* General text color will be #e0e0e0.
+       For errors specifically to be different,
+       change this text color dynamically with JS or add a class.
+       For now, it inherits the body's off-white. */
+    /* Example for error-specific styling for a class like .error-feedback */
+    /* .error-feedback { color: #ff6b6b; } /* A soft red for errors */
+    min-height: 1.2em;
+    margin-top: 10px;
+}
+
+/* Specific green emphasis for things that DEMAND attention, if needed elsewhere */
+.text-emphasis-green {
+    color: #50c878; /* Emerald Green */
+    font-weight: bold;
 }
