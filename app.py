@@ -98,7 +98,7 @@ def handle_connect():
     # This is sent immediately for responsiveness, not tied to game tick
     socketio.emit('player_joined', newPlayer, broadcast = True, include_self = False)
 
-@socketio('queue_command') # Client sends this event to queue an action
+@socketio.on('queue_command') # Client sends this event to queue an action
 def handle_queue_command(data):
     sid = request.sid
     if sid in players:
