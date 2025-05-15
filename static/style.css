@@ -1,0 +1,29 @@
+body {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #222;
+    color: #ddd;
+    margin: 20px;
+}
+
+#gameCanvas {
+    white-space: pre;
+    line-height: 1;
+    font-size: 20px;
+    border: 1px solid #555;
+    padding: 10px;
+    display: inline-block;
+    background-color: #111;
+}
+
+#statusBar {
+    margin-bottom: 15px;
+    padding: 5px;
+    background-color: #333;
+    border: 1px solid #444;
+    color: #8f8;
+    min-height: 1.2em;
+}
+
+h1 {
+    color: #ffa500
+}

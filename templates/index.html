@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+    <meta charset = "UTF-8">
+    <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
+    <title>World of the Wand</title>
+    <style>
+        body { font-family: 'Courier New', Courier, monospace; background-color: #222; color: ddd; }
+        #gameCanvas {
+            white-space: pre;   /* Preserve spaces and line breaks */
+            line-height: 1;     /* keep lines tight for grid appearance */
+            font-size: 20px;    /* Adjust for visibility as needed */
+            border: 1px solid #555;
+            padding: 5px;
+            display: inline-block; /* Fit content */
+        }
+        #statusBar { margin-bottom: 10px; color: #8f8; }
+    </style>
+    <!-- Socket.IO client library (served by Flask-SocketIO) -->
+    <script src = "/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <h1>World of the Wand (Prerelease 1.0)</h1>
+    <div id = "statusBar"> Pondering... </div>
+    <div id = "gameCanvas"> Summoning World... </div>
+
+    <!-- Command Input Box -->
+    <div id = "commandInputBox">
+        <form id = "commandForm">
+            <label for = "commandText"> Your will, Wizard? </label>
+            <input type = "text" id = "commandText" name = "commandText" autofocus autocomplete = "off">
+            <button type = "submit"> Execute </button>
+        </form>
+        <p id = "commandFeedback" style = "color: #f99; min-height: 1.2em;"></p>
+    </div>
+
+    <script>
+        const gameCanvas = document.getElementById('hameCanvas');
+        const statusBar = document.getElementById('statusBar');
+        const socket = io();
+
+        const commandForm = document.getElementById('commandForm');
+        const commandInput = document.getElementById('commandText');
+        const commandFeedback = document.getElementById('commandFeedback');
+
+        // -- Client-Side Game State -- //
+        let player = {
+            x: 0,
+            y: 0,
+            char: '^'
+        };
+        let GRID_WIDTH = 10;
+        let GRID_HEIGHT = 8;
+
+        // -- Fog of War -- //
+        const FOG_CHAR = '▒';
+        const FLOOR_CHAR = '.';
+        const WALL_CHAR = '#';
+        const OBSERVABLE_DEPTH = 7; // How many steps away you can see
+        const OBSERVABLE_WIDTH = 1.0 // Cone's width increases by 1 for each step away
+        const AURA_VISION_RANGE = 1; // See directly adjacent tiles
+
+        function isVisible(playerX, playerY, playerChar, targetX, targetY) {
+            // Aura Vision
+            if (Math.abs(playerX - targetX) <= AURA_VISION_RANGE && Math.abs(playerY - targetY) <= AURA_VISION_RANGE) {
+                return true;
+            }
+
+            // Observable Cone!!! Observe! :)
+            let distanceAhead;
+            let distanceSideways;
+
+            if (playerChar === '^') { // Facing North
+                distanceAhead = playerY - targetY; // targetY < playerY means "ahead" (North is ahead)
+                distanceSideways = targetX - playerX; // targetX > playerX means "to the right" (East is on your right)
+            } else if (playerChar === 'v') { // Facing South
+                distanceAhead = targetY - playerY; // targetY > playerY means "ahead" (South is ahead)
+                distanceSideways = playerX - targetX; // targetX < playerX means "to the right" (East is on your right)
+            } else if (playerChar === '<') { // Facing West
+                distanceAhead = playerX - targetX; // targetX < playerX means "ahead" (West is ahead)
+                distanceSideways = playerY - targetY; // targetY < playerY means "to the right" (North is on your right)
+            } else if (playerChar === '>') { // Facing East
+                distanceAhead = targetX - playerX; // targetX > playerX means "ahead" (East) is ahead)
+                distanceSideways = targetY - playerY; // targetY > playerY means "to the right" (South is on your right)
+            } else { 
+                return false; // invalid char
+            }
+            //  (hopefully) accurate cone logic.
+            //  The core idea: (for facing '>' as a baseline)
+            //      relX is distance IN FRONT. Must be positive.
+            //      relY is sideways displacement. abs(relY) must be <= relX * OBSERVABLE_WIDTH
+            //      And relX must be <= OBSERVABLE_DEPTH
+            //  Logic should be reused for other things, since I want to reference cardinal directions very little.
+            if (distanceAhead > 0 && distanceAhead <= OBSERVABLE_DEPTH && Math.abs(distanceSideways) <= Math.floor(distanceAhead * OBSERVABLE_WIDTH)) {
+                return true;
+            }
+            return false; // Not in aura nor observable cone.
+        }
+
+        function drawGrid() {
+            // Simple grid drawing implementation
+            if (!player || GRID_WIDTH === 0) {
+                gameCanvas.textContent = "Waiting for server data..." //Make this more in-universe, idk "contacting the dead" or something
+                return;
+            }
+
+            let output = "";
+            for (let y = 0; y < GRID_HEIGHT; y++) {
+                for (let x = 0; x < GRID_WIDTH; x++) {
+                    if (isVisible(player.x, player.y, player.char, x, y)) {
+                        if (x === player.x && y === player.y) {
+                            output += player.char;
+                        } else {
+                            output += FLOOR_CHAR;
+                        }
+                    } else {
+                        output += FOG_CHAR;
+                    }
+                }
+                output += "\n";
+            }
+            gameCanvas.textContent = output;
+            statusBar.textContent = 'Player: ${player.char} at (${player.x}, ${player.y}) | Mana: ... | Wand: ...';
+        }
+
+        // -- WebSocket Event Handlers -- //
+        socket.on('connect', () => {
+            console.log('Connected to server!');
+            statusBar.textContent = "Connected. Waiting for game state..."; //Make this more in-universe
+        });
+
+        socket.on('initial_state', (data) => {
+            console.log('Recievwd initial state:', data); //Make this more in-universe
+            player = data.player;
+            GRID_WIDTH = data.grid_width;
+            GRID_HEIGHT = data.grid_height;
+            statusBar.textContent = "Game Ready!";
+            drawGrid();
+        });
+
+        socket.on('player_update', (updatedPlayerState) => {
+            player = updatedPlayerState;
+            drawGrid();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server.');
+            statusBar.textContent = "Disconnected from server!";
+        });
+
+        // -- Command Config -- //
+        const ACTION_ALIASES = {
+            "move":     ["move", "go", "walk", "step", "head", "run"],
+            "look":     ["look", "face", "turn"],
+            "cast":     ["cast", "zap", "fire", "spell"],
+            "help":     ["help", "?"]
+        };
+
+        const DIRECTION_ALIASES = {
+            // Cardinal Directions
+            "north":    {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
+            "south":    {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
+            "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w"]},
+            "east ":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e"]},
+            // Relative Directions
+            "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
+            "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
+            "left":     {relative: true, aliases: ["left", "lft", "l"]},
+            "right":    {relative: true, aliases: ["right", "rght", "rgt", "r"]}
+        }
+
+        // -- Command Parsing -- //
+        function parseAction(actionWord) {
+            actionWord = actionWord.toLowerCase();
+            for (const canonicalAction in ACTION_ALIASES) {
+                if (ACTION_ALIASES[canonicalAction].includes(actionWord)) {
+                    return canonicalAction;
+                }
+            }
+            return null;
+        }
+
+        function parseDirection(directionStr, curFacing) {
+            directionStr = directionStr.toLowerCase();
+            let result = {char: curFacing, dx: 0, dy: 0, isValid: false};
+
+            for (const dirKey in DIRECTION_ALIASES) {
+                const config = DIRECTION_ALIASES[dirKey];
+                if (config.aliases.includes(directionStr)) {
+                    if (config.relative) {      // Handle Relative Directions
+                        if          (dirKey === "forward") {
+                            result.char = curFacing;
+                            if      (curFacing === '^') result.dy = -1;
+                            else if (curFacing === 'v') result.dy = 1;
+                            else if (curFacing === '<') result.dx = -1;
+                            else if (curFacing === '>') result.dz = 1;
+                        } else if   (dirKey === "backward") {
+                            if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
+                            else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
+                            else if (curFacing === '<') result = {char: '>', dx: 0,  dy: 1,  isValid: true};
+                            else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                        } else if   (dirKey === "left") {
+                            if      (curFacing === '^') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                            else if (curFacing === 'v') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
+                            else if (curFacing === '<') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
+                            else if (curFacing === '>') result = {char: '^', dx: 0,  dy: -1, isValid: true};
+                        } else if   (dirKey === "right") {
+                            if      (curFacing === '^') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
+                            else if (curFacing === 'v') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                            else if (curFacing === '<') result = {char: '^', dx: 0,  dy: -1, isValid: true};
+                            else if (curFacing === '>') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
+                        }
+                    } else {                    // Handle Cardinal Directions
+                        result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
+                    }
+                    return result; // Match found!
+                }
+            }
+            return result; // No valid direction found, isValid will remain false in this case.
+        }
+
+        //todo: implement click targeting
+        //todo: implement dropdown box action selector
+        commandForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const inputText = commandInput.value.trim().toLowerCase();
+            commandInput.value = '';
+            commandFeedback.textContent = '';
+
+            if (!inputText) return;
+
+            const parts = inputText.split(/\s+/); // Split every time spaces are used
+            const actionWord = parts[0];
+            const targetWord = parts.length > 1 ? parts.slice(1).join (' ') : null; // join remaining parts for multi-word targets
+
+            const canonicalAction = parseAction(actionWord);
+
+            if (!canonicalAction) {
+                commandFeedback.textContent = `Your will "${actionWord}" could not be parsed. Type "?" for help.`;
+                commandInput.focus();
+                return;
+            }
+            let dxSend = 0;
+            let dySend = 0;
+            let charSend = player.char;
+            let shouldEmit = false;
+            
+            if (canonicalAction === "move") {
+                if (!targetWord) targetWord = "forward";
+                
+                const dirResult = parseDirection(targetWord, player.char);
+                if (dirResult.isValid) {
+                    dxSend = dirResult.dx;
+                    dySend = dirResult.dy;
+                    charSend = dirResult.char;
+                    shouldEmit = true;
+                } else {
+                    commandFeedback.textContent = `You look for "${targetWord}", but are unable to locate it.`;
+                }
+            } else if (canonicalAction === "look") {
+                if (!targetWord) {
+                    // Descriptive account of what you see in front of you in text.
+                    commandFeedback.textContent = 'You see [...] ahead. (Work in Progress)';
+                } else {
+                    const dirResult = parseDirection(targetWord, player.char);
+                    if (dirResult.isValid) {
+                        charSend = dirResult.char;
+                        dxSend = 0;
+                        dySend = 0;
+                        shouldEmit = true;
+                    } else {
+                        commandFeedback.textContent = `You look for "${targetWord}", but are unable to locate it.`;
+                    }
+                }
+            } // Future actions here (cast, help, etc.)
+            else {
+                commandFeedback.textContent = `The action "${canonicalAction}" is not implemented yet.`;
+            }
+
+            if (shouldEmit) {
+                socket.emit('player_move', {dx: dxSend, dy: dySend, new_char: charSend});
+            }
+            commandInput.focus();
+        });
+
+        drawGrid();
+        if (commandInput) commandInput.focus();
+    </script>
+</body>
+</html>
