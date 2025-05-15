@@ -1,11 +1,12 @@
 html {
     height: 100%;
+    overflow: hidden; /* Prevent scrollbars on html element */
 }
 
 body {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh; /* Use full viewport height strictly */
     margin: 0;
     padding: 10px;
     box-sizing: border-box;
@@ -13,6 +14,7 @@ body {
     background-color: #1a1a1a;
     color: #e0e0e0;
     align-items: center;
+    overflow-y: hidden;
 }
 
 /* Centering container for main content blocks */
@@ -20,13 +22,13 @@ body {
 #gameCanvas,
 #mainHeaderStatus,
 #commandInputBox {
-    width: 100%; /* Take full width of parent up to max-width */
-    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    width: 100%;
+    box-sizing: border-box;
 }
 
 #commandLog {
-    max-width: 740px; /* Slightly wider than gameCanvas */
-    height: 250px; /* Increased height a bit */
+    max-width: 740px;
+    height: 250px;
     flex-shrink: 0;
     border: 1px solid #303030;
     background-color: #111111;
@@ -37,25 +39,24 @@ body {
     border-radius: 3px;
     line-height: 1.4;
     display: flex;
-    flex-direction: column-reverse; /* Newest messages at the bottom, scroll up for history */
+    flex-direction: column-reverse;
 }
 
 .log-entry {
-    margin-top: 5px; /* Spacing between messages (since it's column-reverse) */
-    word-wrap: break-word; /* Prevent long words from overflowing */
-    white-space: pre-wrap; /* Respect newlines and spaces in messages */
+    margin-top: 5px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
 }
 
-/* Tome's Message Styles */
-.log-lore { color: #FFFFFF; } /* Default white for Tome's general narration */
-.log-system { color: #5D9CEC; font-style: italic; } /* Blue for system messages, confirmations */
-.log-event-good { color: #33CC33; } /* Green for positive events */
-.log-event-bad { color: #FF4136; font-weight: bold; } /* Red for negative events, errors */
-.log-user-input { color: #AAAAAA; } /* Grey for user's typed commands */
+.log-lore { color: #FFFFFF; }
+.log-system { color: #5D9CEC; font-style: italic; }
+.log-event-good { color: #33CC33; }
+.log-event-bad { color: #FF4136; font-weight: bold; }
+.log-user-input { color: #AAAAAA; }
 
 
 #gameCanvas {
-    max-width: 700px; /* Game box width */
+    max-width: 700px;
     white-space: pre;
     line-height: 1.0;
     font-size: 16px;
@@ -64,16 +65,17 @@ body {
     color: #c8c8c8;
     background-color: #0f0f0f;
     text-align: left;
-    min-height: 300px;
+    min-height: 260px;
     flex-grow: 1;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
     border-radius: 3px;
     margin-bottom: 15px;
     font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+    overflow: auto;
 }
 
 #mainHeaderStatus {
-    max-width: 740px; /* Match commandLog width or a general content width */
+    max-width: 740px;
     font-size: 1.2em;
     font-weight: bold;
     color: #275E8C;
@@ -83,11 +85,12 @@ body {
     border-radius: 5px;
     box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.2);
     text-align: center;
+    flex-shrink: 0;
 }
 
 #commandInputBox {
-    max-width: 740px; /* Match commandLog width or a general content width */
-    margin-top: auto;
+    max-width: 740px;
+    /* margin-top: auto; /* This pushes it to the bottom if body is a flex container */
     padding: 15px;
     background-color: #202020;
     border-radius: 5px;
@@ -103,7 +106,7 @@ body {
     display: flex;
     align-items: center;
     width: 100%;
-    max-width: 700px; /* Keep form itself a bit constrained if needed */
+    max-width: 700px;
     justify-content: center;
     font-family: "Consolas", "Lucida Console", "Courier New", monospace;
 }
@@ -117,26 +120,26 @@ body {
 
 #commandText {
     background-color: #282828;
-    color: #e0e0e0;
+    color: #e0e0e0; /* Default text color */
     border: 1px solid #444444;
     padding: 8px 10px;
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
-    max-width: 400px;
+    min-width: 150px;
     margin-right: 10px;
     font-family: inherit;
+    transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
 #commandText:focus {
     outline: none;
     border-color: #5D9CEC;
-    box-shadow: 0 0 8px rgba(93, 156, 236, 0.4)
+    box-shadow: 0 0 8px rgba(93, 156, 236, 0.4);
 }
 
-.highlight-alias {
-    color: #5D9CEC; /* Blue for highlighted aliases in input */
-    font-weight: bold;
+#commandText.valid-command-input {
+    color: #5D9CEC;
 }
 
 #commandForm button {
