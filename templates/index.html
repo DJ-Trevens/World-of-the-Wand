@@ -314,7 +314,7 @@
             return result;
         }
 
-         let savedRange = null; // To store cursor position
+         let savedCharOffset = 0;
 
         function escapeHtml(unsafe) {
             return unsafe
@@ -325,64 +325,87 @@
                  .replace(/'/g, "'");
         }
 
-        function saveSelection() {
-            if (window.getSelection && commandInput.contains(document.activeElement)) { // Only save if input is focused
-                const sel = window.getSelection();
-                if (sel.rangeCount > 0) {
-                    const currentRange = sel.getRangeAt(0);
-                    // Ensure the range is within our commandInput
-                    if (commandInput.contains(currentRange.commonAncestorContainer)) {
-                         savedRange = currentRange;
-                    }
-                }
+        
+
+        function saveCursorPosition() {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && commandInput.contains(selection.anchorNode)) {
+                const range = selection.getRangeAt(0);
+                const preSelectionRange = range.cloneRange();
+                preSelectionRange.selectNodeContents(commandInput);
+                preSelectionRange.setEnd(range.startContainer, range.startOffset);
+                savedCharOffset = preSelectionRange.toString().length;
+            } else {
+                // Fallback or if not focused, assume end
+                savedCharOffset = (commandInput.textContent || "").length;
             }
         }
 
-        function restoreSelection() {
-            if (savedRange && window.getSelection) {
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                try {
-                    sel.addRange(savedRange);
-                } catch (e) {
-                    console.warn("Could not restore selection: ", e);
-                    // Fallback: place cursor at the end
-                    const range = document.createRange();
-                    range.selectNodeContents(commandInput);
-                    range.collapse(false); // false to put it at the end
-                    sel.removeAllRanges();
-                    sel.addRange(range);
+        function restoreCursorPosition() {
+            commandInput.focus(); // Ensure it's focused before trying to set selection
+            const selection = window.getSelection();
+            const range = document.createRange();
+            let charCount = 0;
+            let foundNode = false;
+
+            function findNodeAndOffset(node, offset) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    if (charCount + node.length >= offset) {
+                        range.setStart(node, offset - charCount);
+                        range.collapse(true); // Collapse to the start
+                        foundNode = true;
+                        return true; // Stop iteration
+                    }
+                    charCount += node.length;
+                } else {
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        if (findNodeAndOffset(node.childNodes[i], offset)) {
+                            return true; // Stop iteration
+                        }
+                    }
                 }
-                savedRange = null; // Consume the saved range
+                return false;
+            }
+
+            if (findNodeAndOffset(commandInput, savedCharOffset)) {
+                selection.removeAllRanges();
+                selection.addRange(range);
+            } else {
+                // Fallback: if the offset is out of bounds (e.g., text was deleted)
+                // or if something went wrong, place cursor at the end.
+                range.selectNodeContents(commandInput);
+                range.collapse(false); // false for end
+                selection.removeAllRanges();
+                selection.addRange(range);
             }
         }
         
         function handleCommandInputHighlighting() {
-            saveSelection();
+            saveCursorPosition(); // Save before changing innerHTML
 
-            const text = commandInput.textContent || ""; // Ensure text is not null
-            const words = text.split(/(\s+)/); // Split by space, keeping spaces for reconstruction
+            const text = commandInput.textContent || "";
+            const words = text.split(/(\s+)/); 
             let newHtml = "";
 
             words.forEach((word) => {
-                if (word.match(/^\s+$/)) { // If it's only whitespace
-                    newHtml += word; // Preserve spaces
+                if (word.match(/^\s+$/)) { 
+                    newHtml += word; 
                     return;
                 }
-                if (word === "") return; // Skip empty strings from multiple spaces together
+                if (word === "") return; 
 
                 let isAlias = false;
                 const lowerWord = word.toLowerCase();
-                const firstWordInCommand = newHtml.trim().length === 0; // Check if this is effectively the first non-space word
+                const firstWordInCommand = newHtml.trim().length === 0; 
 
-                if (firstWordInCommand) { // First actual word is action
+                if (firstWordInCommand) { 
                     for (const canonicalAction in ACTION_ALIASES) {
                         if (ACTION_ALIASES[canonicalAction].includes(lowerWord)) {
                             isAlias = true;
                             break;
                         }
                     }
-                } else { // Subsequent words could be directions
+                } else { 
                     for (const dirKey in DIRECTION_ALIASES) {
                         if (DIRECTION_ALIASES[dirKey].aliases.includes(lowerWord)) {
                             isAlias = true;
@@ -398,42 +421,25 @@
                 }
             });
             
-            // Check if caret is at the end of the input before modifying, 
-            // helps with typing spaces at the end
-            const sel = window.getSelection();
-            let caretAtEnd = false;
-            if(sel && sel.rangeCount > 0){
-                const range = sel.getRangeAt(0);
-                if(range.collapsed && range.startOffset === (commandInput.textContent || "").length && commandInput.contains(range.startContainer)){
-                    caretAtEnd = true;
-                }
+            // Only update innerHTML if it has actually changed to avoid unnecessary re-renders and cursor jumps
+            if (commandInput.innerHTML !== newHtml) {
+                 commandInput.innerHTML = newHtml;
             }
 
-            commandInput.innerHTML = newHtml;
-
-            if (caretAtEnd) { // If caret was at end, try to force it to end after innerHTML change
-                const range = document.createRange();
-                range.selectNodeContents(commandInput);
-                range.collapse(false);
-                sel.removeAllRanges();
-                sel.addRange(range);
-            } else {
-                 restoreSelection();
-            }
+            restoreCursorPosition(); // Restore after innerHTML might have changed
         }
 
         commandInput.addEventListener('input', handleCommandInputHighlighting);
-        // Save selection on keyup/mouseup to capture state before 'input' if needed for complex edits
-        // commandInput.addEventListener('keyup', saveSelection);
-        // commandInput.addEventListener('mouseup', saveSelection);
+        // No need for keyup/mouseup for saveSelection if 'input' event is sufficient
 
         commandInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
-                event.preventDefault(); // Prevent newline in contenteditable
-                // Trigger form submission logic
+                event.preventDefault(); 
                 const submitButton = commandForm.querySelector('button[type="submit"]');
-                if (submitButton) submitButton.click(); // Simulate click to run full submit logic
+                if (submitButton) submitButton.click(); 
             }
+            // Consider saving cursor on specific keys if 'input' isn't enough
+            // else { saveCursorPosition(); } // Maybe too aggressive
         });
 
         //todo: implement click targeting
