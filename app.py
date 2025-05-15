@@ -1,6 +1,6 @@
+import os
 from flask import Flask, render_template
 from flask_socketio import SocketIO, emit
-import os
 
 app = Flask(__name__)
 app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key') #change later!
@@ -67,4 +67,4 @@ def handle_disconnect():
     print(f"Client disconmnected") # Add logic when support for multiple players is added
 
 if __name__ == '__main__':
-    socketio.run(app, debug = True)
+    socketio.run(app, debug = True, host = '0.0.0.0')
