@@ -44,11 +44,7 @@
         const commandFeedback = document.getElementById('commandFeedback');
 
         // -- Client-Side Game State -- //
-        let player = {
-            x: 0,
-            y: 0,
-            char: '^'
-        };
+        let player = {x: 0, y: 0, char: '^'};
         let GRID_WIDTH = 10;
         let GRID_HEIGHT = 8;
 
@@ -119,8 +115,12 @@
                 }
                 output += "\n";
             }
+            console.log("drawGrid: Generated output string length:", output.length); // Debug
+            if (output.trim() === "") {
+                console.warn("drawGrid: Output string is empty or only whitespace!"); // Debug
+            }
             gameCanvas.textContent = output;
-            statusBar.textContent = 'Player: ${player.char} at (${player.x}, ${player.y}) | Mana: ... | Wand: ...';
+            statusBar.textContent = '${player.char}: (${player.x}, ${player.y}) | Mana: ... | Wand: ...';
         }
 
         // -- WebSocket Event Handlers -- //
@@ -130,12 +130,17 @@
         });
 
         socket.on('initial_state', (data) => {
-            console.log('Recievwd initial state:', data); //Make this more in-universe
+            console.log('Recievwd initial state:', data);
             player = data.player;
             GRID_WIDTH = data.grid_width;
             GRID_HEIGHT = data.grid_height;
-            statusBar.textContent = "Game Ready!";
-            drawGrid();
+            if (player && typeof GRID_WIDTH === 'number' && typeof GRID_HEIGHT === 'number' && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
+                statusBar.textContent = "Game Ready!";
+                drawGrid();
+            } else {
+                console.error("Initial state data incomplete or invalid:", data);
+                statusBar.textContent = "Error receiving initial world state.";
+            }
         });
 
         socket.on('player_update', (updatedPlayerState) => {

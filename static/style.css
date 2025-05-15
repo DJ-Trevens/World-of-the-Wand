@@ -1,7 +1,7 @@
 body {
     font-family: 'Courier New', Courier, monospace;
     background-color: #222;
-    color: #ddd;
+    color: #dddddd;
     margin: 20px;
 }
 
@@ -12,7 +12,10 @@ body {
     border: 1px solid #555;
     padding: 10px;
     display: inline-block;
-    background-color: #111;
+    color: #a0a0a0
+    background-color: red !important;
+    min-height: 50px;
+    min-width: 50px;
 }
 
 #statusBar {
@@ -22,6 +25,17 @@ body {
     border: 1px solid #444;
     color: #8f8;
     min-height: 1.2em;
+}
+
+#commandText {
+    background-color: #333;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 5px;
+}
+
+#commandText:focus {
+    outline: 1px solid #ffa500;
 }
 
 h1 {
