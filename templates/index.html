@@ -4,18 +4,8 @@
     <meta charset = "UTF-8">
     <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
     <title>World of the Wand</title>
-    <style>
-        body { font-family: 'Courier New', Courier, monospace; background-color: #222; color: ddd; }
-        #gameCanvas {
-            white-space: pre;   /* Preserve spaces and line breaks */
-            line-height: 1;     /* keep lines tight for grid appearance */
-            font-size: 20px;    /* Adjust for visibility as needed */
-            border: 1px solid #555;
-            padding: 5px;
-            display: inline-block; /* Fit content */
-        }
-        #statusBar { margin-bottom: 10px; color: #8f8; }
-    </style>
+    <link rel = "stylesheet" href = "{{url_for('static', filename = 'style.css')}}"">
+    
     <!-- Socket.IO client library (served by Flask-SocketIO) -->
     <script src = "https://cdn.socket.io/4.7.5/socket.io.min.js" integrity = "sha384-2huaZvOR9iDzHqslqNzYWMF7A7kW5HTv6grfonu3IHDEwuO0TVRFnThtGNgNHrXL" crossorigin = "anonymous"></script>
 </head>
