@@ -2,6 +2,7 @@ import eventlet
 eventlet.monkey_patch()
 
 import os
+import random
 from flask import Flask, render_template, request, Blueprint
 from flask_socketio import SocketIO, emit
 
@@ -33,7 +34,7 @@ queuedActions = {}
 # Game Loop #
 _game_loop_started = False
 
-def gameLoop():
+def game_loop():
     # Background tasks that processes game logic at fixed intervals.
     while True:
         socketio.sleep(GAME_TICK_RATE)
@@ -67,7 +68,7 @@ def gameLoop():
         socketio.emit('game_state_update', currentPlayerStates) # Emits to all connected clients
         
 # Event Handling #
-@socketio('connect')
+@socketio.on('connect')
 def handle_connect():
     sid = request.sid # Get the ID of the connected client
     print(f"Client connected:{sid}")
