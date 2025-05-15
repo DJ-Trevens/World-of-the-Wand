@@ -9,7 +9,7 @@ app = Flask(__name__)
 app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key') #change later!
 
 # Blueprint & Path Config #
-GAME_PATH_PREFIX = 'world_of_the_wand'
+GAME_PATH_PREFIX = '/world_of_the_wand'
 
 game_blueprint = Blueprint('game', __name__, template_folder = 'templates', static_folder = 'static', static_url_path = '/static')
 
