@@ -16,14 +16,13 @@
 <body>
     <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
     <div id = "gameCanvas"> Summoning World... </div>
-    <p id = "commandFeedback"></p>
+    <p id = "commandLog"></p>
 
-    <!-- Command Input Box -->
     <div id = "commandInputBox">
         <form id = "commandForm">
             <label for = "commandText">Your will, Wizard?</label>
-            <input type = "text" id = "commandText" name = "commandText" autofocus autocomplete="off">
-            <button type = "submit">Execute</button>
+            <div id = "commandText" contenteditable = "true" spellcheck = "false" autocomplete = "off" role = "textbox" aria-multiline = "false"></div>
+            <button type = "submit">Commit</button>
         </form>
     </div>
 
@@ -31,9 +30,9 @@
         const gameCanvas = document.getElementById('gameCanvas');
         const mainHeaderStatus = document.getElementById('mainHeaderStatus');
 
+        const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
-        const commandFeedback = document.getElementById('commandFeedback');
 
         // -- Client-Side Game State -- //
         let selfPlayer = null;
@@ -109,6 +108,18 @@
             return false; // Not in aura nor observable cone.
         }
 
+        function addLogMessage(message, type = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.classList.add('log-entry');
+            if (type) {
+                logEntry.classList.add(`log-type-${type}`);
+            }
+            // Sanitize text content to prevent accidental HTML injection from messages
+            logEntry.textContent = message; 
+            commandLog.appendChild(logEntry);
+            commandLog.scrollTop = commandLog.scrollHeight; // Auto-scroll to the latest message
+        }
+
         function updateStatus(status) {
             if (status) {
                 mainHeaderStatus.textContext = status
@@ -121,7 +132,7 @@
 
         function drawGrid() {
             // Simple grid drawing implementation
-            if (!selfPlayer || GRID_WIDTH === 0) {
+            if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
                 gameCanvas.textContent = "The mists obscure your vision... (Awaiting server data)"
                 return;
             }
@@ -156,7 +167,7 @@
         // -- WebSocket Event Handlers -- //
         socket.on('connect', () => {
             console.log('Connected to server! SID: ', socket.id);
-            updateStatus("Studying your essence...");
+            updateStatus("Divining your essence...");
         });
 
         socket.on('initial_state', (data) => {
@@ -169,17 +180,16 @@
             otherPlayers = data.otherPlayers || {};
 
             // Ensure self is not in otherPlayers list (server should prevent this)
-            if (otherPlayers[myPlayerID]) {
-                delete otherPlayers[myPlayerID];
-            }
+            if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus();
                 drawGrid();
-                commandFeedback.textContent = "You have materialized in a foreboding meadow. The world awaits your epic journey!";
+                addLogMessage("You have materialized in a foreboding meadow. The world awaits your epic journey!", "server");
             } else {
                 console.error("Initial state data incomplete or invalid: ", data);
-                mainHeaderStatus.textContent = "Error manifesting world.";
+                updateStatus("Error manifesting world.");
+                addLogMessage("Error: Could not manifest in world.", "error");
             }
         });
 
@@ -188,6 +198,7 @@
             if (myPlayerID && newPlayer.id !== myPlayerID) {
                 otherPlayers[newPlayer.id] = newPlayer;
                 drawGrid(); //redraw to show the new player (?)
+                addLogMessage("You sense the arrival of another powerful sorcerer.", "game-event");
             }
         });
 
@@ -196,11 +207,12 @@
             if (otherPlayers[playerID]) {
                 delete otherPlayers[playerId];
                 drawGrid();
+                addLogMessage("You sense a powerful sorcerer depart to another plane.", "game-event");
             }
         });
 
         socket.on('game_state_update', (allPlayers) => {
-            console.log('Game state update recieved', allPlayers.length, "players");
+            // console.log('Game state update recieved', allPlayers.length, "players");
             let foundSelf = false;
             const currentOtherPlayers = {};
 
@@ -217,25 +229,24 @@
             if (!foundSelf && myPlayerID) {
                 console.warn("Self not found in game state update. Possible desync or disconnect.");
                 updateStatus("Your connection to this world wavers... (bad connection)");
-                // Implement a more robust disconnect/reconnect logic later
+                addLogMessage("Warning: Connection to self is unstable.", "error");
             }
 
             drawGrid();
         });
 
         socket.on('action_queued', (data) => {
-            commandFeedback.textContent = data.message;
-            commandFeedback.classList.remove('error-feedback');
+            addLogMessage(data.message, "server");
         });
 
         socket.on('action_failed', (data) => {
-            commandFeedback.textContent = 'Err: $data.message}';
-            commandFeedback.classList.add('error-feedback');
+            addLogMessage("Action failed.", "server");
         });
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server.');
             updateStatus("Severed from the Ethereal Plane! (Disconnected)");
+            addLogMessage("Disconnected from server!", "error");
             selfPlayer = null;
             otherPlayers = {};
             drawGrid();
@@ -303,84 +314,197 @@
             return result;
         }
 
+         let savedRange = null; // To store cursor position
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                 .replace(/&/g, "&")
+                 .replace(/</g, "<")
+                 .replace(/>/g, ">")
+             //  .replace(/"/g, """)
+                 .replace(/'/g, "'");
+        }
+
+        function saveSelection() {
+            if (window.getSelection && commandInput.contains(document.activeElement)) { // Only save if input is focused
+                const sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    const currentRange = sel.getRangeAt(0);
+                    // Ensure the range is within our commandInput
+                    if (commandInput.contains(currentRange.commonAncestorContainer)) {
+                         savedRange = currentRange;
+                    }
+                }
+            }
+        }
+
+        function restoreSelection() {
+            if (savedRange && window.getSelection) {
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                try {
+                    sel.addRange(savedRange);
+                } catch (e) {
+                    console.warn("Could not restore selection: ", e);
+                    // Fallback: place cursor at the end
+                    const range = document.createRange();
+                    range.selectNodeContents(commandInput);
+                    range.collapse(false); // false to put it at the end
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+                savedRange = null; // Consume the saved range
+            }
+        }
+        
+        function handleCommandInputHighlighting() {
+            saveSelection();
+
+            const text = commandInput.textContent || ""; // Ensure text is not null
+            const words = text.split(/(\s+)/); // Split by space, keeping spaces for reconstruction
+            let newHtml = "";
+
+            words.forEach((word) => {
+                if (word.match(/^\s+$/)) { // If it's only whitespace
+                    newHtml += word; // Preserve spaces
+                    return;
+                }
+                if (word === "") return; // Skip empty strings from multiple spaces together
+
+                let isAlias = false;
+                const lowerWord = word.toLowerCase();
+                const firstWordInCommand = newHtml.trim().length === 0; // Check if this is effectively the first non-space word
+
+                if (firstWordInCommand) { // First actual word is action
+                    for (const canonicalAction in ACTION_ALIASES) {
+                        if (ACTION_ALIASES[canonicalAction].includes(lowerWord)) {
+                            isAlias = true;
+                            break;
+                        }
+                    }
+                } else { // Subsequent words could be directions
+                    for (const dirKey in DIRECTION_ALIASES) {
+                        if (DIRECTION_ALIASES[dirKey].aliases.includes(lowerWord)) {
+                            isAlias = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (isAlias) {
+                    newHtml += `<span class="highlight-alias">${escapeHtml(word)}</span>`;
+                } else {
+                    newHtml += escapeHtml(word);
+                }
+            });
+            
+            // Check if caret is at the end of the input before modifying, 
+            // helps with typing spaces at the end
+            const sel = window.getSelection();
+            let caretAtEnd = false;
+            if(sel && sel.rangeCount > 0){
+                const range = sel.getRangeAt(0);
+                if(range.collapsed && range.startOffset === (commandInput.textContent || "").length && commandInput.contains(range.startContainer)){
+                    caretAtEnd = true;
+                }
+            }
+
+            commandInput.innerHTML = newHtml;
+
+            if (caretAtEnd) { // If caret was at end, try to force it to end after innerHTML change
+                const range = document.createRange();
+                range.selectNodeContents(commandInput);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } else {
+                 restoreSelection();
+            }
+        }
+
+        commandInput.addEventListener('input', handleCommandInputHighlighting);
+        // Save selection on keyup/mouseup to capture state before 'input' if needed for complex edits
+        // commandInput.addEventListener('keyup', saveSelection);
+        // commandInput.addEventListener('mouseup', saveSelection);
+
+        commandInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent newline in contenteditable
+                // Trigger form submission logic
+                const submitButton = commandForm.querySelector('button[type="submit"]');
+                if (submitButton) submitButton.click(); // Simulate click to run full submit logic
+            }
+        });
+
         //todo: implement click targeting
         //todo: implement dropdown box action selector
         commandForm.addEventListener('submit', (event) => {
             console.log("Input form submitted!");
             event.preventDefault();
             if (!selfPlayer) {
-                commandFeedback.textContent = "You are not fully manifested in this realm yet.";
+                addLogMessage("You are not fully manifest in this realm yet.", "error");
                 return;
             }
-            const inputText = commandInput.value.trim().toLowerCase();
-            commandInput.value = '';
+            const inputText = commandInput.textContent.trim(); // Keep original case for now, parsing functions handle lowercasing
+            commandInput.innerHTML = ''; // Clear input (after getting text)
 
             if (!inputText) return;
 
-            const parts = inputText.split(/\s+/); // Split every time spaces are used
-            let actionWord = parts[0];
-            let targetWord = parts.length > 1 ? parts.slice(1).join (' ') : null; // join remaining parts for multi-word targets
+            addLogMessage(`> ${inputText}`); // Log the command itself
+
+            const parts = inputText.split(/\s+/);
+            const actionWord = parts[0];
+            const targetWord = parts.length > 1 ? parts.slice(1).join(' ') : null;
 
             const canonicalAction = parseAction(actionWord);
 
             if (!canonicalAction) {
-                commandFeedback.textContent = `Your will "${actionWord}" was indecipherable. (Type "?" for guidance.)`;
-                commandFeedback.classList.add("error-feedback");
+                addLogMessage(`Your will "${actionWord}" is indecipherable. (Type "help" for guidance - eventually!)`, "error");
                 commandInput.focus();
                 return;
             }
-            let commandToSend = {type: canonicalAction, details: {}};
+            
+            let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmit = false;
             
             if (canonicalAction === "move") {
-                let targetWord = targetWord || "forward";
-                let dirResult = parseDirection(targetWord, selfPlayer.char);
-                
+                const effectiveTargetWord = targetWord || "forward";
+                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
-                    commandToSend.details = {
-                        dx: dirResult.dx,
-                        dy: dirResult.dy,
-                        new_char: dirResult.char
-                    };
+                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, new_char: dirResult.char };
                     shouldEmit = true;
                 } else {
-                    commandFeedback.textContent = `You search for "${targetWord}", utterly unable to find it.`;
-                    commandFeedback.classList.add('error-feedback');
+                    addLogMessage(`You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, "error");
                 }
             } else if (canonicalAction === "look") {
                 if (!targetWord) {
-                    // Descriptive account of what you see in front of you in text.
-                    commandFeedback.textContent = 'You see [...] ahead. (Work in Progress)';
-                    // this probably doesn't need to emit an update, lmao
-                    // (dumb)  commandToSend.details = {dx: 0, dy: 0, new_char: selfPlayer.char}
-                    shouldEmit = false;
+                    const dirResult = parseDirection("forward", selfPlayer.char);
+                    commandToSend.details = { dx: 0, dy: 0, new_char: dirResult.char };
+                    shouldEmit = true;
                 } else {
                     const dirResult = parseDirection(targetWord, selfPlayer.char);
-                    // use directions in relative terms for the feedback box.
-                    // describe what you see in words to the feedback box.
                     if (dirResult.isValid) {
-                        commandToSend.details = {dx: 0, dy: 0, new_char: dirResult.char}
+                        commandToSend.details = { dx: 0, dy: 0, new_char: dirResult.char };
                         shouldEmit = true;
                     } else {
-                        commandFeedback.textContent = `You search for "${targetWord}", but your elder mind becomes confused.`;
-                        commandFeedback.classList.add('error-feedback');
+                        addLogMessage(`You try to peer towards "${targetWord}", but your vision blurs.`, "error");
                     }
                 }
-            } else { // Future actions here (cast, help, etc.)
-                commandFeedback.textContent = `The action "${canonicalAction}" is not implemented yet.`;
-                commandFeedback.classList.add('error-feedback');
+            } else {
+                addLogMessage(`The arcane art of "${canonicalAction}" is yet beyond your grasp.`, "error");
             }
 
             if (shouldEmit) {
-                socket.emit('queued_command', commandToSend);
-                commandFeedback.textContent = 'Your action has been recorded in the Tome of Deeds.'
-                commandFeedback.classList.remove('error-feedback');
+                socket.emit('queue_command', commandToSend);
             }
             commandInput.focus();
         });
 
+        // Initial setup
         drawGrid();
-        if (commandInput) commandInput.focus();
+        if (commandInput) commandInput.focus(); // Autofocus the command input div
+        addLogMessage("Welcome, Wizard. The Ethereal Waves await your command.", "server");
+
     </script>
 </body>
 </html>

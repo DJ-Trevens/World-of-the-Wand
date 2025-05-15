@@ -22,10 +22,10 @@ body {
 #mainHeaderStatus {
     font-size: 1.6em;
     font-weight: bold;
-    color: #50c878;
+    color: #275E8C;
     padding: 12px 20px;
     margin-bottom: 20px;
-    border-bottom: 2px solid #50c878;
+    border-bottom: 2px solid #275E8C;
     min-width: 350px;
     background-color: #2a2a2a;
     border-radius: 5px;
@@ -50,26 +50,54 @@ body {
     margin-bottom: 15px;
 }
 
-#commandFeedback {
-    /* General text color will be #e0e0e0.
-       For errors specifically to be different,
-       change this text color dynamically with JS or add a class.
-       For now, it inherits the body's off-white. */
-    /* Example for error-specific styling for a class like .error-feedback */
-    /* .error-feedback { color: #ff6b6b; } /* A soft red for errors */
-    min-height: 1.2em;
-    margin-top: 10px;
-    font-size: 0.9em;
-    text-align: left;
+#commandLog {
     width: 100%;
-    max-width: 500px;
+    max-width: 650px;
+    height: 180px;
+    border: 1px solid #303030;
+    background-color: #111111;
+    padding: 10px;
+    margin-bottom: 20px;
+    overflow-y: auto; 
+    font-size: 0.9em;
+    color: #c0c0c0;
+    box-sizing: border-box;
+    border-radius: 3px;
+    line-height: 1.4;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    word-wrap: break-word;
+}
+
+.log-type-error {
+    color: #ff7777;
+    font-weight: bold;
+}
+
+.log-type-success {
+    color: #50c878;
+}
+
+.log-type-info {
+    /* Default style for now */
+}
+
+.log-type-server {
+    color: #9999DD;
+    font-style: italic;
+}
+
+.log-type-game-event {
+    color: #d0a0d0;
 }
 
 #commandInputBox {
     margin-top: auto;
     width: 100%;
     max-width: 600px;
-    padding: 20px;
+    padding: 15px;
     background-color: #202020;
     border-radius: 5px;
     border: 1px solid #303030;
@@ -103,12 +131,22 @@ body {
     flex-grow: 1;
     max-width: 400px;
     margin-right: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    line-height: 1.5;
+    min-height: 1.5em;
+    cursor: text;
 }
 
 #commandText:focus {
     outline: none;
-    border-color: #66ff66;
-    box-shadow: 0 0 8px rgba(102, 255, 102, 0.4);
+    border-color: #5D9CEC;
+    box-shadow: 0 0 8px rgba(93, 156, 236, 0.4)
+}
+
+.highlight-alias {
+    color: #66ff66;
+    font-weight: bold;
 }
 
 #commandForm button {
@@ -125,18 +163,18 @@ body {
 
 #commandForm button:hover {
     background-color: #484848;
-    border-color: #66ff66;
-    color: #66ff66;
+    border-color: #5D9CEC;
+    color: #5D9CEC;
 }
 
 #commandFeedback.error-feedback {
-    color: #ff6b6b; /* A soft red, or your preferred error color */
+    color: #ff6b6b;
     font-weight: bold;
 }
 
 /* Specific green emphasis for things that DEMAND attention, if needed elsewhere */
-.text-emphasis-green {
-    color: #50c878; /* Emerald Green */
+.text-emphasis-blue {
+    color: #275E8C;
     font-weight: bold;
 }
 
