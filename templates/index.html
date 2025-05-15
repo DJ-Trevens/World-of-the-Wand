@@ -2,13 +2,16 @@
 <html lang = "en">
 <head>
     <meta charset = "UTF-8">
-    <meta name = "viewport" content = "width=device-width, initial-scale=1.0">
+    <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
     <title>World of the Wand</title>
-    <link rel = "stylesheet" href = "{{url_for('static', filename = 'style.css')}}"">
+    <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
 
     <!-- Socket.IO client library (served by Flask-SocketIO) [INTEGRITY CHECK DISABLED FOR DEBUGGING]-->
     <!-- <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"></script>-->
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        const socket = io({path: "/war-of-the-wand/socket.io"});
+    </script>
 </head>
 <body>
     <div id = "mainHeaderstatus"> Pondering the Ethereal Wave... </div>
@@ -17,26 +20,28 @@
 
     <!-- Command Input Box -->
     <div id = "commandInputBox">
-        <form id="commandForm">
-            <label for="commandText">Your will, Wizard?</label>
-            <input type="text" id="commandText" name="commandText" autofocus autocomplete="off">
-            <button type="submit">Execute</button>
+        <form id = "commandForm">
+            <label for = "commandText">Your will, Wizard?</label>
+            <input type = "text" id = "commandText" name = "commandText" autofocus autocomplete="off">
+            <button type = "submit">Execute</button>
         </form>
     </div>
 
     <script>
         const gameCanvas = document.getElementById('gameCanvas');
-        const statusBar = document.getElementById('mainHeaderStatus');
-        const socket = io();
+        const mainHeaderStatus = document.getElementById('mainHeaderStatus');
 
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
         const commandFeedback = document.getElementById('commandFeedback');
 
         // -- Client-Side Game State -- //
-        let player = {x: 0, y: 0, char: '^'};
-        let GRID_WIDTH = 30;
-        let GRID_HEIGHT = 15;
+        let selfPlayer = null;
+        let otherPlayers = {};
+        let myPlayerID = null;
+        let GRID_WIDTH = 0;
+        let GRID_HEIGHT = 0;
+        let GAME_TICK_RATE = 2.0;
 
         // -- Fog of War -- //
         const FOG_CHAR = '▒';
@@ -54,14 +59,14 @@
 
         function get_direction_str_from_dx_dy(dx, dy) {
             const mapping = {"0, -1": '^', "0, 1": 'v', "-1, 0": '<', "1, 0": '>'};
-            return mapping[`${dx},${dy}`];
+            return mapping[`${dx}, ${dy}`];
         }
 
         function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
             const worldDX = targetX - playerX;
             const worldDY = targetY - playerY;
 
-            let pf;
+            let pf; // "player facing"
             if (playerFacingChar === '^') pf = 'n';
             else if (playerFacingChar === 'v') pf = 's';
             else if (playerFacingChar === '<') pf = 'w';
@@ -80,15 +85,23 @@
             return Math.abs(x1 - x2) + Math.abs(y1 - y2);
         }
 
-        function isVisible(playerX, playerY, playerChar, targetX, targetY, scry = false) {
+        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
+            if (!observerChar) return false;
+
             // Aura Vision
             let manhattanDist = manhattanDistance(playerX, playerY, targetX, targetY)
+            if (scry || manhattanDist <= AURA_VISION_RANGE) {
+                return true;
+            }
+            const dxWorld = targetX - observerX;
+            const dyWorld = targetY - observerY;
+
             let {rx, ry} = getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY);
-            if (scry || manhattanDist <= AURA_VISION_RANGE || manhattanDist === 2 && Math.abs(playerX - playerY) === 1 && Math.abs(playerY - targetY) && ry <= 0) {
+            if (manhattanDist === 2 && Math.abs(dxWorld) === 1 && Math.abs(dyWorld === 1) & rx <= 0)) {
                 return true;
             }
 
-            // Observable Cone!!! Observe! :)
+            // Observation Cone!!! Observe! :)
             if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
                 return true;
             }
@@ -96,8 +109,10 @@
             return false; // Not in aura nor observable cone.
         }
 
-        function updateStatus() {
-            if (player) {
+        function updateStatus(status) {
+            if (status) {
+                mainHeaderStatus.textContext = status
+            } else if (selfPlayer) {
                 mainHeaderStatus.textContent = `${player.char}: (${player.x}, ${player.y}) | Mana: 175/175 | Wand: 100%`;
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
@@ -106,29 +121,33 @@
 
         function drawGrid() {
             // Simple grid drawing implementation
-            if (!player || GRID_WIDTH === 0) {
-                gameCanvas.textContent = "Waiting for server data..." //Make this more in-universe, idk "contacting the dead" or something
+            if (!selfPlayer || GRID_WIDTH === 0) {
+                gameCanvas.textContent = "The mists obscure your vision... (Awaiting server data)"
                 return;
             }
 
-            let output = "";
+            let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
+            for (const playerID in otherPlayers) {
+                const otherGuy = otherPlayers[playerID];
+                if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
+                    displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
+                }
+            }
+
+            if (selfPlayer.x >= 0 && selfPlayer.x < GRIDWIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
+                displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
+            }
+
+            let output = ""
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
-                    if (isVisible(player.x, player.y, player.char, x, y)) {
-                        if (x === player.x && y === player.y) {
-                            output += player.char;
-                        } else {
-                            output += FLOOR_CHAR;
-                        }
+                    if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
+                        output += displayGrid[y][x];
                     } else {
                         output += FOG_CHAR;
                     }
                 }
                 output += "\n";
-            }
-            console.log("drawGrid: Generated output string length:", output.length); // Debug
-            if (output.trim() === "") {
-                console.warn("drawGrid: Output string is empty or only whitespace!"); // Debug
             }
             gameCanvas.textContent = output;
             updateStatus();
@@ -136,32 +155,90 @@
 
         // -- WebSocket Event Handlers -- //
         socket.on('connect', () => {
-            console.log('Connected to server!');
-            updateStatus();
+            console.log('Connected to server! SID: ', socket.id);
+            updateStatus("Studying your essence...");
         });
 
         socket.on('initial_state', (data) => {
-            console.log('Recievwd initial state:', data);
-            player = data.player;
+            console.log('Recieved initial state: ', data);
+            selfPlayer = data.player;
+            myPlayerID = selfPlayer.id;
             GRID_WIDTH = data.grid_width;
             GRID_HEIGHT = data.grid_height;
-            if (player && typeof GRID_WIDTH === 'number' && typeof GRID_HEIGHT === 'number' && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
+            GAME_TICK_RATE = data.tick_rate;
+            otherPlayers = data.otherPlayers || {};
+
+            // Ensure self is not in otherPlayers list (server should prevent this)
+            if (otherPlayers[myPlayerID]) {
+                delete otherPlayers[myPlayerID];
+            }
+
+            if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus();
                 drawGrid();
+                commandFeedback.textContent = "You have materialized in a foreboding meadow. The world awaits your epic journey!";
             } else {
-                console.error("Initial state data incomplete or invalid:", data);
-                statusBar.textContent = "Error manifesting world.";
+                console.error("Initial state data incomplete or invalid: ", data);
+                mainHeaderStatus.textContent = "Error manifesting world.";
             }
         });
 
-        socket.on('player_update', (updatedPlayerState) => {
-            player = updatedPlayerState;
+        socket.on('player_joined', (newPlayer) => {
+            console.log('Player joined: ', newPlayer);
+            if (myPlayerID && newPlayer.id !== myPlayerID) {
+                otherPlayers[newPlayer.id] = newPlayer;
+                drawGrid(); //redraw to show the new player (?)
+            }
+        });
+
+        socket.on('player_left', (playerID) => {
+            console.log('Player left: ', playerID);
+            if (otherPlayers[playerID]) {
+                delete otherPlayers[playerId];
+                drawGrid();
+            }
+        });
+
+        socket.on('game_state_update', (allPlayers) => {
+            console.log('Game state update recieved', allPlayers.length, "players");
+            let foundSelf = false;
+            const currentOtherPlayers = {};
+
+            for (const playerData of allplayers) {
+                if (playerData.id === myPlayerID) {
+                    selfPlayer = playerData;
+                    foundSelf = true;
+                } else {
+                    currentOtherPlayers[playerData.id] = playerData;
+                }
+            }
+            otherPlayers = currentOtherPlayers;
+
+            if (!foundSelf && myPlayerID) {
+                console.warn("Self not found in game state update. Possible desync or disconnect.");
+                updateStatus("Your connection to this world wavers... (bad connection)");
+                // Implement a more robust disconnect/reconnect logic later
+            }
+
             drawGrid();
+        });
+
+        socket.on('action_queued', (data) => {
+            commandFeedback.textContent = data.message;
+            commandFeedback.classList.remove('error-feedback');
+        });
+
+        socket.on('action_failed', (data) => {
+            commandFeedback.textContent = 'Err: $data.message}';
+            commandFeedback.classList.add('error-feedback');
         });
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server.');
-            statusBar.textContent = "Disconnected from server!";
+            updateStatus("Severed from the Ethereal Plane! (Disconnected)");
+            selfPlayer = null;
+            otherPlayers = {};
+            drawGrid();
         });
 
         // -- Command Config -- //
@@ -177,7 +254,7 @@
             "north":    {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
             "south":    {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
             "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
-            "east ":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
+            "east":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
             // Relative Directions
             "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
             "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
@@ -201,26 +278,29 @@
             for (const dirKey in DIRECTION_ALIASES) {
                 const config = DIRECTION_ALIASES[dirKey];
                 if (config.aliases.includes(directionStr)) {
-                    if (config.relative) {      // Handle Relative Directions
+                    if (config.relative) {
+                        result.isValid = true;
                         if          (dirKey === "forward") {
                             result.char = curFacing;
                             if      (curFacing === '^') result.dy = -1;
                             else if (curFacing === 'v') result.dy = 1;
                             else if (curFacing === '<') result.dx = -1;
-                            else if (curFacing === '>') result.dz = 1;
+                            else if (curFacing === '>') result.dx = 1;
+                            else result.isValid = false;
                         } else if   (dirKey === "backward") {
                             if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
                             else if (curFacing === '<') result = {char: '>', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                            else result.isValid = false;
                         }
-                    } else {                    // Handle Cardinal Directions
+                    } else {
                         result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
                     }
                     return result; // Match found!
                 }
             }
-            return result; // No valid direction found, isValid will remain false in this case.
+            return result;
         }
 
         //todo: implement click targeting
@@ -228,62 +308,73 @@
         commandForm.addEventListener('submit', (event) => {
             console.log("Input form submitted!");
             event.preventDefault();
+            if (!selfPlayer) {
+                commandFeedback.textContent = "You are not fully manifested in this realm yet.";
+                return;
+            }
             const inputText = commandInput.value.trim().toLowerCase();
             commandInput.value = '';
-            commandFeedback.textContent = '';
 
             if (!inputText) return;
 
             const parts = inputText.split(/\s+/); // Split every time spaces are used
-            const actionWord = parts[0];
-            const targetWord = parts.length > 1 ? parts.slice(1).join (' ') : null; // join remaining parts for multi-word targets
+            let actionWord = parts[0];
+            let targetWord = parts.length > 1 ? parts.slice(1).join (' ') : null; // join remaining parts for multi-word targets
 
             const canonicalAction = parseAction(actionWord);
 
             if (!canonicalAction) {
-                commandFeedback.textContent = `Your will "${actionWord}" could not be parsed. Type "?" for help.`;
+                commandFeedback.textContent = `Your will "${actionWord}" was indecipherable. (Type "?" for guidance.)`;
+                commandFeedback.classList.add("error-feedback");
                 commandInput.focus();
                 return;
             }
-            let dxSend = 0;
-            let dySend = 0;
-            let charSend = player.char;
+            let commandToSend = {type: canonicalAction, details: {}};
             let shouldEmit = false;
             
             if (canonicalAction === "move") {
-                if (!targetWord) targetWord = "forward";
+                let targetWord = targetWord || "forward";
+                let dirResult = parseDirection(targetWord, selfPlayer.char);
                 
-                const dirResult = parseDirection(targetWord, player.char);
                 if (dirResult.isValid) {
-                    dxSend = dirResult.dx;
-                    dySend = dirResult.dy;
-                    charSend = dirResult.char;
+                    commandToSend.details = {
+                        dx: dirResult.dx,
+                        dy: dirResult.dy,
+                        new_char: dirResult.char
+                    };
                     shouldEmit = true;
                 } else {
-                    commandFeedback.textContent = `You look for "${targetWord}", but are unable to locate it.`;
+                    commandFeedback.textContent = `You search for "${targetWord}", utterly unable to find it.`;
+                    commandFeedback.classList.add('error-feedback');
                 }
             } else if (canonicalAction === "look") {
                 if (!targetWord) {
                     // Descriptive account of what you see in front of you in text.
                     commandFeedback.textContent = 'You see [...] ahead. (Work in Progress)';
+                    // this probably doesn't need to emit an update, lmao
+                    // (dumb)  commandToSend.details = {dx: 0, dy: 0, new_char: selfPlayer.char}
+                    shouldEmit = false;
                 } else {
-                    const dirResult = parseDirection(targetWord, player.char);
+                    const dirResult = parseDirection(targetWord, selfPlayer.char);
+                    // use directions in relative terms for the feedback box.
+                    // describe what you see in words to the feedback box.
                     if (dirResult.isValid) {
-                        charSend = dirResult.char;
-                        dxSend = 0;
-                        dySend = 0;
+                        commandToSend.details = {dx: 0, dy: 0, new_char: dirResult.char}
                         shouldEmit = true;
                     } else {
-                        commandFeedback.textContent = `You look for "${targetWord}", but are unable to locate it.`;
+                        commandFeedback.textContent = `You search for "${targetWord}", but your elder mind becomes confused.`;
+                        commandFeedback.classList.add('error-feedback');
                     }
                 }
-            } // Future actions here (cast, help, etc.)
-            else {
+            } else { // Future actions here (cast, help, etc.)
                 commandFeedback.textContent = `The action "${canonicalAction}" is not implemented yet.`;
+                commandFeedback.classList.add('error-feedback');
             }
 
             if (shouldEmit) {
-                socket.emit('player_move', {dx: dxSend, dy: dySend, new_char: charSend});
+                socket.emit('queued_command', commandToSend);
+                commandFeedback.textContent = 'Your action has been recorded in the Tome of Deeds.'
+                commandFeedback.classList.remove('error-feedback');
             }
             commandInput.focus();
         });

@@ -129,6 +129,11 @@ body {
     color: #66ff66;
 }
 
+#commandFeedback.error-feedback {
+    color: #ff6b6b; /* A soft red, or your preferred error color */
+    font-weight: bold;
+}
+
 /* Specific green emphasis for things that DEMAND attention, if needed elsewhere */
 .text-emphasis-green {
     color: #50c878; /* Emerald Green */
