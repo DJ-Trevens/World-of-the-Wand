@@ -3,7 +3,7 @@ from flask_socketio import SocketIO, emit
 import os
 
 app = Flask(__name__)
-app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY') #change later!
+app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key') #change later!
 socketio = SocketIO(app)
 
 # Game #

@@ -17,7 +17,7 @@
         #statusBar { margin-bottom: 10px; color: #8f8; }
     </style>
     <!-- Socket.IO client library (served by Flask-SocketIO) -->
-    <script src = "/socket.io/socket.io.js"></script>
+    <script src = "https://cdn.socket.io/4.7.5/socket.io.min.js" integrity = "sha384-2huaZvOR9iDzHqslqNzYWMF7A7kW5HTv6grfonu3IHDEwuO0TVRFnThtGNgNHrXL" crossorigin = "anonymous"></script>
 </head>
 <body>
     <h1>World of the Wand (Prerelease 1.0)</h1>
@@ -222,6 +222,7 @@
         //todo: implement click targeting
         //todo: implement dropdown box action selector
         commandForm.addEventListener('submit', (event) => {
+            console.log("Input form submitted!");
             event.preventDefault();
             const inputText = commandInput.value.trim().toLowerCase();
             commandInput.value = '';
