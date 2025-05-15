@@ -5,14 +5,14 @@ html {
 body {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    min-height: 100vh; 
     margin: 0;
-    padding: 15px;
+    padding: 10px;
     box-sizing: border-box;
     font-family: 'Courier New', Courier, monospace;
     background-color: #1a1a1a;
     color: #e0e0e0;
-    align-items: center;
+    align-items: center; 
 }
 
 #gameCanvas, #commandForm, button {
@@ -21,21 +21,29 @@ body {
     font-family: "Consolas", "Lucida Console", "Courier New", monospace;
 }
 
-
+.content-column {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 750px; /* Increased max-width for wider layout */
+    flex-grow: 1; /* Allow this column to take available vertical space */
+}
 
 #commandLog {
     width: 100%;
-    max-width: 700px;
-    margin-top: auto;
-    padding: 15px;
-    background-color: #202020;
-    border-radius: 5px;
-    border: 1px solid #303030;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    height: 200px;
     flex-shrink: 0;
+    border: 1px solid #303030;
+    background-color: #111111;
+    padding: 10px;
+    margin-bottom: 15px; 
+    overflow-y: auto;   
+    font-size: 0.9em;
+    color: #c0c0c0;
+    border-radius: 3px;
+    line-height: 1.4;
+    display: flex; 
+    flex-direction: column-reverse; 
 }
 
 .log-entry {
@@ -45,6 +53,7 @@ body {
 }
 
 #gameCanvas {
+    width: 100%;
     white-space: pre;
     line-height: 1.0;
     font-size: 16px;
@@ -53,11 +62,11 @@ body {
     color: #c8c8c8;
     background-color: #0f0f0f;
     text-align: left;
-    min-height: 300px;
+    min-height: 300px; 
     flex-grow: 1;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
     border-radius: 3px;
-    margin-bottom: 15px;
+    margin-bottom: 15px; 
 }
 
 #mainHeaderStatus {
@@ -73,44 +82,21 @@ body {
     text-align: center;
 }
 
-.log-entry {
-    margin-bottom: 4px;
-    word-wrap: break-word;
-}
-
-.log-type-error {
-    color: #ff7777;
-    font-weight: bold;
-}
-
-.log-type-success {
-    color: #66ff66;
-}
-
-.log-type-info {
-    /* Default style for now */
-}
-
-.log-type-server {
-    color: #9999DD;
-    font-style: italic;
-}
-
-.log-type-game-event {
-    color: #d0a0d0;
-}
-
 #commandInputBox {
-    margin-top: auto;
     width: 100%;
-    max-width: 600px;
+    max-width: 750px;
+    margin-top: auto; 
     padding: 15px;
     background-color: #202020;
     border-radius: 5px;
     border: 1px solid #303030;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    flex-shrink: 0; 
 }
+
 
 #commandForm {
     display: flex;
@@ -134,13 +120,9 @@ body {
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
-    max-width: 400px; /* Or adjust as needed */
+    max-width: 400px;
     margin-right: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    line-height: 1.5;
-    min-height: 1.5em;
-    cursor: text;
+    font-family: inherit;
 }
 
 #commandText:focus {
@@ -172,22 +154,10 @@ body {
     color: #5D9CEC;
 }
 
-.log-type-error {
-    color: #ff7777;
-    font-weight: bold;
-}
-.log-type-success {
-    color: #66ff66;
-}
+.log-type-entry { color: #9999DD; margin-top: 4px; margin-bottom: 0; word-wrap: break-word; }
+.log-type-error { color: #9999DD; font-weight: bold; }
+.log-type-success { color: #9999DD; }
 .log-type-info {}
-.log-type-server {
-    color: #9999DD;
-    font-style: italic;
-}
-.log-type-game-event {
-    color: #d0a0d0;
-}
-.text-emphasis-blue {
-    color: #275E8C;
-    font-weight: bold;
-}
+.log-type-server { color: #9999DD; font-style: italic; }
+.log-type-game-event { color: #9999DD; }
+.text-emphasis-blue { color: #275E8C; font-weight: bold; }

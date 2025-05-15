@@ -74,34 +74,33 @@ def game_loop():
 # Event Handling #
 
 @socketio.on('connect')
-def handle_connect():
-    sid = request.sid # Get the ID of the connected client
-    print(f"Client connected:{sid}")
+def handle_connect(auth=None):
+    sid = request.sid 
+    print(f"Client connected: {sid} (Auth: {auth})")
 
     newPlayer = {
-        'id': sid, # Store the player's ID
+        'id': sid,
         'x': GRID_WIDTH // 2,
         'y': GRID_HEIGHT // 2,
-        'char': random.choice(['^', 'v', '<', '>']) # randomize initial direction
+        'char': random.choice(['^', 'v', '<', '>'])
     }
-
     players[sid] = newPlayer
     queuedActions[sid] = None
 
-    #Send initial state to the newly connected client
-    # In the future, only send the data of those in the same frame, otherwise locator hax will be very ez
     otherPlayers = {playerID: playerData for playerID, playerData in players.items() if playerID != sid}
+    
+    # This emit is for the connecting client only
     emit('initial_state', {
         'player': newPlayer,
         'grid_width': GRID_WIDTH,
         'grid_height': GRID_HEIGHT,
-        'other_players': otherPlayers,
+        'other_players': otherPlayers, # Ensure client expects this key
         'tick_rate': GAME_TICK_RATE
     })
 
-    # Notify all *other* clients that a new player has joined
-    # This is sent immediately for responsiveness, not tied to game tick
+    # This emit is for ALL OTHER clients
     socketio.emit('player_joined', newPlayer, broadcast = True, include_self = False)
+    print(f"Emitted player_joined for {sid} to other clients.")
 
 @socketio.on('queue_command') # Client sends this event to queue an action
 def handle_queue_command(data):
