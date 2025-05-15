@@ -48,12 +48,12 @@
 
         // -- Helper functions -- //
         function get_dx_dy_from_direction_str(s) {
-            const mapping = {'^': [0,-1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]}; // Using ^v<> for JS
-            return mapping[s] || [0,0];
+            const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
+            return mapping[s] || [0, 0];
         }
 
         function get_direction_str_from_dx_dy(dx, dy) {
-            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
+            const mapping = {"0, -1": '^', "0, 1": 'v', "-1, 0": '<', "1, 0": '>'};
             return mapping[`${dx},${dy}`];
         }
 
@@ -82,39 +82,17 @@
 
         function isVisible(playerX, playerY, playerChar, targetX, targetY, scry = false) {
             // Aura Vision
-            const {rx, ry} = getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY);
-            if (scry || manhattanDistance(playerX, playerY, targetX, targetY) <= AURA_VISION_RANGE) {
+            let manhattanDist = manhattanDistance(playerX, playerY, targetX, targetY)
+            let {rx, ry} = getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY);
+            if (scry || manhattanDist <= AURA_VISION_RANGE || manhattanDist === 2 && Math.abs(playerX - playerY) === 1 && Math.abs(playerY - targetY) && ry <= 0) {
                 return true;
             }
 
             // Observable Cone!!! Observe! :)
-            let distanceAhead;
-            let distanceSideways;
-
-            if (playerChar === '^') { // Facing North
-                distanceAhead = playerY - targetY; // targetY < playerY means "ahead" (North is ahead)
-                distanceSideways = targetX - playerX; // targetX > playerX means "to the right" (East is on your right)
-            } else if (playerChar === 'v') { // Facing South
-                distanceAhead = targetY - playerY; // targetY > playerY means "ahead" (South is ahead)
-                distanceSideways = playerX - targetX; // targetX < playerX means "to the right" (East is on your right)
-            } else if (playerChar === '<') { // Facing West
-                distanceAhead = playerX - targetX; // targetX < playerX means "ahead" (West is ahead)
-                distanceSideways = playerY - targetY; // targetY < playerY means "to the right" (North is on your right)
-            } else if (playerChar === '>') { // Facing East
-                distanceAhead = targetX - playerX; // targetX > playerX means "ahead" (East) is ahead)
-                distanceSideways = targetY - playerY; // targetY > playerY means "to the right" (South is on your right)
-            } else { 
-                return false; // invalid char
-            }
-            //  (hopefully) accurate cone logic.
-            //  The core idea: (for facing '>' as a baseline)
-            //      relX is distance IN FRONT. Must be positive.
-            //      relY is sideways displacement. abs(relY) must be <= relX * OBSERVABLE_WIDTH
-            //      And relX must be <= OBSERVABLE_DEPTH
-            //  Logic should be reused for other things, since I want to reference cardinal directions very little.
-            if (distanceAhead > 0 && distanceAhead <= OBSERVABLE_DEPTH && Math.abs(distanceSideways) <= Math.floor(distanceAhead * OBSERVABLE_WIDTH)) {
+            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
                 return true;
             }
+
             return false; // Not in aura nor observable cone.
         }
 
@@ -198,13 +176,11 @@
             // Cardinal Directions
             "north":    {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
             "south":    {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
-            "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w"]},
-            "east ":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e"]},
+            "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
+            "east ":    {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
             // Relative Directions
             "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
             "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
-            "left":     {relative: true, aliases: ["left", "lft", "l"]},
-            "right":    {relative: true, aliases: ["right", "rght", "rgt", "r"]}
         }
 
         // -- Command Parsing -- //
@@ -237,16 +213,6 @@
                             else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
                             else if (curFacing === '<') result = {char: '>', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
-                        } else if   (dirKey === "left") {
-                            if      (curFacing === '^') result = {char: '<', dx: -1, dy: 0,  isValid: true};
-                            else if (curFacing === 'v') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
-                            else if (curFacing === '<') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
-                            else if (curFacing === '>') result = {char: '^', dx: 0,  dy: -1, isValid: true};
-                        } else if   (dirKey === "right") {
-                            if      (curFacing === '^') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
-                            else if (curFacing === 'v') result = {char: '<', dx: -1, dy: 0,  isValid: true};
-                            else if (curFacing === '<') result = {char: '^', dx: 0,  dy: -1, isValid: true};
-                            else if (curFacing === '>') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
                         }
                     } else {                    // Handle Cardinal Directions
                         result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
