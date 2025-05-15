@@ -18,7 +18,7 @@ app.register_blueprint(game_blueprint, url_prefix = GAME_PATH_PREFIX)
 
 socketio = SocketIO(app, async_mode = "eventlet", path = f"{GAME_PATH_PREFIX}/socket.io")
 
-@game_blueprint.route('/world-of-the-wand')
+@game_blueprint.route('/')
 def index_route():
     return render_template('index.html')
 
