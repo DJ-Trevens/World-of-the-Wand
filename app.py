@@ -72,7 +72,6 @@ def game_loop():
         socketio.emit('game_state_update', current_player_states) # Emits to all connected clients
         
 # Event Handling #
-
 @socketio.on('connect')
 def handle_connect(auth=None):
     sid = request.sid 
@@ -85,22 +84,64 @@ def handle_connect(auth=None):
         'char': random.choice(['^', 'v', '<', '>'])
     }
     players[sid] = newPlayer
-    queuedActions[sid] = None
+    queuedActions[sid] = None 
 
     otherPlayers = {playerID: playerData for playerID, playerData in players.items() if playerID != sid}
     
-    # This emit is for the connecting client only
     emit('initial_state', {
         'player': newPlayer,
         'grid_width': GRID_WIDTH,
         'grid_height': GRID_HEIGHT,
-        'other_players': otherPlayers, # Ensure client expects this key
+        'other_players': otherPlayers,
         'tick_rate': GAME_TICK_RATE
     })
+    print(f"Sent initial_state to {sid}")
 
-    # This emit is for ALL OTHER clients
-    socketio.emit('player_joined', newPlayer, broadcast = True, include_self = False)
-    print(f"Emitted player_joined for {sid} to other clients.")
+    # Use the `skip_sid` parameter, which is directly supported by the underlying python-socketio server's emit.
+    # Still calling it on the flask_socketio `socketio` instance, which should pass it through.
+    # If `broadcast=True` is the problematic keyword, this might work around it.
+    try:
+        print(f"Attempting to emit player_joined for {newPlayer['id']}, skipping sid {sid}")
+        socketio.server.emit('player_joined', newPlayer, skip_sid=sid, namespace='/') 
+        print(f"Emitted player_joined via socketio.server.emit for {newPlayer['id']}")
+    except Exception as e:
+        print(f"ERROR emitting player_joined directly via socketio.server.emit: {e}")
+        # Fallback: If the above fails, try the Flask-SocketIO instance again,
+        try:
+            print(f"Falling back to flask_socketio.emit with skip_sid for player_joined for {newPlayer['id']}")
+            socketio.emit('player_joined', newPlayer, skip_sid=sid)
+            print(f"Fallback flask_socketio.emit with skip_sid for player_joined for {newPlayer['id']} successful.")
+        except Exception as e_fallback:
+            print(f"ERROR with fallback flask_socketio.emit with skip_sid: {e_fallback}")
+
+
+# In handle_disconnect:
+@socketio.on('disconnect')
+def handle_disconnect(reason=None):
+    sid = request.sid 
+    if sid in players:
+        print(f"Client disconnected: {sid} (Reason: {reason})")
+        player_data = players[sid]
+        del players[sid]
+        if sid in queuedActions: 
+            del queuedActions[sid]
+        
+        # Notify all *remaining* clients
+        # Try using skip_sid here as well if broadcast=True is consistently problematic
+        try:
+            print(f"Attempting to emit player_left for {sid}")
+            socketio.server.emit('player_left', player_data['id'], skip_sid=sid, namespace='/') # Send player ID
+            # Or to send the whole player object that left:
+            # socketio.server.emit('player_left', player_data, skip_sid=sid, namespace='/')
+            print(f"Emitted player_left via socketio.server.emit for {sid}")
+        except Exception as e:
+            print(f"ERROR emitting player_left directly via socketio.server.emit: {e}")
+            try:
+                print(f"Falling back to flask_socketio.emit for player_left for {sid}")
+                socketio.emit('player_left', player_data['id'], broadcast=True) # broadcast=True should be fine for disconnect.
+                print(f"Fallback flask_socketio.emit for player_left for {sid} successful.")
+            except Exception as e_fallback:
+                print(f"ERROR with fallback flask_socketio.emit for player_left: {e_fallback}")
 
 @socketio.on('queue_command') # Client sends this event to queue an action
 def handle_queue_command(data):
@@ -115,17 +156,6 @@ def handle_queue_command(data):
             emit('action_failed', {'message': "Your old brain is wrought with confusion. (unknown command. Type '?' for help.)"})
     else:
         emit('action_failed', {'message': "A lost soul whispers commands, but your connection to it was too weak... (connection problem)"})
-
-@socketio.on('disconnect')
-def handle_disconnect(reason = None):
-    sid = request.sid
-    if sid in players:
-        print(f"Client disconnected: {sid}. Reason: {reason}")
-        del players[sid]
-        if sid in queuedActions:
-            del queuedActions[sid]
-        #Notify all other clients that the player left
-        socketio.emit('player_left', sid, broadcast = True)
 
 # Server Initialization #
 def start_game_loop():
