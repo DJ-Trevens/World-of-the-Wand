@@ -117,10 +117,10 @@ def handle_queue_command(data):
         emit('action_failed', {'message': "A lost soul whispers commands, but your connection to it was too weak... (connection problem)"})
 
 @socketio.on('disconnect')
-def handle_disconnect():
+def handle_disconnect(reason = None):
     sid = request.sid
     if sid in players:
-        print(f"Client disconnected: {sid}")
+        print(f"Client disconnected: {sid}. Reason: {reason}")
         del players[sid]
         if sid in queuedActions:
             del queuedActions[sid]
