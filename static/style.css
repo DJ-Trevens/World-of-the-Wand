@@ -1,12 +1,12 @@
 html {
     height: 100%;
-    overflow: hidden; /* Prevent scrollbars on html element */
+    overflow: hidden;
 }
 
 body {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Use full viewport height strictly */
+    height: 100vh;
     margin: 0;
     padding: 10px;
     box-sizing: border-box;
@@ -17,7 +17,6 @@ body {
     overflow-y: hidden;
 }
 
-/* Centering container for main content blocks */
 #commandLog,
 #gameCanvas,
 #mainHeaderStatus,
@@ -56,22 +55,23 @@ body {
 
 
 #gameCanvas {
-    max-width: 700px;
+    max-width: 700px; /* Max width constraint for the game canvas container */
     white-space: pre;
     line-height: 1.0;
     font-size: 16px;
     border: 1px solid #333333;
-    padding: 20px;
+    padding: 20px; /* Provides the "slightly larger" feel */
     color: #c8c8c8;
     background-color: #0f0f0f;
     text-align: left;
-    min-height: 260px;
-    flex-grow: 1;
+    width: auto; /* Allows canvas to shrink-wrap to its text content + padding */
+    height: auto; /* Allows canvas to shrink-wrap to its text content + padding */
+    display: inline-block; /* Key for shrink-wrapping width/height */
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
     border-radius: 3px;
     margin-bottom: 15px;
     font-family: "Consolas", "Lucida Console", "Courier New", monospace;
-    overflow: auto;
+    overflow: auto; /* In case content is unexpectedly large */
 }
 
 #mainHeaderStatus {
@@ -90,7 +90,6 @@ body {
 
 #commandInputBox {
     max-width: 740px;
-    /* margin-top: auto; /* This pushes it to the bottom if body is a flex container */
     padding: 15px;
     background-color: #202020;
     border-radius: 5px;
@@ -99,6 +98,7 @@ body {
     flex-direction: column;
     align-items: center;
     flex-shrink: 0;
+    margin-top: auto; /* Pushes this to the bottom if there's vertical space */
 }
 
 
@@ -120,7 +120,7 @@ body {
 
 #commandText {
     background-color: #282828;
-    color: #e0e0e0; /* Default text color */
+    color: #e0e0e0;
     border: 1px solid #444444;
     padding: 8px 10px;
     border-radius: 4px;

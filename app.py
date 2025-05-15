@@ -7,39 +7,33 @@ from flask import Flask, render_template, request, Blueprint
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key') #change later!
+app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key')
 
-# Blueprint & Path Config #
 GAME_PATH_PREFIX = '/world-of-the-wand'
-
-game_blueprint = Blueprint('game', __name__, template_folder = 'templates', static_folder = 'static', static_url_path = '/static/game')
+game_blueprint = Blueprint('game', __name__, template_folder='templates', static_folder='static', static_url_path='/static/game')
 
 @game_blueprint.route('/')
 def index_route():
     return render_template('index.html')
 
-app.register_blueprint(game_blueprint, url_prefix = GAME_PATH_PREFIX)
-
-socketio = SocketIO(app, async_mode = "eventlet", path = f"{GAME_PATH_PREFIX}/socket.io")
+app.register_blueprint(game_blueprint, url_prefix=GAME_PATH_PREFIX)
+socketio = SocketIO(app, async_mode="eventlet", path=f"{GAME_PATH_PREFIX}/socket.io")
 
 @app.route('/')
 def health_check():
     return "OK", 200
 
-# Game #
-GRID_WIDTH = 30
-GRID_HEIGHT = 15
-GAME_TICK_RATE = 2.0 # seconds
+# Game Settings
+GRID_WIDTH = 25
+GRID_HEIGHT = 20
+GAME_TICK_RATE = 2.0
 
-# Game State #
+# Game State
 players = {}
 queuedActions = {}
-
-# Game Loop #
-_game_loop_started = False
+_game_loop_started = False # Ensure game loop starts only once
 
 def game_loop():
-    # Background tasks that processes game logic at fixed intervals.
     while True:
         socketio.sleep(GAME_TICK_RATE)
         for sid, actionData in list(queuedActions.items()):
@@ -53,117 +47,141 @@ def game_loop():
                     dy = details.get('dy', 0)
                     newChar = details.get('newChar', player['char'])
 
-                    # Updates player position (w/ collision check)
-                    newX = player['x'] + dx
-                    newY = player['y'] + dy
+                    # Handle local movement and potential scene transitions
+                    new_x_local = player['x'] + dx
+                    new_y_local = player['y'] + dy
+                    
+                    scene_changed = False
+                    transition_message = ""
 
-                    if 0 <= newX < GRID_WIDTH:
-                        player['x'] = newX
-                    if 0 <= newY < GRID_HEIGHT:
-                        player['y'] = newY
+                    # Check X-axis scene transition
+                    if new_x_local < 0:
+                        player['scene_x'] -= 1
+                        player['x'] = GRID_WIDTH - 1
+                        scene_changed = True
+                        transition_message = f"Tome scribbles: You emerge on the western edge of a new area ({player['scene_x']},{player['scene_y']})."
+                    elif new_x_local >= GRID_WIDTH:
+                        player['scene_x'] += 1
+                        player['x'] = 0
+                        scene_changed = True
+                        transition_message = f"Tome scribbles: You emerge on the eastern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                    else:
+                        player['x'] = new_x_local
+
+                    # Check Y-axis scene transition
+                    # Note: Positive Y for scene coords is often South, Negative Y is North
+                    if new_y_local < 0:
+                        player['scene_y'] -= 1 
+                        player['y'] = GRID_HEIGHT - 1
+                        scene_changed = True
+                        if not transition_message: # Avoid double message if changing corner
+                             transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                    elif new_y_local >= GRID_HEIGHT:
+                        player['scene_y'] += 1
+                        player['y'] = 0
+                        scene_changed = True
+                        if not transition_message:
+                            transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                    else:
+                        # Only update y if not part of x-transition that already set it
+                        if not (new_x_local < 0 or new_x_local >= GRID_WIDTH) :
+                            player['y'] = new_y_local
                     
                     player['char'] = newChar
-                
-                # TODO: Implement other action types like 'cast', 'help', etc.
+                    
+                    if scene_changed:
+                        # TODO: Load/generate new scene data and send to player.
+                        # TODO: Notify players in old/new scenes about player movement.
+                        socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
 
-                queuedActions[sid] = None # Clear the action for the player this tick
-        # For optimization, later send only data relevant to each client's FOV/range
-        current_player_states = list(players.values())
-        socketio.emit('game_state_update', current_player_states) # Emits to all connected clients
+                queuedActions[sid] = None 
         
-# Event Handling #
+        # TODO: Optimize game_state_update to only send relevant data (e.g., players in the same scene).
+        # This currently sends all player states to all clients.
+        current_player_states = list(players.values())
+        socketio.emit('game_state_update', current_player_states)
+        
 @socketio.on('connect')
 def handle_connect(auth=None):
     sid = request.sid 
-    print(f"Client connected: {sid} (Auth: {auth})")
-
     newPlayer = {
         'id': sid,
-        'x': GRID_WIDTH // 2,
-        'y': GRID_HEIGHT // 2,
+        'scene_x': 0,   # Default scene
+        'scene_y': 0,
+        'x': 0,         # Spawn at 0,0 of the scene
+        'y': 0,
         'char': random.choice(['^', 'v', '<', '>'])
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
 
-    otherPlayers = {playerID: playerData for playerID, playerData in players.items() if playerID != sid}
+    # For initial state, send only other players in the same scene
+    otherPlayersInScene = {
+        playerID: playerData for playerID, playerData in players.items()
+        if playerID != sid and \
+           playerData['scene_x'] == newPlayer['scene_x'] and \
+           playerData['scene_y'] == newPlayer['scene_y']
+    }
     
     emit('initial_state', {
         'player': newPlayer,
         'grid_width': GRID_WIDTH,
         'grid_height': GRID_HEIGHT,
-        'other_players': otherPlayers,
+        'other_players': otherPlayersInScene,
         'tick_rate': GAME_TICK_RATE
     })
-    print(f"Sent initial_state to {sid}")
 
-    # Use the `skip_sid` parameter, which is directly supported by the underlying python-socketio server's emit.
-    # Still calling it on the flask_socketio `socketio` instance, which should pass it through.
-    # If `broadcast=True` is the problematic keyword, this might work around it.
+    # Notify other players (ideally only those in the same scene)
+    # This broadcast needs refinement for scene-based visibility.
     try:
-        print(f"Attempting to emit player_joined for {newPlayer['id']}, skipping sid {sid}")
         socketio.server.emit('player_joined', newPlayer, skip_sid=sid, namespace='/') 
-        print(f"Emitted player_joined via socketio.server.emit for {newPlayer['id']}")
     except Exception as e:
-        print(f"ERROR emitting player_joined directly via socketio.server.emit: {e}")
-        # Fallback: If the above fails, try the Flask-SocketIO instance again,
+        print(f"ERROR emitting player_joined directly: {e}")
         try:
-            print(f"Falling back to flask_socketio.emit with skip_sid for player_joined for {newPlayer['id']}")
             socketio.emit('player_joined', newPlayer, skip_sid=sid)
-            print(f"Fallback flask_socketio.emit with skip_sid for player_joined for {newPlayer['id']} successful.")
         except Exception as e_fallback:
-            print(f"ERROR with fallback flask_socketio.emit with skip_sid: {e_fallback}")
+            print(f"ERROR with fallback player_joined: {e_fallback}")
 
-
-# In handle_disconnect:
 @socketio.on('disconnect')
 def handle_disconnect(reason=None):
     sid = request.sid 
     if sid in players:
-        print(f"Client disconnected: {sid} (Reason: {reason})")
-        player_data = players[sid]
+        player_data = players[sid] # Get player data before deleting
         del players[sid]
         if sid in queuedActions: 
             del queuedActions[sid]
         
-        # Notify all *remaining* clients
-        # Try using skip_sid here as well if broadcast=True is consistently problematic
+        # Notify other players (ideally only those in the same scene)
+        # This broadcast needs refinement for scene-based visibility.
         try:
-            print(f"Attempting to emit player_left for {sid}")
-            socketio.server.emit('player_left', player_data['id'], skip_sid=sid, namespace='/') # Send player ID
-            # Or to send the whole player object that left:
-            # socketio.server.emit('player_left', player_data, skip_sid=sid, namespace='/')
-            print(f"Emitted player_left via socketio.server.emit for {sid}")
+            socketio.server.emit('player_left', player_data['id'], skip_sid=sid, namespace='/')
         except Exception as e:
-            print(f"ERROR emitting player_left directly via socketio.server.emit: {e}")
+            print(f"ERROR emitting player_left directly: {e}")
             try:
-                print(f"Falling back to flask_socketio.emit for player_left for {sid}")
-                socketio.emit('player_left', player_data['id'], broadcast=True) # broadcast=True should be fine for disconnect.
-                print(f"Fallback flask_socketio.emit for player_left for {sid} successful.")
+                socketio.emit('player_left', player_data['id'], broadcast=True) # Fallback
             except Exception as e_fallback:
-                print(f"ERROR with fallback flask_socketio.emit for player_left: {e_fallback}")
+                print(f"ERROR with fallback player_left: {e_fallback}")
 
-@socketio.on('queue_command') # Client sends this event to queue an action
+@socketio.on('queue_command')
 def handle_queue_command(data):
     sid = request.sid
     if sid in players:
-        # basic validation of 'data' should be handled here (e.g. schema check)
         actionType = data.get('type')
-        if actionType in ['move', 'look']: # TODOL Add other action types
-            queuedActions[sid] = data # Store the action to be processed by game_loop()
+        if actionType in ['move', 'look', 'cast']: # Allow 'cast' to be queued
+            queuedActions[sid] = data 
             emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
         else:
             emit('action_failed', {'message': "Your old brain is wrought with confusion. (unknown command. Type '?' for help.)"})
     else:
         emit('action_failed', {'message': "A lost soul whispers commands, but your connection to it was too weak... (connection problem)"})
 
-# Server Initialization #
 def start_game_loop():
-    # Ensures the game loop background task is started only once
     global _game_loop_started
     if not _game_loop_started:
-        socketio.start_background_task(target = game_loop)
+        socketio.start_background_task(target=game_loop)
         _game_loop_started = True
 
-#Start the loop! :)
 start_game_loop()
+
+if __name__ == '__main__':
+    socketio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

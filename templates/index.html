@@ -1,3 +1,4 @@
+      
 <!DOCTYPE html>
 <html lang = "en">
 <head>
@@ -27,29 +28,24 @@
     <script>
         const gameCanvas = document.getElementById('gameCanvas');
         const mainHeaderStatus = document.getElementById('mainHeaderStatus');
-
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
 
-        // -- Client-Side Game State -- //
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 0;
-        let GRID_HEIGHT = 0;
+        let GRID_WIDTH = 25;
+        let GRID_HEIGHT = 20;
         let GAME_TICK_RATE = 2.0;
         let prevSelfPlayerState = null;
 
-        // -- Fog of War -- //
         const FOG_CHAR = '▒';
         const FLOOR_CHAR = '.';
-        const WALL_CHAR = '#';
         const OBSERVABLE_DEPTH = 7;
         const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
 
-        // -- Helper functions -- //
         function get_dx_dy_from_direction_str(s) {
             const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
             return mapping[s] || [0, 0];
@@ -107,7 +103,7 @@
             if (status) {
                 mainHeaderStatus.textContent = status;
             } else if (selfPlayer) {
-                mainHeaderStatus.textContent = `${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
+                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
             }
@@ -119,15 +115,22 @@
                 return;
             }
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
+            
+            // Draw other players in the same scene
             for (const playerID in otherPlayers) {
                 const otherGuy = otherPlayers[playerID];
-                if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
-                    displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
+                // Ensure they are in the current player's scene (already filtered in game_state_update, but good check)
+                if (otherGuy.scene_x === selfPlayer.scene_x && otherGuy.scene_y === selfPlayer.scene_y) {
+                    if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
+                        displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
+                    }
                 }
             }
+            // Draw self player
             if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
                 displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
             }
+
             let output = "";
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
@@ -140,95 +143,106 @@
                 output += "\n";
             }
             gameCanvas.textContent = output;
-            updateStatus();
         }
 
-        // -- WebSocket Event Handlers -- //
         socket.on('connect', () => {
-            console.log('Connected to server! SID: ', socket.id);
             updateStatus("Divining your essence...");
         });
 
         socket.on('initial_state', (data) => {
-            console.log('Recieved initial state: ', data);
             selfPlayer = data.player;
             myPlayerID = selfPlayer.id;
             GRID_WIDTH = data.grid_width;
             GRID_HEIGHT = data.grid_height;
             GAME_TICK_RATE = data.tick_rate;
-            otherPlayers = data.otherPlayers || {};
+            otherPlayers = data.other_players || {}; // Server sends players in the same scene
             prevSelfPlayerState = { ...selfPlayer };
+
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
+
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus();
                 drawGrid();
-                addLogMessage("Tome: You have materialized in a foreboding meadow. The world awaits your epic journey!", 'lore');
+                addLogMessage(`Tome: You have materialized in a foreboding meadow at scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world awaits!`, 'lore');
             } else {
-                console.error("Initial state data incomplete or invalid: ", data);
-                updateStatus("Error manifesting world.");
-                addLogMessage("Tome warns: Error! Could not manifest in world. The ancient texts are unreadable.", 'event-bad');
+                addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
             }
-            validateAndHighlightInput(); // Validate input style now that player state might affect it
+            validateAndHighlightInput();
         });
 
         socket.on('player_joined', (newPlayer) => {
-            console.log('Player joined: ', newPlayer);
-            if (myPlayerID && newPlayer.id !== myPlayerID) {
+            if (myPlayerID && newPlayer.id !== myPlayerID && selfPlayer &&
+                newPlayer.scene_x === selfPlayer.scene_x && newPlayer.scene_y === selfPlayer.scene_y) {
                 otherPlayers[newPlayer.id] = newPlayer;
                 drawGrid();
-                addLogMessage("Tome notes: You sense the arrival of another powerful sorcerer.", 'event-good');
+                addLogMessage("Tome notes: You sense the arrival of another sorcerer in this area.", 'event-good');
             }
         });
 
         socket.on('player_left', (playerID) => {
-            console.log('Player left: ', playerID);
             if (otherPlayers[playerID]) {
                 delete otherPlayers[playerID];
                 drawGrid();
-                addLogMessage("Tome records: A powerful sorcerer has departed to another plane.", 'lore');
+                addLogMessage("Tome records: A sorcerer has departed this area.", 'lore');
             }
+        });
+        
+        socket.on('lore_message', (data) => {
+            addLogMessage(data.message, data.type || 'lore');
         });
 
         socket.on('game_state_update', (allPlayers) => {
             let foundSelf = false;
-            const currentOtherPlayers = {};
+            const currentOtherPlayersInMyScene = {};
+
             for (const playerData of allPlayers) {
                 if (playerData.id === myPlayerID) {
                     selfPlayer = playerData;
                     foundSelf = true;
-                } else {
-                    currentOtherPlayers[playerData.id] = playerData;
+                } else if (selfPlayer && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
+                    currentOtherPlayersInMyScene[playerData.id] = playerData;
                 }
             }
-            otherPlayers = currentOtherPlayers;
+            otherPlayers = currentOtherPlayersInMyScene;
 
             if (!foundSelf && myPlayerID) {
-                console.warn("Self not found in game state update. Possible desync or disconnect.");
                 updateStatus("Your connection to this world wavers... (bad connection)");
                 addLogMessage("Tome's script flickers: Warning! Your connection to self is unstable.", 'event-bad');
             }
 
             if (selfPlayer && prevSelfPlayerState) {
-                const moved = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
-                const turned = selfPlayer.char !== prevSelfPlayerState.char;
-                if (moved) {
-                    let directionWord = "somewhere";
-                    const dx = selfPlayer.x - prevSelfPlayerState.x;
-                    const dy = selfPlayer.y - prevSelfPlayerState.y;
-                    if (dx === 1 && dy === 0) directionWord = "east";
-                    else if (dx === -1 && dy === 0) directionWord = "west";
-                    else if (dx === 0 && dy === 1) directionWord = "south";
-                    else if (dx === 0 && dy === -1) directionWord = "north";
-                    let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                    addLogMessage(`Tome traces your path: You venture ${directionWord}, arriving at (${selfPlayer.x}, ${selfPlayer.y}), still facing ${facingDirectionWord}.`, 'lore');
-                } else if (turned) {
-                    let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                    addLogMessage(`Tome observes: You turn to face ${facingDirectionWord}.`, 'lore');
+                const sceneChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
+                
+                if (sceneChanged) {
+                    // Server sends 'lore_message' for transition. Client handles other players.
+                    otherPlayers = {}; // Clear others as we've "moved" scenes from client's perspective
+                    // Re-populate otherPlayers with those in the new scene from the current game_state_update
+                    for (const playerData of allPlayers) {
+                        if (playerData.id !== myPlayerID && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
+                            otherPlayers[playerData.id] = playerData;
+                        }
+                    }
+                    // TODO: Client might need to request new map data for the scene here if it's not part of game_state_update
+                    addLogMessage(`Tome notes: You are now in scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world may look different.`, 'system');
+
+                } else { // Only log local move/turn if scene hasn't changed (server handles scene change message)
+                    const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
+                    const turned = selfPlayer.char !== prevSelfPlayerState.char;
+
+                    if (movedLocal) {
+                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                        addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
+                    } else if (turned) {
+                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                        addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
+                    }
                 }
             }
             if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
+            
             drawGrid();
-            validateAndHighlightInput(); // Re-validate if player char changed, affecting "move" or "look" validity
+            updateStatus(); 
+            validateAndHighlightInput();
         });
 
         function getDirectionWord(char) {
@@ -239,16 +253,15 @@
 
         socket.on('action_queued', (data) => addLogMessage("Tome confirms: " + data.message, "system"));
         socket.on('action_failed', (data) => addLogMessage("Tome shakes its pages: " + data.message, 'event-bad'));
+        
         socket.on('disconnect', () => {
-            console.log('Disconnected from server.');
             updateStatus("Severed from the Ethereal Plane! (Disconnected)");
             addLogMessage("Tome wails: Disconnected from the server! The weave unravels!", 'event-bad');
             selfPlayer = null; otherPlayers = {}; prevSelfPlayerState = null;
             drawGrid();
-            validateAndHighlightInput(); // Input might now be invalid if commands require player
+            validateAndHighlightInput();
         });
 
-        // -- Command Config -- //
         const ACTION_ALIASES = {
             "move": ["move", "go", "walk", "step", "head", "run"],
             "look": ["look", "face", "turn"],
@@ -264,7 +277,6 @@
             "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
         };
 
-        // -- Command Parsing & Validation -- //
         function parseAction(actionWord) {
             actionWord = actionWord.toLowerCase();
             for (const canonicalAction in ACTION_ALIASES) {
@@ -304,7 +316,7 @@
 
         function validateAndHighlightInput() {
             const text = commandInput.textContent || "";
-            const trimmedText = text.trim(); // Use trimmed text for validation logic
+            const trimmedText = text.trim();
             const parts = trimmedText.split(/\s+/);
             const actionWord = parts[0] ? parts[0].toLowerCase() : "";
             const targetParts = parts.slice(1);
@@ -315,26 +327,21 @@
             if (actionWord) {
                 const canonicalAction = parseAction(actionWord);
                 if (canonicalAction) {
-                    if (!targetWord) { // Action word exists, no target word
+                    if (!targetWord) {
                         if (canonicalAction === "look" || canonicalAction === "help" || canonicalAction === "move") {
-                            isValidOverall = true; // "move" alone implies "move forward" on submit
+                            isValidOverall = true;
                         }
-                    } else { // Action word and target word exist
+                    } else { 
                         if (canonicalAction === "move" || canonicalAction === "look") {
                             const dirResult = parseDirection(targetWord, selfPlayer ? selfPlayer.char : '^');
-                            if (dirResult.isValid) {
-                                isValidOverall = true;
-                            }
+                            if (dirResult.isValid) isValidOverall = true;
                         } else if (canonicalAction === "cast") {
-                            // Basic: "cast [something]" is valid for highlighting
                             if (targetWord.length > 0) isValidOverall = true;
                         }
-                        // "help [topic]" - for now, only "help" alone is blue.
                     }
                 }
             }
-
-            if (isValidOverall && trimmedText.length > 0) { // Only apply if there's actual text and it's valid
+            if (isValidOverall && trimmedText.length > 0) {
                 commandInput.classList.add('valid-command-input');
             } else {
                 commandInput.classList.remove('valid-command-input');
@@ -348,7 +355,7 @@
                 event.preventDefault();
                 if (typeof commandForm.requestSubmit === 'function') {
                     commandForm.requestSubmit();
-                } else { // Fallback for older browsers / testing environments
+                } else { 
                     const submitButton = commandForm.querySelector('button[type="submit"]');
                     if (submitButton) submitButton.click();
                 }
@@ -361,9 +368,9 @@
                 addLogMessage("Tome whispers urgently: You are not fully manifest in this realm yet!", 'event-bad');
                 return;
             }
-            const inputText = commandInput.textContent.trim(); // Use textContent
-            commandInput.innerHTML = ''; // Clear input
-            validateAndHighlightInput(); // Re-style the now-empty input
+            const inputText = commandInput.textContent.trim();
+            commandInput.innerHTML = '';
+            validateAndHighlightInput();
 
             if (!inputText) return;
             addLogMessage(`> ${inputText}`, 'user-input');
@@ -385,6 +392,19 @@
                 const effectiveTargetWord = targetWord || "forward";
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
+                    const currentX = selfPlayer.x;
+                    const currentY = selfPlayer.y;
+                    const targetX_local = currentX + dirResult.dx;
+                    const targetY_local = currentY + dirResult.dy;
+
+                    if (targetX_local < 0 || targetX_local >= GRID_WIDTH || targetY_local < 0 || targetY_local >= GRID_HEIGHT) {
+                        let directionOfExit = "";
+                        if (targetX_local < 0) directionOfExit = "west";
+                        else if (targetX_local >= GRID_WIDTH) directionOfExit = "east";
+                        else if (targetY_local < 0) directionOfExit = "north";
+                        else if (targetY_local >= GRID_HEIGHT) directionOfExit = "south";
+                        addLogMessage(`Tome notes your intent: You attempt to venture further ${directionOfExit}, beyond the current parchment...`, 'system');
+                    }
                     commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
                     shouldEmit = true;
                 } else {
@@ -397,14 +417,20 @@
                     commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char };
                     shouldEmit = true;
                 } else {
-                    addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
+                     addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
                 }
             } else if (canonicalAction === "help") {
                 addLogMessage("Tome patiently explains: My pages are still being written for detailed help. For now, try 'move [direction]' (north, south, east, west, forward, backward) or 'look [direction]'. You can also try 'cast [spell name]'.", 'system');
-            } else { // Includes "cast" for now, server will handle if spell is unknown
-                commandToSend.details = { target: targetWord || "" }; // Example: cast might need a target
-                shouldEmit = true; // Let server decide if "cast" or other actions are valid
-                // addLogMessage(`The arcane art of "${canonicalAction}" is yet beyond your grasp.`, 'event-bad');
+            } else if (canonicalAction === "cast") {
+                 if (targetWord) {
+                    commandToSend.details = { spellName: targetWord }; // Example detail
+                    shouldEmit = true;
+                    addLogMessage(`Tome focuses: You begin to channel energy for "${targetWord}"...`, 'system');
+                 } else {
+                    addLogMessage(`Tome asks: Cast what, O Wizard? You must name the incantation.`, 'event-bad');
+                 }
+            } else {
+                addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding.`, 'event-bad');
             }
 
             if (shouldEmit) {
@@ -413,12 +439,8 @@
             commandInput.focus();
         });
 
-        // Initial setup
         drawGrid();
-        if (commandInput) {
-            commandInput.focus(); // Autofocus
-            validateAndHighlightInput(); // Set initial style of input box
-        }
+        if (commandInput) { commandInput.focus(); validateAndHighlightInput(); }
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'system');
 
     </script>
