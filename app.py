@@ -10,7 +10,7 @@ app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_ke
 socketio = SocketIO(app, async_mode = 'eventlet')
 
 # Game #
-GRID_WIDTH = 20
+GRID_WIDTH = 30
 GRID_HEIGHT = 15
 
 # Player #

@@ -7,6 +7,10 @@ html, body {
     color: #e0e0e0;
 }
 
+body, #gameCanvas, #commmandText, #commandForm, button {
+    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+}
+
 body {
     display: flex;
     flex-direction: column;
@@ -32,8 +36,8 @@ body {
 
 #gameCanvas {
     white-space: pre;
-    line-height: 1.2;
-    font-size: 20px;
+    line-height: 1.0;
+    font-size: 16px;
     border: 1px solid #333333;
     padding: 20px;
     color: #c8c8c8;
