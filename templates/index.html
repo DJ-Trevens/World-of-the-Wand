@@ -118,11 +118,11 @@
             commandLog.scrollTop = commandLog.scrollHeight; // Auto-scroll to the latest message
         }
 
-        function updateStatus(status) {
-            if (status) {
-                mainHeaderStatus.textContext = status
+        function updateStatus(status) { 
+            if (status) { 
+                mainHeaderStatus.textContent = status; 
             } else if (selfPlayer) {
-                mainHeaderStatus.textContent = `${player.char}: (${player.x}, ${player.y}) | Mana: 175/175 | Wand: 100%`;
+                mainHeaderStatus.textContent = "${player.char}: (${player.x}, ${player.y}) | Mana: 175/175 | Wand: 100%"; 
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
             }
