@@ -12,15 +12,19 @@ app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_ke
 # Blueprint & Path Config #
 GAME_PATH_PREFIX = '/world-of-the-wand'
 
-game_blueprint = Blueprint('game', __name__, template_folder = 'templates', static_folder = 'static', static_url_path = '/static')
+game_blueprint = Blueprint('game', __name__, template_folder = 'templates', static_folder = 'static', static_url_path = '/static/game')
+
+@game_blueprint.route('/')
+def index_route():
+    return render_template('index.html')
 
 app.register_blueprint(game_blueprint, url_prefix = GAME_PATH_PREFIX)
 
 socketio = SocketIO(app, async_mode = "eventlet", path = f"{GAME_PATH_PREFIX}/socket.io")
 
-@game_blueprint.route('/')
-def index_route():
-    return render_template('index.html')
+@app.route('/')
+def health_check():
+    return "OK", 200
 
 # Game #
 GRID_WIDTH = 30
@@ -68,9 +72,6 @@ def game_loop():
         socketio.emit('game_state_update', current_player_states) # Emits to all connected clients
         
 # Event Handling #
-@app.route('/')
-def health_check():
-    return "OK", 200
 
 @socketio.on('connect')
 def handle_connect():
