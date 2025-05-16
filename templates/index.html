@@ -26,7 +26,7 @@
                     <label>
                         <input type="checkbox" id="localCommandsToggle" checked> Local Commands
                     </label>
-                    <div id="rainIntensityControl"> {/* Wrapper for conditional display */}
+                    <div id="rainIntensityControl">
                         <label>
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
@@ -66,7 +66,6 @@
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
 
-
         let showDebugInfo = false; 
         let useLocalCommands = true;
         
@@ -85,7 +84,7 @@
         };
         let globalWeather = {
             isRaining: true, 
-            intensity: 0.1 // Default intensity
+            intensity: 0.1 
         };
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50; 
@@ -199,11 +198,11 @@
 
         function estimateCharacterSize() {
             if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists")) {
-                 if (!charSizeEstimated) { // If still not estimated, use fallbacks
+                 if (!charSizeEstimated) { 
                     charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * 0.6; 
                     charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
                     console.warn("Using fallback char size for initial centering:", charRenderWidth, charRenderHeight);
-                    charSizeEstimated = true; // Mark as estimated even with fallback to prevent loops
+                    charSizeEstimated = true; 
                  }
                 return;
             }
@@ -385,10 +384,10 @@
                 if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
                     startRainEffect(globalWeather.intensity); 
                 }
-                if(showDebugInfo) addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
+                // No log message for intensity change unless debug info is on, 
+                // but the effect changes regardless of showDebugInfo for the slider.
             }
         });
-
 
         socket.on('connect', () => {});
 
@@ -776,8 +775,7 @@
             updateStatus();
             updateWeatherEffects();
         };
-
-        // Initial setup
+        
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         
@@ -797,7 +795,7 @@
         if (savedRainIntensity !== null) { 
             globalWeather.intensity = parseFloat(savedRainIntensity);
         } else {
-             globalWeather.intensity = 0.1; // Default to 0.1
+             globalWeather.intensity = 0.1; 
         }
         rainIntensitySlider.value = globalWeather.intensity;
 

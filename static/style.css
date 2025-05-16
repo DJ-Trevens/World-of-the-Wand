@@ -1,20 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    /* Default Theme: Enchanted Dusk */
     --bg-primary: #232946; 
     --bg-secondary: #2f385b; 
     --bg-tome: #fff9e6; 
     --bg-tome-cover: #5d4037;    
+    
     --text-tome-ink: #2c1f1a;    
     --text-tome-mana: #6947a1;   
     --glow-tome-mana: #c0a2f7;   
+    
     --text-primary: #e0e0fc; 
     --text-game: #f0f0ff;        
+    
     --border-color: #4a4e69;     
+    
     --highlight-blue: #7aa2f7;   
     --highlight-green: #9ece6a;  
     --highlight-red: #f7768e;    
+    
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
@@ -186,8 +190,8 @@ body.is-dragging, body.is-dragging * {
     vertical-align: middle;
     transform: scale(0.9); 
 }
-#rainIntensityControl { /* Wrapper for rain slider for easier show/hide */
-    display: none; /* Hidden by default, shown by JS if debug info is on */
+#rainIntensityControl { 
+    display: none; 
 }
 #debugMenu input[type="range"] {
     width: 60px; 
@@ -290,10 +294,10 @@ body.is-dragging, body.is-dragging * {
 }
 
 
-#commandForm label { /* "Inscribe Thy Will" */
-    color: var(--text-primary); /* Reverted from mana glow */
+#commandForm label { 
+    color: var(--text-primary); 
     font-weight: 500;
-    /* text-shadow: none; Removed mana glow */
+    text-shadow: none; /* Removed mana glow */
     margin-right: 5px; 
     font-size: 0.9em;
     display: flex; 
