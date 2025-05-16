@@ -34,7 +34,7 @@
             </div>
 
             <div id="gameCanvasContainer">
-                <div id="gameCanvas">Initializing Realm...</div>
+                <div id="gameCanvas">Summoning World...</div>
                 <div id="rainOverlay"></div>
             </div>
             
@@ -69,8 +69,8 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 20; 
-        let GRID_HEIGHT = 15;
+        let GRID_WIDTH = 27; 
+        let GRID_HEIGHT = 17;
         let GAME_TICK_RATE = 0.75;
         let OBSERVABLE_DEPTH = 17;
         let prevSelfPlayerState = null;
@@ -84,7 +84,7 @@
             intensity: 0.35 
         };
         let rainInterval = null;
-        const RAIN_INTERVAL_DELAY = 50; // Check to spawn a drop every 50ms
+        const RAIN_INTERVAL_DELAY = 50; 
 
         let isDragging = false;
         let startDragX, startDragY;
@@ -262,42 +262,40 @@
         
         function startRainEffect(intensity) {
             if (rainInterval) clearInterval(rainInterval);
-            rainOverlay.innerHTML = ''; // Clear old raindrops if any
+            rainOverlay.innerHTML = ''; 
 
-            // The number of raindrops to attempt to spawn per interval check.
-            // Higher intensity means more drops *per chance*.
-            const maxDropsPerTick = 1 + Math.floor(intensity * 5); // e.g., 1 to 6 drops
-
+            // Determine number of drops based on intensity, check every RAIN_INTERVAL_DELAY
+            // This approach means higher intensity -> higher probability of a drop in each check cycle
             rainInterval = setInterval(() => {
-                for (let i = 0; i < maxDropsPerTick; i++) {
-                    if (Math.random() < intensity) { // Chance to spawn each drop
-                        const drop = document.createElement('div');
-                        drop.classList.add('raindrop');
-                        drop.style.left = Math.random() * 100 + '%';
-                        
-                        const duration = 0.4 + Math.random() * 0.4; 
-                        drop.style.animationDuration = duration + 's';
-                        drop.style.animationDelay = Math.random() * 0.2 + 's'; 
-                        
-                        rainOverlay.appendChild(drop);
+                if (Math.random() < (intensity * 0.5) ) { // Adjust multiplier for desired density
+                    const drop = document.createElement('div');
+                    drop.classList.add('raindrop');
+                    drop.style.left = Math.random() * 100 + '%';
+                    
+                    const duration = 0.4 + Math.random() * 0.4; 
+                    drop.style.animationDuration = duration + 's';
+                    drop.style.animationDelay = Math.random() * 0.2 + 's'; 
+                    
+                    rainOverlay.appendChild(drop);
 
-                        drop.addEventListener('animationend', () => {
-                            drop.remove();
-                        });
-                    }
+                    drop.addEventListener('animationend', () => {
+                        drop.remove();
+                    });
                 }
-            }, RAIN_INTERVAL_DELAY); // Check every 50ms
+            }, RAIN_INTERVAL_DELAY);
         }
 
         function stopRainEffect() {
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
-            // Raindrops remove themselves via animationend
         }
         
         function updateWeatherEffects() {
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval) startRainEffect(globalWeather.intensity);
+                if (!rainInterval || rainIntensitySlider.value !== globalWeather.intensity.toFixed(2)) { // Check if intensity changed
+                    globalWeather.intensity = parseFloat(rainIntensitySlider.value); // Update from slider
+                    startRainEffect(globalWeather.intensity);
+                }
             } else {
                 if (rainInterval) stopRainEffect();
             }
@@ -346,17 +344,11 @@
                 return; 
             }
             
-            // Player's character cell's visual center X and Y within the gameCanvas's own content flow
             const playerVisualCenterX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
             const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
-            // Desired center of the gameCanvasContainer (the viewport for the gameCanvas)
-            const containerCenterX = gameCanvasContainer.clientWidth / 2;
-            const containerCenterY = gameCanvasContainer.clientHeight / 2;
-
-            // Calculate the pan needed to bring player's visual center to the container's center
-            targetPanX = containerCenterX - playerVisualCenterX;
-            targetPanY = containerCenterY - playerVisualCenterY;
+            targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
+            targetPanY = (gameCanvasContainer.clientHeight / 2) - playerVisualCenterY;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
@@ -374,15 +366,16 @@
             localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
         });
         rainIntensitySlider.addEventListener('input', (event) => {
-            globalWeather.intensity = parseFloat(event.target.value);
-            localStorage.setItem('rainIntensity', globalWeather.intensity);
-            if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                // Restart rain with new intensity
-                startRainEffect(globalWeather.intensity);
+            const newIntensity = parseFloat(event.target.value);
+            if (globalWeather.intensity !== newIntensity) {
+                globalWeather.intensity = newIntensity;
+                localStorage.setItem('rainIntensity', globalWeather.intensity);
+                if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
+                    startRainEffect(globalWeather.intensity); // Restart rain with new intensity
+                }
+                if(showDebugInfo) addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
             }
-            addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
         });
-
 
         socket.on('connect', () => {});
 
@@ -408,7 +401,9 @@
             const savedRainIntensity = localStorage.getItem('rainIntensity');
             if (savedRainIntensity !== null) { 
                 globalWeather.intensity = parseFloat(savedRainIntensity);
-            } // else use default 0.35
+            } else {
+                globalWeather.intensity = 0.35; // Ensure default is set if not in localStorage
+            }
             rainIntensitySlider.value = globalWeather.intensity;
 
 
@@ -452,8 +447,8 @@
         });
         socket.on('weather_update', (weatherData) => {
             const wasRaining = globalWeather.isRaining;
-            globalWeather = weatherData; // Server could send full weather object
-            rainIntensitySlider.value = globalWeather.intensity; // Sync slider if server changes intensity
+            globalWeather = weatherData; 
+            rainIntensitySlider.value = globalWeather.intensity; 
             updateWeatherEffects();
             if (currentSceneData.InsideID === 0) { 
                 if (globalWeather.isRaining && !wasRaining) {

@@ -178,38 +178,23 @@ body.is-dragging, body.is-dragging * {
     margin-right: 10px; 
 }
 #debugMenu label {
-    margin: 1px 0; /* Reduced vertical margin */
-    font-size: 0.7em; /* Smaller label text */
+    margin: 1px 0; 
+    font-size: 0.75em; 
     cursor: pointer;
     display: flex;
     align-items: center;
     white-space: nowrap;
 }
 #debugMenu input[type="checkbox"] {
-    margin-right: 3px; /* Reduced margin */
+    margin-right: 4px;
     vertical-align: middle;
-    transform: scale(0.8); 
+    transform: scale(0.9); 
 }
 #debugMenu input[type="range"] {
-    width: 60px; /* Smaller slider */
+    width: 60px; 
     height: 10px;
     margin-left: 4px;
 }
-#debugMenu button { 
-    font-size: 0.65em; /* Smaller button text */
-    padding: 1px 4px; /* Smaller padding */
-    margin-top: 3px;
-    background-color: var(--border-color);
-    color: var(--text-primary);
-    border: 1px solid var(--text-primary);
-    border-radius: 3px;
-    cursor: pointer;
-}
-#debugMenu button:hover {
-    background-color: var(--highlight-blue);
-    color: var(--bg-primary);
-}
-
 
 #mainHeaderStatus {
     color: var(--text-primary);
@@ -233,7 +218,7 @@ body.is-dragging, body.is-dragging * {
     overflow: hidden; 
     border: 1px solid var(--border-color);
     cursor: grab; 
-    padding: 0; 
+    padding: 0; /* Padding is now on container for consistent centering */
 }
 #gameCanvasContainer:active {
     cursor: grabbing;
@@ -276,7 +261,6 @@ body.is-dragging, body.is-dragging * {
     to { transform: translateY(calc(100vh + 60px)); }
 }
 
-
 #commandInputBox {
     padding: 15px;
     background-color: transparent; 
@@ -308,10 +292,12 @@ body.is-dragging, body.is-dragging * {
 
 
 #commandForm label {
-    color: var(--text-primary);
+    color: var(--text-tome-mana); /* Mana glow for label */
+    font-weight: 700;
+    text-shadow: 0 0 7px var(--glow-tome-mana), 
+                 0 0 12px var(--glow-tome-mana);
     margin-right: 5px; 
     font-size: 0.9em;
-    font-weight: 500;
     display: flex; 
     align-items: center;
 }
@@ -335,9 +321,9 @@ body.is-dragging, body.is-dragging * {
 }
 
 #commandForm button { 
-    background-color: var(--highlight-blue);
-    color: var(--bg-tome); 
-    border: none;
+    background-color: var(--border-color); /* Subtle base */
+    color: var(--text-primary);
+    border: 1px solid #3a3d50; /* Slightly darker border for depth */
     padding: 10px 20px;
     margin-left: 10px;
     cursor: pointer;
@@ -347,11 +333,14 @@ body.is-dragging, body.is-dragging * {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     font-size: 0.9em;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease, transform 0.1s ease;
 }
 
-#commandForm button:hover { 
-    background-color: #9bbff9; 
+#commandForm button:hover, #commandForm button:focus, #commandForm button:active { 
+    background-color: var(--text-tome-mana); /* Use mana color for bg */
+    color: var(--bg-tome); /* Light text for contrast */
+    text-shadow: 0 0 5px var(--glow-tome-mana), 0 0 8px var(--glow-tome-mana);
+    border-color: var(--text-tome-mana);
 }
 #commandForm button:active { 
     transform: translateY(1px);
