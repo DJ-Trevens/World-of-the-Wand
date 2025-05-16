@@ -39,7 +39,7 @@ body {
     color: var(--text-primary);
     overflow: hidden; 
 }
-body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
+body.is-dragging, body.is-dragging * { 
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -161,7 +161,7 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
 #mainHeaderStatusContainer { 
     display: flex;
     align-items: center;
-    gap: 10px; /* Will be space between debug and status text */
+    gap: 10px;
     background-color: rgba(0,0,0,0.25); 
     border-radius: 6px;
     padding: 0 10px; 
@@ -170,15 +170,15 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
 }
 #debugMenu { 
     display: flex;
-    flex-direction: column; /* Stack checkboxes vertically */
-    align-items: flex-start; /* Align checkboxes to the left */
+    flex-direction: column; 
+    align-items: flex-start; 
     padding: 5px 0; 
     color: var(--text-primary);
     flex-shrink: 0;
 }
 #debugMenu label {
     margin: 2px 0; 
-    font-size: 0.75em; /* Even smaller for compact debug options */
+    font-size: 0.75em; 
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -187,7 +187,7 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
 #debugMenu input[type="checkbox"] {
     margin-right: 4px;
     vertical-align: middle;
-    transform: scale(0.9); /* Make checkbox slightly smaller */
+    transform: scale(0.9); 
 }
 
 #mainHeaderStatus {
@@ -212,6 +212,7 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
     overflow: hidden; 
     border: 1px solid var(--border-color);
     cursor: grab; 
+    padding: 15px; /* Padding is on the container now */
 }
 #gameCanvasContainer:active {
     cursor: grabbing;
@@ -226,7 +227,7 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
     z-index: 1;
     position: absolute; 
     transition: transform 0.3s ease-out; 
-    padding: 0; /* Padding moved to container */
+    padding: 0; /* No padding on the canvas itself, makes coords simpler */
 }
 
 #rainOverlay {
@@ -334,21 +335,6 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
     transform: translateY(1px);
 }
 
-/* Absolute positioned debug menu - top left of viewport now */
-/* #debugMenu {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background-color: rgba(44, 51, 62, 0.85); 
-    backdrop-filter: blur(3px); 
-    padding: 8px 12px;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-    z-index: 1000;
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-} Removed this absolute positioning. It's now part of mainHeaderStatusContainer */
-
 
 @media (max-width: 800px) {
     .main-ui-container {
@@ -374,8 +360,8 @@ body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
     #mainHeaderStatusContainer {
         flex-wrap: wrap; 
         padding: 5px 10px;
-        justify-content: space-between; /* Push debug to left, status to rightish */
+        justify-content: space-between; 
     }
-    #debugMenu { order: -1; /* Ensure debug info is on the left */ }
+    #debugMenu { order: -1; }
     #mainHeaderStatus { font-size: 0.9em; text-align: right; }
 }

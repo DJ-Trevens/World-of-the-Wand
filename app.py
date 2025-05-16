@@ -25,8 +25,8 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 27  # Updated
-GRID_HEIGHT = 17 # Updated
+GRID_WIDTH = 20
+GRID_HEIGHT = 15
 GAME_TICK_RATE = 0.75
 SHOUT_MANA_COST = 5
 
@@ -42,6 +42,7 @@ def game_loop():
     while True:
         try: 
             socketio.sleep(GAME_TICK_RATE)
+            # print(f"Game tick - Players: {len(players)}, Queued: {len(queuedActions)}") 
             for sid, actionData in list(queuedActions.items()):
                 if actionData and sid in players:
                     player = players[sid]
@@ -148,6 +149,7 @@ def game_loop():
                     queuedActions[sid] = None 
             
             current_player_states = list(players.values())
+            # print("Emitting game_state_update @", time.time(), ":", current_player_states) 
             socketio.emit('game_state_update', current_player_states)
         except Exception as e:
             print(f"!!! ERROR IN GAME LOOP: {e} !!!") 
@@ -157,6 +159,7 @@ def game_loop():
 @socketio.on('connect')
 def handle_connect(auth=None):
     sid = request.sid 
+    print(f"Client connected: {sid}")
     newPlayer = {
         'id': sid,
         'name': get_player_name(sid),
@@ -189,6 +192,8 @@ def handle_connect(auth=None):
         'other_players': otherPlayersInScene,
         'tick_rate': GAME_TICK_RATE
     })
+    print(f"Sent initial_state to {sid}")
+
 
     try:
         socketio.server.emit('player_joined', { 'id': newPlayer['id'], 'name': newPlayer['name'], 'char': newPlayer['char'], 'x': newPlayer['x'], 'y': newPlayer['y'], 'scene_x': newPlayer['scene_x'], 'scene_y': newPlayer['scene_y'] }, skip_sid=sid, namespace='/') 
@@ -202,6 +207,7 @@ def handle_connect(auth=None):
 @socketio.on('disconnect')
 def handle_disconnect(reason=None):
     sid = request.sid 
+    print(f"Client disconnected: {sid} (Reason: {reason})")
     if sid in players:
         player_data = players[sid]
         del players[sid]
