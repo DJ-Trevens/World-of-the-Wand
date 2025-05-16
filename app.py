@@ -26,7 +26,7 @@ def health_check():
 # Game Settings
 GRID_WIDTH = 40
 GRID_HEIGHT = 20
-GAME_TICK_RATE = 2.0
+GAME_TICK_RATE = 1.0
 
 # Game State
 players = {}
@@ -86,6 +86,18 @@ def game_loop():
                     
                     if scene_changed:
                         socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
+                
+                elif actionType == 'drink_potion':
+                    # Basic server-side handling for potion drinking
+                    if player['potions'] > 0:
+                        player['potions'] -= 1
+                        # Placeholder: Simple health gain
+                        player['current_health'] = min(player['max_health'], player['current_health'] + 15)
+                        potion_effect_message = "You drink a potion. You feel a warmth spread through you, slightly invigorating!"
+                        socketio.emit('lore_message', {'message': f"Tome notes: {potion_effect_message}", 'type': 'event-good'}, room=sid)
+                    else:
+                        socketio.emit('lore_message', {'message': "Tome sighs: You reach for a potion, but your satchel is empty.", 'type': 'event-bad'}, room=sid)
+
 
                 queuedActions[sid] = None 
         
@@ -101,7 +113,13 @@ def handle_connect(auth=None):
         'scene_y': 0,
         'x': 0,
         'y': 0,
-        'char': random.choice(['^', 'v', '<', '>'])
+        'char': random.choice(['^', 'v', '<', '>']),
+        'max_health': 100,
+        'current_health': 100,
+        'potions': 7, # Starting potions for testing
+        'max_mana': 175, # Assuming this exists for status
+        'current_mana': 175, # Assuming this exists for status
+
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
@@ -153,9 +171,12 @@ def handle_queue_command(data):
     sid = request.sid
     if sid in players:
         actionType = data.get('type')
-        if actionType in ['move', 'look', 'cast']:
+        # Added 'drink_potion' to recognized server-side actions
+        if actionType in ['move', 'look', 'cast', 'drink_potion']:
             queuedActions[sid] = data 
-            emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
+            # For drink_potion, the result message comes after processing, not just queueing.
+            if actionType != 'drink_potion':
+                emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
         else:
             emit('action_failed', {'message': "Your old brain is wrought with confusion. (unknown command. Type '?' for help.)"})
     else:

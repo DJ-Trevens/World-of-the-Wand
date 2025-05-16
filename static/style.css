@@ -4,15 +4,15 @@
     --bg-primary: #1a1f26; 
     --bg-secondary: #2c333e; 
     --bg-tome: #f3eadd; 
-    --text-tome-ink: #4a3b32;    /* Dark brown for Tome ink text */
-    --text-tome-mana: #2a52be;   /* Deep blue for mana text */
-    --glow-tome-mana: #87cefa;   /* Lighter blue for mana glow */
+    --text-tome-ink: #4a3b32;    
+    --text-tome-mana: #2a52be;   
+    --glow-tome-mana: #87cefa;   
     --text-primary: #c8d1dc; 
     --text-game: #e0e0e0; 
     --border-color: #444c5a;
     --highlight-blue: #61afef;
     --highlight-green: #98c379;
-    --highlight-red: #e06c75;
+    --highlight-red: #e06c75; /* Low health color */
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
@@ -49,7 +49,6 @@ body {
     flex-direction: column;
     height: 100%; 
     overflow: hidden; 
-    padding: 15px;
     box-sizing: border-box;
     background-color: var(--bg-secondary);
     border-radius: 8px;
@@ -60,6 +59,7 @@ body {
     flex-basis: 40%; 
     flex-shrink: 1;
     min-width: 300px; 
+    padding: 15px; /* Padding on the panel itself */
 }
 
 .right-panel {
@@ -67,15 +67,15 @@ body {
     flex-shrink: 1;
     min-width: 350px;
     gap: 15px; 
+    padding: 15px; /* Padding on the panel itself */
 }
 
-#commandLog { /* The Tome */
+#commandLog { 
     background-color: var(--bg-tome);
-    /* color is set by .log-style-ink or .log-style-mana */
     font-family: var(--font-tome);
     font-size: 1.1em; 
     line-height: 1.6;
-    padding: 20px;
+    padding: 20px; /* Padding inside the tome */
     border-radius: 6px;
     overflow-y: auto;
     flex-grow: 1; 
@@ -94,11 +94,7 @@ body {
     border-bottom: none;
 }
 
-/* New base styles for Ink and Mana entries */
-.log-style-ink {
-    color: var(--text-tome-ink);
-}
-
+.log-style-ink { color: var(--text-tome-ink); }
 .log-style-mana {
     color: var(--text-tome-mana);
     text-shadow: 0 0 5px var(--glow-tome-mana), 
@@ -106,31 +102,14 @@ body {
                  0 0 10px rgba(var(--glow-tome-mana), 0.7); 
 }
 
-
-/* Specific log type semantic styling */
 .log-type-lore {} 
-
-.log-type-system {
-    font-style: italic; 
-} 
-
-.log-type-event-good {
-    /* Example: Could add a subtle checkmark icon via ::before */
-}
-
-.log-type-event-bad {
-    font-weight: bold; 
-} 
-
-.log-type-user-input {
-    /* color and opacity now handled by log-style-ink and its specific selector if needed */
-    /* For .log-style-ink.log-type-user-input if you want specific user input ink style */
-}
+.log-type-system { font-style: italic; } 
+.log-type-event-good {}
+.log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
-    color: #7a6a5f; /* A slightly different ink for user input */
+    color: #7a6a5f; 
 }
-
 
 #mainHeaderStatus {
     color: var(--text-primary);
@@ -138,9 +117,18 @@ body {
     background-color: rgba(0,0,0,0.2); 
     border-radius: 6px;
     text-align: center;
-    font-size: 1.1em;
+    font-size: 1.0em; /* Slightly smaller to accommodate more info */
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-color);
+    line-height: 1.4;
+}
+
+/* New container for game and health */
+.game-area-flex-container {
+    display: flex;
+    flex-grow: 1;
+    min-height: 0; /* Critical for flex shrinking */
+    gap: 15px;
 }
 
 #gameCanvasContainer {
@@ -160,7 +148,7 @@ body {
     font-family: var(--font-game);
     white-space: pre;
     line-height: 1.0;
-    font-size: 20px;
+    font-size: 16px;
     color: var(--text-game);
     padding: 15px; 
     max-width: 100%;
@@ -191,10 +179,37 @@ body {
 }
 
 @keyframes fall {
-    to {
-        transform: translateY(calc(100vh + 60px)); 
-    }
+    to { transform: translateY(calc(100vh + 60px)); }
 }
+
+
+/* Health Helix Styling */
+#healthHelixContainer {
+    flex-basis: 60px; /* Width of the health bar area */
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0,0,0,0.1); /* Subtle background */
+    padding: 10px 5px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+#healthHelixCanvas {
+    width: 100%; /* Canvas takes width of its container */
+    height: 100%; /* Canvas takes height of its container */
+    /* Actual pixel dimensions set in JS */
+}
+.health-label {
+    font-size: 0.8em;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
 
 #commandInputBox {
     padding: 15px;
@@ -251,14 +266,9 @@ body {
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
-#commandForm button:hover {
-    background-color: #7acaff; 
-}
-#commandForm button:active {
-    transform: translateY(1px);
-}
+#commandForm button:hover { background-color: #7acaff; }
+#commandForm button:active { transform: translateY(1px); }
 
-/* Responsive adjustments for smaller screens */
 @media (max-width: 800px) {
     .main-ui-container {
         flex-direction: column;
@@ -269,14 +279,18 @@ body {
         flex-basis: auto; 
         width: 100%;
         min-width: unset;
+        padding: 10px; /* Reduce padding on smaller screens */
     }
-    .left-panel {
-        max-height: 40vh; 
+    .left-panel { max-height: 35vh; }
+    .right-panel { flex-grow: 1; }
+    .game-area-flex-container {
+        flex-direction: column-reverse; /* Stack health below game on small screens */
     }
-    .right-panel {
-        flex-grow: 1; 
+    #healthHelixContainer {
+        flex-basis: 50px; /* Height for horizontal bar */
+        width: 100%;
+        flex-direction: row; /* Label and canvas side-by-side */
     }
-    #gameCanvas {
-        font-size: 14px; 
-    }
+    .health-label { margin-bottom: 0; margin-right: 10px;}
+    #gameCanvas { font-size: 14px; }
 }

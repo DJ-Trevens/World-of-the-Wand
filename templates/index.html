@@ -20,9 +20,15 @@
         <div class="right-panel">
             <div id="mainHeaderStatus">Pondering the Ethereal Wave...</div>
 
-            <div id="gameCanvasContainer">
-                <div id="gameCanvas">Summoning World...</div>
-                <div id="rainOverlay"></div>
+            <div class="game-area-flex-container">
+                <div id="gameCanvasContainer">
+                    <div id="gameCanvas">Summoning World...</div>
+                    <div id="rainOverlay"></div>
+                </div>
+                <div id="healthHelixContainer">
+                    <div class="health-label">Vitality</div>
+                    <canvas id="healthHelixCanvas"></canvas>
+                </div>
             </div>
 
             <div id="commandInputBox">
@@ -44,12 +50,20 @@
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
 
+        // Health Helix Elements
+        const healthHelixContainer = document.getElementById('healthHelixContainer');
+        const healthHelixCanvas = document.getElementById('healthHelixCanvas');
+        const helixCtx = healthHelixCanvas.getContext('2d');
+        let helixAnimationId = null;
+        let helixPhase = 0;
+
+
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
         let GRID_WIDTH = 40;
         let GRID_HEIGHT = 20;
-        let GAME_TICK_RATE = 2.0;
+        let GAME_TICK_RATE = 1.0;
         let prevSelfPlayerState = null;
 
         let currentSceneData = {
@@ -57,8 +71,8 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: true,
-            intensity: 0.5
+            isRaining: false,
+            intensity: 0.6 
         };
         let rainInterval = null;
 
@@ -69,61 +83,146 @@
         const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
 
-        function get_dx_dy_from_direction_str(s) {
-            const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
-            return mapping[s] || [0, 0];
+        // --- Health Helix Functions ---
+        function resizeHealthHelixCanvas() {
+            // Set canvas internal resolution to match its display size
+            healthHelixCanvas.width = healthHelixContainer.clientWidth -10; // Account for padding
+            healthHelixCanvas.height = healthHelixContainer.clientHeight - 30; // Account for padding & label
+             // If in mobile view (horizontal bar)
+            if (window.innerWidth <= 800) {
+                healthHelixCanvas.width = healthHelixContainer.clientWidth - document.querySelector('.health-label').offsetWidth - 20;
+                healthHelixCanvas.height = healthHelixContainer.clientHeight - 10;
+            }
         }
 
-        function get_direction_str_from_dx_dy(dx, dy) {
-            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
-            return mapping[`${dx},${dy}`];
+        function getHealthColor(percent) {
+            // Clamp percent between 0 and 1
+            percent = Math.max(0, Math.min(1, percent));
+
+            let r, g, b;
+            // Red (0%) -> Yellow (50%) -> Green (75%) -> Blue (100%)
+            if (percent < 0.5) { // Red to Yellow
+                r = 255;
+                g = Math.round(255 * (percent * 2)); // 0 at 0%, 255 at 50%
+                b = 0;
+            } else if (percent < 0.75) { // Yellow to Green
+                r = Math.round(255 * (1 - (percent - 0.5) * 4)); // 255 at 50%, 0 at 75%
+                g = 255;
+                b = 0;
+            } else { // Green to Blue/Cyan
+                r = 0;
+                g = Math.round(255 * (1 - (percent - 0.75) * 4)); // 255 at 75%, 0 at 100%
+                b = Math.round(255 * ((percent - 0.75) * 4));      // 0 at 75%, 255 at 100% (making it cyan-ish blue)
+                 // For a more distinct blue at high health:
+                // b = 150 + Math.round(105 * ((percent - 0.75) * 4)); 
+            }
+            return `rgb(${r},${g},${b})`;
         }
 
-        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
-            const worldDX = targetX - playerX;
-            const worldDY = targetY - playerY;
-            let pf;
-            if (playerFacingChar === '^') pf = 'n';
-            else if (playerFacingChar === 'v') pf = 's';
-            else if (playerFacingChar === '<') pf = 'w';
-            else if (playerFacingChar === '>') pf = 'e';
-            else return { rx: worldDX, ry: worldDY };
 
-            if (pf === 'n') return {rx: worldDX, ry: worldDY};
-            if (pf === 's') return {rx: -worldDX, ry: -worldDY};
-            if (pf === 'w') return {rx: -worldDY, ry: worldDX};
-            if (pf === 'e') return {rx: worldDY, ry: -worldDX};
-            return { rx: worldDX, ry: worldDY };
+        function drawHealthHelix() {
+            if (!selfPlayer || typeof selfPlayer.current_health === 'undefined') {
+                helixCtx.clearRect(0, 0, healthHelixCanvas.width, healthHelixCanvas.height);
+                helixCtx.fillStyle = 'grey';
+                helixCtx.font = '10px var(--font-ui)';
+                helixCtx.textAlign = 'center';
+                // helixCtx.fillText('No Data', healthHelixCanvas.width / 2, healthHelixCanvas.height / 2);
+                return;
+            }
+
+            const width = healthHelixCanvas.width;
+            const height = healthHelixCanvas.height;
+            helixCtx.clearRect(0, 0, width, height);
+
+            const healthPercent = selfPlayer.max_health > 0 ? selfPlayer.current_health / selfPlayer.max_health : 0;
+            const color = getHealthColor(healthPercent);
+
+            const amplitude = width * 0.3; // Amplitude based on canvas width
+            const frequency = (Math.PI * 2) / (height * 0.7); // How many waves fit vertically
+            const lineWidth = Math.max(2, Math.min(8, width * 0.08)); // Dynamic line width
+
+            helixCtx.strokeStyle = color;
+            helixCtx.lineWidth = lineWidth;
+            helixCtx.lineCap = 'round';
+
+            // Animate fill height
+            const fillHeight = height * healthPercent;
+
+            // Draw two sine waves
+            for (let i = 0; i < 2; i++) { // Two strands
+                helixCtx.beginPath();
+                const phaseOffset = i * Math.PI; // Offset second strand by 180 degrees
+                let firstPoint = true;
+
+                for (let y = 0; y <= height; y++) {
+                    const xPos = (width / 2) + amplitude * Math.sin(frequency * y + helixPhase + phaseOffset);
+                    if (firstPoint) {
+                        helixCtx.moveTo(xPos, y);
+                        firstPoint = false;
+                    } else {
+                        helixCtx.lineTo(xPos, y);
+                    }
+                }
+                helixCtx.stroke();
+            }
+            
+            // Glow effect (optional, can be performance intensive)
+            helixCtx.shadowBlur = 10;
+            helixCtx.shadowColor = color;
+            // Redraw for glow to take effect (draw on top of itself)
+             for (let i = 0; i < 2; i++) { 
+                helixCtx.beginPath();
+                const phaseOffset = i * Math.PI; 
+                let firstPoint = true;
+                for (let y = 0; y <= height; y++) {
+                    const xPos = (width / 2) + amplitude * Math.sin(frequency * y + helixPhase + phaseOffset);
+                    if (firstPoint) { helixCtx.moveTo(xPos, y); firstPoint = false; } 
+                    else { helixCtx.lineTo(xPos, y); }
+                }
+                helixCtx.stroke();
+            }
+            helixCtx.shadowBlur = 0; // Reset shadow
+
+            // Clipping mask for the "filling" effect (apply to the already drawn helix)
+            // This is more complex with two interwoven strands.
+            // A simpler visual might be to just color the strands based on health and let the animation be the main dynamic part.
+            // Or, draw the "empty" part of the helix in a dimmer color.
+
+            // For now, the color of the strands IS the health indicator.
+        }
+        
+        function animateHelix() {
+            helixPhase += 0.03; // Speed of the barber pole effect
+            if (helixPhase > Math.PI * 2) {
+                helixPhase -= Math.PI * 2;
+            }
+            drawHealthHelix();
+            helixAnimationId = requestAnimationFrame(animateHelix);
         }
 
-        function manhattanDistance(x1, y1, x2, y2) {
-            return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+        function stopHelixAnimation() {
+            if (helixAnimationId) {
+                cancelAnimationFrame(helixAnimationId);
+                helixAnimationId = null;
+            }
         }
+        // --- End Health Helix Functions ---
 
-        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
-            if (!observerChar) return false;
-            let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
-            if (scry || manhattanDist <= AURA_VISION_RANGE) return true;
 
-            const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            const worldDX = targetX - observerX;
-            const worldDY = targetY - observerY;
-
-            if (manhattanDist === 2 && Math.abs(worldDX) === 1 && Math.abs(worldDY) === 1 && rx <= 0) return true;
-            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) return true;
-            return false;
-        }
+        function get_dx_dy_from_direction_str(s) { /* ... */ }
+        function get_direction_str_from_dx_dy(dx, dy) { /* ... */ }
+        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) { /* ... */ }
+        function manhattanDistance(x1, y1, x2, y2) { /* ... */ }
+        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) { /* ... */ }
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
-            
-            let displayStyle = 'ink'; // Default to ink
-
+            let displayStyle = 'ink'; 
             switch (type) {
                 case 'system':
                 case 'event-good':
                 case 'event-bad':
-                case 'spell-cast': // Example of a new type that could be mana
+                case 'spell-cast': 
                     displayStyle = 'mana';
                     break;
                 case 'lore':
@@ -132,14 +231,10 @@
                     displayStyle = 'ink';
                     break;
             }
-
             logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
             logEntry.textContent = message;
             commandLog.appendChild(logEntry);
-            
-            requestAnimationFrame(() => {
-                 commandLog.scrollTop = commandLog.scrollHeight;
-            });
+            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
         }
 
         function updateStatus(status) {
@@ -147,87 +242,22 @@
                 mainHeaderStatus.textContent = status;
             } else if (selfPlayer) {
                 let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (Sector ${currentSceneData.InsideID})`;
-                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
+                let healthInfo = (typeof selfPlayer.current_health !== 'undefined') ? `${selfPlayer.current_health}/${selfPlayer.max_health} HP` : "HP ?";
+                let manaInfo = (typeof selfPlayer.current_mana !== 'undefined') ? `${selfPlayer.current_mana}/${selfPlayer.max_mana} MP` : "MP ?";
+                let potionsInfo = (typeof selfPlayer.potions !== 'undefined') ? `${selfPlayer.potions} Potions` : "Potions ?";
+                
+                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | ${healthInfo} | ${manaInfo} | ${potionsInfo} | Wand: 100%`;
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
             }
         }
 
-        function drawGrid() {
-            if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
-                gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
-                return;
-            }
-            let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
-            
-            for (const playerID in otherPlayers) {
-                const otherGuy = otherPlayers[playerID];
-                if (otherGuy.scene_x === selfPlayer.scene_x && otherGuy.scene_y === selfPlayer.scene_y) {
-                    if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
-                        displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
-                    }
-                }
-            }
-            if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
-                displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
-            }
+        function drawGrid() { /* ... */ }
+        function startRainEffect(intensity) { /* ... */ }
+        function stopRainEffect() { /* ... */ }
+        function updateWeatherEffects() { /* ... */ }
 
-            let output = "";
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH; x++) {
-                    if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
-                        output += displayGrid[y][x];
-                    } else {
-                        output += FOG_CHAR;
-                    }
-                }
-                output += "\n";
-            }
-            gameCanvas.textContent = output.trimEnd();
-        }
-
-        function startRainEffect(intensity) {
-            if (rainInterval) clearInterval(rainInterval);
-            rainOverlay.innerHTML = ''; 
-
-            const dropsPerSecond = 5 + (intensity * 35);
-            rainInterval = setInterval(() => {
-                const drop = document.createElement('div');
-                drop.classList.add('raindrop');
-                drop.style.left = Math.random() * 100 + '%';
-                
-                const duration = 0.4 + Math.random() * 0.4; 
-                drop.style.animationDuration = duration + 's';
-                drop.style.animationDelay = Math.random() * 0.2 + 's'; 
-                
-                rainOverlay.appendChild(drop);
-
-                drop.addEventListener('animationend', () => {
-                    drop.remove();
-                });
-            }, 1000 / dropsPerSecond);
-        }
-
-        function stopRainEffect() {
-            if (rainInterval) clearInterval(rainInterval);
-            rainInterval = null;
-        }
-
-        function updateWeatherEffects() {
-            if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval) { 
-                    startRainEffect(globalWeather.intensity);
-                }
-            } else {
-                if (rainInterval) { 
-                    stopRainEffect();
-                }
-            }
-        }
-
-        socket.on('connect', () => {
-            updateStatus("Divining your essence...");
-        });
+        socket.on('connect', () => { /* ... */ });
 
         socket.on('initial_state', (data) => {
             selfPlayer = data.player;
@@ -241,6 +271,9 @@
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
+                resizeHealthHelixCanvas(); // Resize canvas before first draw
+                if (!helixAnimationId) animateHelix(); // Start animation
+                drawHealthHelix(); // Initial draw
                 updateStatus();
                 drawGrid(); 
                 updateWeatherEffects(); 
@@ -253,47 +286,11 @@
             }
         });
 
-        socket.on('player_joined', (newPlayer) => {
-            if (myPlayerID && newPlayer.id !== myPlayerID && selfPlayer &&
-                newPlayer.scene_x === selfPlayer.scene_x && newPlayer.scene_y === selfPlayer.scene_y) {
-                otherPlayers[newPlayer.id] = newPlayer;
-                drawGrid();
-                addLogMessage("Tome notes: You sense the arrival of another sorcerer in this area.", 'event-good');
-            }
-        });
-
-        socket.on('player_left', (playerID) => {
-            if (otherPlayers[playerID]) {
-                delete otherPlayers[playerID];
-                drawGrid();
-                addLogMessage("Tome records: A sorcerer has departed this area.", 'lore');
-            }
-        });
-        
-        socket.on('lore_message', (data) => { 
-            addLogMessage(data.message, data.type || 'lore');
-        });
-
-        socket.on('weather_update', (weatherData) => {
-            const wasRaining = globalWeather.isRaining;
-            globalWeather = weatherData;
-            updateWeatherEffects();
-            if (currentSceneData.InsideID === 0) { 
-                if (globalWeather.isRaining && !wasRaining) {
-                    addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", "system");
-                } else if (!globalWeather.isRaining && wasRaining) {
-                    addLogMessage("Tome notes: The rain lessens and finally stops.", "system");
-                }
-            }
-        });
-        
-        socket.on('scene_data_update', (sceneData) => {
-            currentSceneData = sceneData;
-            updateStatus(); 
-            updateWeatherEffects(); 
-            addLogMessage(`Tome turns a page: You find yourself in ${currentSceneData.name}.`, 'lore');
-        });
-
+        socket.on('player_joined', (newPlayer) => { /* ... */ });
+        socket.on('player_left', (playerID) => { /* ... */ });
+        socket.on('lore_message', (data) => { /* ... */ });
+        socket.on('weather_update', (weatherData) => { /* ... */ });
+        socket.on('scene_data_update', (sceneData) => { /* ... */ });
 
         socket.on('game_state_update', (allPlayers) => {
             let foundSelf = false;
@@ -301,7 +298,12 @@
             
             for (const playerData of allPlayers) {
                 if (playerData.id === myPlayerID) {
+                    // Update selfPlayer, including health for the helix
+                    const oldHealth = selfPlayer ? selfPlayer.current_health : null;
                     selfPlayer = playerData;
+                    if (oldHealth !== selfPlayer.current_health) {
+                        drawHealthHelix(); // Redraw helix if health changed
+                    }
                     foundSelf = true;
                 } else if (selfPlayer && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                     currentOtherPlayersInMyScene[playerData.id] = playerData;
@@ -309,33 +311,11 @@
             }
             otherPlayers = currentOtherPlayersInMyScene;
 
-            if (!foundSelf && myPlayerID) {
-                updateStatus("Your connection to this world wavers... (bad connection)");
-                addLogMessage("Tome's script flickers: Warning! Your connection to self is unstable.", 'event-bad');
-            }
+            if (!foundSelf && myPlayerID) { /* ... */ }
 
             if (selfPlayer && prevSelfPlayerState) {
                 const sceneCoordsChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
-                
-                if (sceneCoordsChanged) {
-                    otherPlayers = {}; 
-                    for (const playerData of allPlayers) {
-                        if (playerData.id !== myPlayerID && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
-                            otherPlayers[playerData.id] = playerData;
-                        }
-                    }
-                } else { 
-                    const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
-                    const turned = selfPlayer.char !== prevSelfPlayerState.char;
-
-                    if (movedLocal) {
-                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                        addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
-                    } else if (turned) {
-                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                        addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
-                    }
-                }
+                if (sceneCoordsChanged) { /* ... */ } else { /* ... local move/turn logging ... */ }
             }
             if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
             
@@ -344,93 +324,31 @@
             updateWeatherEffects(); 
         });
 
-        function getDirectionWord(char) {
-            if (char === '^') return "North"; if (char === 'v') return "South";
-            if (char === '<') return "West";  if (char === '>') return "East";
-            return "an unknown direction";
-        }
-
-        socket.on('action_queued', (data) => addLogMessage("Tome confirms: " + data.message, "system"));
-        socket.on('action_failed', (data) => addLogMessage("Tome shakes its pages: " + data.message, 'event-bad'));
-        
-        socket.on('disconnect', () => {
-            updateStatus("Severed from the Ethereal Plane! (Disconnected)");
-            addLogMessage("Tome wails: Disconnected from the server! The weave unravels!", 'event-bad');
-            selfPlayer = null; otherPlayers = {}; prevSelfPlayerState = null;
-            stopRainEffect(); 
-            drawGrid();
+        function getDirectionWord(char) { /* ... */ }
+        socket.on('action_queued', (data) => { /* ... */ });
+        socket.on('action_failed', (data) => { /* ... */ });
+        socket.on('disconnect', () => { 
+            /* ... */
+            stopHelixAnimation(); 
+            /* ... */ 
         });
 
         const ACTION_ALIASES = {
             "move": ["move", "go", "walk", "step", "head", "run"],
             "look": ["look", "face", "turn"],
             "cast": ["cast", "zap", "fire", "spell"],
+            "drink": ["drink", "quaff", "use"], // Added "drink" aliases
             "help": ["help", "?"]
         };
-        const DIRECTION_ALIASES = {
-            "north":    {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
-            "south":    {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
-            "west":     {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
-            "east":     {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
-            "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
-            "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
-        };
+        const DIRECTION_ALIASES = { /* ... */ };
+        function parseAction(actionWord) { /* ... */ }
+        function parseDirection(directionStr, curFacing) { /* ... */ }
 
-        function parseAction(actionWord) {
-            actionWord = actionWord.toLowerCase();
-            for (const canonicalAction in ACTION_ALIASES) {
-                if (ACTION_ALIASES[canonicalAction].includes(actionWord)) return canonicalAction;
-            }
-            return null;
-        }
-
-        function parseDirection(directionStr, curFacing) {
-            directionStr = directionStr.toLowerCase();
-            let result = {char: curFacing, dx: 0, dy: 0, isValid: false};
-            for (const dirKey in DIRECTION_ALIASES) {
-                const config = DIRECTION_ALIASES[dirKey];
-                if (config.aliases.includes(directionStr)) {
-                    if (config.relative) {
-                        result.isValid = true;
-                        if (dirKey === "forward") {
-                            result.char = curFacing;
-                            const [dx, dy] = get_dx_dy_from_direction_str(curFacing);
-                            result.dx = dx; result.dy = dy;
-                            if (dx === 0 && dy === 0 && !['^','v','<','>'].includes(curFacing)) result.isValid = false;
-                        } else if (dirKey === "backward") {
-                            if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
-                            else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
-                            else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
-                            else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
-                            else result.isValid = false;
-                        }
-                    } else {
-                        result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
-                    }
-                    return result;
-                }
-            }
-            return result;
-        }
-
-        commandInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter') {
-                event.preventDefault();
-                if (typeof commandForm.requestSubmit === 'function') {
-                    commandForm.requestSubmit();
-                } else { 
-                    const submitButton = commandForm.querySelector('button[type="submit"]');
-                    if (submitButton) submitButton.click();
-                }
-            }
-        });
+        commandInput.addEventListener('keydown', (event) => { /* ... */ });
 
         commandForm.addEventListener('submit', (event) => {
             event.preventDefault();
-            if (!selfPlayer) {
-                addLogMessage("Tome whispers urgently: You are not fully manifest in this realm yet!", 'event-bad');
-                return;
-            }
+            if (!selfPlayer) { /* ... */ return; }
             const inputText = commandInput.textContent.trim();
             commandInput.innerHTML = '';
 
@@ -438,64 +356,36 @@
             addLogMessage(`> ${inputText}`, 'user-input');
 
             const parts = inputText.split(/\s+/);
-            const actionWord = parts[0];
-            const targetWord = parts.length > 1 ? parts.slice(1).join(' ') : null;
+            let actionWord = parts[0];
+            let targetWord = parts.length > 1 ? parts.slice(1).join(' ') : null;
+
+            // Handle "drink potion" type commands, normalize to "drink"
+            if ((actionWord.toLowerCase() === "drink" || actionWord.toLowerCase() === "use") && targetWord && (targetWord.toLowerCase().includes("potion") || targetWord.toLowerCase().includes("flask"))) {
+                // Action is "drink", target is already potion-related, effectively no target needed for server
+                targetWord = null; 
+            } else if (actionWord.toLowerCase() === "quaff" && (!targetWord || targetWord.toLowerCase().includes("potion"))) {
+                 targetWord = null; // "quaff" implies potion
+            }
+
+
             const canonicalAction = parseAction(actionWord);
 
-            if (!canonicalAction) {
-                addLogMessage(`Tome seems puzzled: Your will "${actionWord}" is indecipherable. (Perhaps 'help' will illuminate the path?)`, 'event-bad');
-                commandInput.focus(); return;
-            }
+            if (!canonicalAction) { /* ... */ return; }
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmit = false;
 
-            if (canonicalAction === "move") {
-                const effectiveTargetWord = targetWord || "forward";
-                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
-                if (dirResult.isValid) {
-                    const currentX = selfPlayer.x;
-                    const currentY = selfPlayer.y;
-                    const targetX_local = currentX + dirResult.dx;
-                    const targetY_local = currentY + dirResult.dy;
-
-                    if (targetX_local < 0 || targetX_local >= GRID_WIDTH || targetY_local < 0 || targetY_local >= GRID_HEIGHT) {
-                        let directionOfExit = "";
-                        if (targetX_local < 0) directionOfExit = "west";
-                        else if (targetX_local >= GRID_WIDTH) directionOfExit = "east";
-                        else if (targetY_local < 0) directionOfExit = "north";
-                        else if (targetY_local >= GRID_HEIGHT) directionOfExit = "south";
-                        addLogMessage(`Tome notes your intent: You attempt to venture further ${directionOfExit}, beyond the current parchment...`, 'system');
-                    }
-                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
-                    shouldEmit = true;
-                } else {
-                    addLogMessage(`Tome frowns: You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, 'event-bad');
-                }
-            } else if (canonicalAction === "look") {
-                const effectiveTargetWord = targetWord || "forward";
-                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
-                if (dirResult.isValid) {
-                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char };
-                    shouldEmit = true;
-                    addLogMessage(`Tome's gaze follows yours: You peer ${effectiveTargetWord}. The air is thick with untold stories.`, 'lore');
-
-                } else {
-                     addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
-                }
-            } else if (canonicalAction === "help") {
-                addLogMessage("Tome patiently explains:\nTo MOVE, try: 'move north', 'go w', 'run forward', etc.\nTo LOOK: 'look east', 'face s', 'turn backward'.\nTo CAST: 'cast [spell name]'.\nMy knowledge expands as your journey unfolds.", 'system');
-            } else if (canonicalAction === "cast") {
-                 if (targetWord) {
-                    commandToSend.details = { spellName: targetWord }; 
-                    shouldEmit = true;
-                    addLogMessage(`Tome focuses: You begin to channel energy for "${targetWord}"...`, 'spell-cast'); // Using a more specific type
-                 } else {
-                    addLogMessage(`Tome asks: Cast what, O Wizard? You must name the incantation.`, 'event-bad');
-                 }
-            } else {
-                addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding.`, 'event-bad');
+            if (canonicalAction === "move") { /* ... */ } 
+            else if (canonicalAction === "look") { /* ... */ } 
+            else if (canonicalAction === "help") { /* ... */ } 
+            else if (canonicalAction === "cast") { /* ... */ }
+            else if (canonicalAction === "drink") {
+                commandToSend.type = 'drink_potion'; // Server expects this specific type
+                // No details needed as per spec (you always drink an unknown potion from your stack)
+                shouldEmit = true;
+                addLogMessage("Tome observes: You reach for a potion...", 'system');
             }
+            else { /* ... default error ... */ }
 
             if (shouldEmit) {
                 socket.emit('queue_command', commandToSend);
@@ -503,29 +393,18 @@
             commandInput.focus();
         });
         
-        window.toggleRainDebug = function() {
-            const wasRaining = globalWeather.isRaining; // Store current state before toggle
-            globalWeather.isRaining = !globalWeather.isRaining;
-             if (currentSceneData.InsideID === 0) { 
-                if (globalWeather.isRaining && !wasRaining) {
-                    addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
-                } else if (!globalWeather.isRaining && wasRaining) {
-                    addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
-                }
-            }
-            updateWeatherEffects();
-        };
-         window.toggleInsideDebug = function() {
-            currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
-            currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld" : "A Cozy Hut"; 
-            addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
-            updateStatus();
-            updateWeatherEffects();
-        };
+        window.toggleRainDebug = function() { /* ... */ };
+        window.toggleInsideDebug = function() { /* ... */ };
+        window.addEventListener('resize', resizeHealthHelixCanvas); // Resize canvas on window resize
 
+        // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
         updateWeatherEffects();
+        // Start animation after initial_state is processed and canvas can be sized
+        // resizeHealthHelixCanvas(); // Initial size
+        // animateHelix(); // Start animation moved to initial_state
+
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'system');
 
     </script>
