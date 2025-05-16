@@ -1,22 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --bg-primary: #232946;       /* Deep, muted Indigo/Purple */
-    --bg-secondary: #2f385b;     /* Slightly lighter, desaturated Indigo/Blue for panels */
-    --bg-tome: #fff9e6;          /* Warm, creamy Parchment */
+    --bg-primary: #232946; 
+    --bg-secondary: #2f385b; 
+    --bg-tome: #fff9e6; 
+    --bg-tome-cover: #6d4c41;    /* Deep brown for book cover */
     
-    --text-tome-ink: #5c544b;    /* Dark, warm Sepia for ink */
-    --text-tome-mana: #7f5af0;   /* Mystic Purple/Violet for mana text */
-    --glow-tome-mana: #b69eff;   /* Lighter violet for glow */
+    --text-tome-ink: #3a2d27;    /* Darker Sepia for ink, closer to black */
+    --text-tome-mana: #7f5af0;   
+    --glow-tome-mana: #b69eff;   
     
-    --text-primary: #e0e0fc;     /* Very light Lavender/Silver for UI text */
-    --text-game: #f0f0ff;        /* Even lighter Lavender/White for game grid */
+    --text-primary: #e0e0fc; 
+    --text-game: #f0f0ff;        
     
-    --border-color: #4a4e69;     /* Muted, darker purple-gray for borders */
+    --border-color: #4a4e69;     
     
-    --highlight-blue: #7aa2f7;   /* Bright, slightly magical Blue for actions/buttons */
-    --highlight-green: #9ece6a;  /* Lush, magical Green for positive events */
-    --highlight-red: #f7768e;    /* Vibrant, slightly pinkish Red for negative events */
+    --highlight-blue: #7aa2f7;   
+    --highlight-green: #9ece6a;  
+    --highlight-red: #f7768e;    
     
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
@@ -55,16 +56,18 @@ body {
     height: 100%; 
     overflow: hidden; 
     box-sizing: border-box;
-    background-color: var(--bg-secondary);
+    background-color: var(--bg-secondary); /* Default panel background */
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.left-panel {
+.left-panel { /* This is the Tome's "cover" */
     flex-basis: 40%; 
     flex-shrink: 1;
     min-width: 300px; 
-    padding: 15px;
+    padding: 10px; /* Padding for the "cover" around the pages */
+    background-color: var(--bg-tome-cover); /* Brown book cover */
+    border: 2px solid #5d4037; /* Darker border for cover */
 }
 
 .right-panel {
@@ -72,26 +75,26 @@ body {
     flex-shrink: 1;
     min-width: 350px;
     gap: 15px; 
-    padding: 15px;
+    padding: 15px; /* Inner padding for right panel elements */
 }
 
-#commandLog { 
+#commandLog { /* These are the "pages" */
     background-color: var(--bg-tome);
     font-family: var(--font-tome);
-    font-size: 1.1em; 
-    line-height: 1.6;
+    font-size: 1.15em; /* Slightly larger font size for readability */
+    line-height: 1.65; /* Adjusted line height */
     padding: 20px;
-    border-radius: 6px;
+    border-radius: 4px; /* Slightly less rounded to fit cover */
     overflow-y: auto;
     flex-grow: 1; 
-    border: 1px solid #d1c7ac; /* Border matching parchment tones */
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.15); /* Slightly deeper inset shadow */
+    border: 1px solid #e0d8c8; /* Lighter border for page edges */
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.1); 
 }
 
 .log-entry {
     margin-bottom: 8px; 
     padding-bottom: 4px;
-    border-bottom: 1px dashed rgba(80, 70, 60, 0.15); /* Softer, brownish dash */
+    border-bottom: 1px dashed rgba(80, 70, 60, 0.15); 
     word-wrap: break-word;
     white-space: pre-wrap;
 }
@@ -104,33 +107,25 @@ body {
     color: var(--text-tome-mana);
     text-shadow: 0 0 6px var(--glow-tome-mana), 
                  0 0 10px var(--glow-tome-mana),
-                 0 0 15px rgba(182, 158, 255, 0.6); /* Refined glow */
+                 0 0 15px rgba(182, 158, 255, 0.6); 
 }
 
 .log-type-lore {} 
 .log-type-system { font-style: italic; } 
-.log-type-event-good {
-    /* color: var(--highlight-green); /* Optionally color text if not mana-styled */
-}
-.log-type-event-bad { 
-    font-weight: bold;
-    /* color: var(--highlight-red); /* Optionally color text if not mana-styled */
-} 
+.log-type-event-good {}
+.log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
-    color: #7a6d60; /* Slightly adjusted user input ink */
+    color: #7a6d60; 
 }
-.log-type-chat-say { /* Default ink styling is applied via JS */ }
-.log-type-chat-shout { 
-    font-weight: bold; 
-    /* Default mana styling is applied via JS */
-}
+.log-type-chat-say {}
+.log-type-chat-shout { font-weight: bold; }
 
 
 #mainHeaderStatus {
     color: var(--text-primary);
     padding: 10px 15px;
-    background-color: rgba(0,0,0,0.25); /* Slightly more opaque for contrast */
+    background-color: rgba(0,0,0,0.25); 
     border-radius: 6px;
     text-align: center;
     font-size: 1.0em;
@@ -146,7 +141,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg-primary); /* Deep background for game view */
+    background-color: var(--bg-primary); 
     border-radius: 6px;
     overflow: hidden; 
     border: 1px solid var(--border-color);
@@ -181,10 +176,9 @@ body {
     bottom: 100%;
     width: 1px; 
     height: 60px; 
-    /* Rain color to fit the enchanted dusk theme - maybe slightly more purple/blue */
     background: linear-gradient(to bottom, rgba(150, 160, 230, 0), rgba(150, 160, 230, 0.3)); 
     animation: fall linear infinite;
-    opacity: 0.6; /* Slightly softer rain */
+    opacity: 0.6; 
 }
 
 @keyframes fall {
@@ -193,7 +187,7 @@ body {
 
 #commandInputBox {
     padding: 15px;
-    background-color: transparent; /* Blends into panel */
+    background-color: transparent; 
     border-radius: 6px;
     flex-shrink: 0;
     border-top: 1px solid var(--border-color);
@@ -213,9 +207,9 @@ body {
 }
 
 #commandText {
-    background-color: var(--border-color); /* Using border color as base for input */
+    background-color: var(--border-color); 
     color: var(--text-primary); 
-    border: 1px solid var(--border-color); /* Border blends in initially */
+    border: 1px solid var(--border-color); 
     padding: 10px 12px;
     border-radius: 4px;
     font-size: 1em;
@@ -226,13 +220,13 @@ body {
 #commandText:focus {
     outline: none;
     border-color: var(--highlight-blue);
-    background-color: #3c3f56; /* Slightly lighter on focus */
-    box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.3); /* Using highlight blue for focus shadow */
+    background-color: #3c3f56; 
+    box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.3); 
 }
 
 #commandForm button { 
     background-color: var(--highlight-blue);
-    color: var(--bg-tome); /* Parchment color text for contrast */
+    color: var(--bg-tome); 
     border: none;
     padding: 10px 20px;
     margin-left: 10px;
@@ -247,7 +241,7 @@ body {
 }
 
 #commandForm button:hover { 
-    background-color: #9bbff9; /* Lighter shade of highlight-blue */
+    background-color: #9bbff9; 
 }
 #commandForm button:active { 
     transform: translateY(1px);
@@ -265,7 +259,13 @@ body {
         min-width: unset;
         padding: 10px;
     }
-    .left-panel { max-height: 35vh; }
+    .left-panel { 
+        max-height: 35vh; 
+        padding: 5px; /* Reduce padding for cover effect on mobile */
+    } 
+    #commandLog {
+        padding: 15px; /* Adjust page padding for mobile */
+    }
     .right-panel { flex-grow: 1; }
     #gameCanvas { font-size: 16px; }
 }

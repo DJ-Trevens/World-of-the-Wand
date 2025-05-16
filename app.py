@@ -25,7 +25,7 @@ def health_check():
 
 # Game Settings
 GRID_WIDTH = 40
-GRID_HEIGHT = 15
+GRID_HEIGHT = 20
 GAME_TICK_RATE = 1.0
 SHOUT_MANA_COST = 5
 
@@ -39,116 +39,119 @@ def get_player_name(sid):
 
 def game_loop():
     while True:
-        socketio.sleep(GAME_TICK_RATE)
-        for sid, actionData in list(queuedActions.items()):
-            if actionData and sid in players:
-                player = players[sid]
-                actionType = actionData.get('type')
-                details = actionData.get('details', {})
+        try: # Added try-except to catch errors in the loop
+            socketio.sleep(GAME_TICK_RATE)
+            for sid, actionData in list(queuedActions.items()):
+                if actionData and sid in players:
+                    player = players[sid]
+                    actionType = actionData.get('type')
+                    details = actionData.get('details', {})
 
-                if actionType == 'move' or actionType == 'look':
-                    dx = details.get('dx', 0)
-                    dy = details.get('dy', 0)
-                    newChar = details.get('newChar', player['char'])
+                    if actionType == 'move' or actionType == 'look':
+                        dx = details.get('dx', 0)
+                        dy = details.get('dy', 0)
+                        newChar = details.get('newChar', player['char'])
 
-                    new_x_local = player['x'] + dx
-                    new_y_local = player['y'] + dy
+                        new_x_local = player['x'] + dx
+                        new_y_local = player['y'] + dy
+                        
+                        scene_changed = False
+                        transition_message = ""
+
+                        if new_x_local < 0:
+                            player['scene_x'] -= 1
+                            player['x'] = GRID_WIDTH - 1
+                            scene_changed = True
+                            transition_message = f"Tome scribbles: You emerge on the western edge of a new area ({player['scene_x']},{player['scene_y']})."
+                        elif new_x_local >= GRID_WIDTH:
+                            player['scene_x'] += 1
+                            player['x'] = 0
+                            scene_changed = True
+                            transition_message = f"Tome scribbles: You emerge on the eastern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                        else:
+                            player['x'] = new_x_local
+
+                        if new_y_local < 0:
+                            player['scene_y'] -= 1 
+                            player['y'] = GRID_HEIGHT - 1
+                            scene_changed = True
+                            if not transition_message:
+                                 transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                        elif new_y_local >= GRID_HEIGHT:
+                            player['scene_y'] += 1
+                            player['y'] = 0
+                            scene_changed = True
+                            if not transition_message:
+                                transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({player['scene_x']},{player['scene_y']})."
+                        else:
+                            if not (new_x_local < 0 or new_x_local >= GRID_WIDTH) :
+                                player['y'] = new_y_local
+                        
+                        player['char'] = newChar
+                        
+                        if scene_changed:
+                            socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
                     
-                    scene_changed = False
-                    transition_message = ""
+                    elif actionType == 'drink_potion':
+                        if player['potions'] > 0:
+                            player['potions'] -= 1
+                            player['current_health'] = min(player['max_health'], player['current_health'] + 15)
+                            potion_effect_message = "You drink a potion. You feel a warmth spread through you, slightly invigorating!"
+                            socketio.emit('lore_message', {'message': f"Tome notes: {potion_effect_message}", 'type': 'event-good'}, room=sid)
+                        else:
+                            socketio.emit('lore_message', {'message': "Tome sighs: You reach for a potion, but your satchel is empty.", 'type': 'event-bad'}, room=sid)
 
-                    if new_x_local < 0:
-                        player['scene_x'] -= 1
-                        player['x'] = GRID_WIDTH - 1
-                        scene_changed = True
-                        transition_message = f"Tome scribbles: You emerge on the western edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    elif new_x_local >= GRID_WIDTH:
-                        player['scene_x'] += 1
-                        player['x'] = 0
-                        scene_changed = True
-                        transition_message = f"Tome scribbles: You emerge on the eastern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    else:
-                        player['x'] = new_x_local
-
-                    if new_y_local < 0:
-                        player['scene_y'] -= 1 
-                        player['y'] = GRID_HEIGHT - 1
-                        scene_changed = True
-                        if not transition_message:
-                             transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    elif new_y_local >= GRID_HEIGHT:
-                        player['scene_y'] += 1
-                        player['y'] = 0
-                        scene_changed = True
-                        if not transition_message:
-                            transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    else:
-                        if not (new_x_local < 0 or new_x_local >= GRID_WIDTH) :
-                            player['y'] = new_y_local
-                    
-                    player['char'] = newChar
-                    
-                    if scene_changed:
-                        # This 'system' message for scene transition might become ink or mana based on your preference.
-                        # For now, keeping it as 'system' type. The client will decide its ink/mana style.
-                        socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
-                
-                elif actionType == 'drink_potion':
-                    if player['potions'] > 0:
-                        player['potions'] -= 1
-                        player['current_health'] = min(player['max_health'], player['current_health'] + 15)
-                        potion_effect_message = "You drink a potion. You feel a warmth spread through you, slightly invigorating!"
-                        socketio.emit('lore_message', {'message': f"Tome notes: {potion_effect_message}", 'type': 'event-good'}, room=sid)
-                    else:
-                        socketio.emit('lore_message', {'message': "Tome sighs: You reach for a potion, but your satchel is empty.", 'type': 'event-bad'}, room=sid)
-
-                elif actionType == 'say':
-                    message_text = details.get('message', '')
-                    if message_text:
-                        chat_data = {
-                            'sender_name': get_player_name(sid),
-                            'message': message_text,
-                            'type': 'say', # This type will be used by client to style
-                            'scene_coords': f"({player['scene_x']},{player['scene_y']})"
-                        }
-                        for p_sid, p_data in players.items():
-                            if p_data['scene_x'] == player['scene_x'] and p_data['scene_y'] == player['scene_y']:
-                                socketio.emit('chat_message', chat_data, room=p_sid)
-                
-                elif actionType == 'shout':
-                    message_text = details.get('message', '')
-                    if message_text:
-                        if player['current_mana'] >= SHOUT_MANA_COST:
-                            player['current_mana'] -= SHOUT_MANA_COST
+                    elif actionType == 'say':
+                        message_text = details.get('message', '')
+                        if message_text:
                             chat_data = {
                                 'sender_name': get_player_name(sid),
                                 'message': message_text,
-                                'type': 'shout', # This type will be used by client to style
+                                'type': 'say',
                                 'scene_coords': f"({player['scene_x']},{player['scene_y']})"
                             }
-                            current_scene_x, current_scene_y = player['scene_x'], player['scene_y']
-                            adjacent_scenes = [
-                                (current_scene_x, current_scene_y),      
-                                (current_scene_x + 1, current_scene_y),  
-                                (current_scene_x - 1, current_scene_y),  
-                                (current_scene_x, current_scene_y + 1),  
-                                (current_scene_x, current_scene_y - 1)   
-                            ]
-                            targeted_sids = set()
                             for p_sid, p_data in players.items():
-                                if (p_data['scene_x'], p_data['scene_y']) in adjacent_scenes:
-                                    targeted_sids.add(p_sid)
-                            
-                            for target_sid in targeted_sids:
-                                socketio.emit('chat_message', chat_data, room=target_sid)
-                            socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid) # System message about mana cost
-                        else:
-                            socketio.emit('lore_message', {'message': f"Tome warns: You lack the {SHOUT_MANA_COST} mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
+                                if p_data['scene_x'] == player['scene_x'] and p_data['scene_y'] == player['scene_y']:
+                                    socketio.emit('chat_message', chat_data, room=p_sid)
+                    
+                    elif actionType == 'shout':
+                        message_text = details.get('message', '')
+                        if message_text:
+                            if player['current_mana'] >= SHOUT_MANA_COST:
+                                player['current_mana'] -= SHOUT_MANA_COST
+                                chat_data = {
+                                    'sender_name': get_player_name(sid),
+                                    'message': message_text,
+                                    'type': 'shout',
+                                    'scene_coords': f"({player['scene_x']},{player['scene_y']})"
+                                }
+                                current_scene_x, current_scene_y = player['scene_x'], player['scene_y']
+                                adjacent_scenes = [
+                                    (current_scene_x, current_scene_y),      
+                                    (current_scene_x + 1, current_scene_y),  
+                                    (current_scene_x - 1, current_scene_y),  
+                                    (current_scene_x, current_scene_y + 1),  
+                                    (current_scene_x, current_scene_y - 1)   
+                                ]
+                                targeted_sids = set()
+                                for p_sid, p_data in players.items():
+                                    if (p_data['scene_x'], p_data['scene_y']) in adjacent_scenes:
+                                        targeted_sids.add(p_sid)
+                                
+                                for target_sid in targeted_sids:
+                                    socketio.emit('chat_message', chat_data, room=target_sid)
+                                socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid)
+                            else:
+                                socketio.emit('lore_message', {'message': f"Tome warns: You lack the {SHOUT_MANA_COST} mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
 
-                queuedActions[sid] = None 
-        
-        current_player_states = list(players.values())
-        socketio.emit('game_state_update', current_player_states)
+                    queuedActions[sid] = None 
+            
+            current_player_states = list(players.values())
+            socketio.emit('game_state_update', current_player_states)
+        except Exception as e:
+            print(f"!!! ERROR IN GAME LOOP: {e} !!!") # Log any errors from the game loop
+            import traceback
+            traceback.print_exc() # Print full traceback
         
 @socketio.on('connect')
 def handle_connect(auth=None):
