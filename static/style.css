@@ -190,21 +190,7 @@ body.is-dragging, body.is-dragging * {
     vertical-align: middle;
     transform: scale(0.9); 
 }
-#debugMenu button { /* Style for Spawn Crazy button if added here */
-    font-size: 0.7em;
-    padding: 2px 5px;
-    margin-top: 4px;
-    background-color: var(--border-color);
-    color: var(--text-primary);
-    border: 1px solid var(--text-primary);
-    border-radius: 3px;
-    cursor: pointer;
-}
-#debugMenu button:hover {
-    background-color: var(--highlight-blue);
-    color: var(--bg-primary);
-}
-
+/* Spawn Crazy button style removed */
 
 #mainHeaderStatus {
     color: var(--text-primary);
@@ -228,7 +214,7 @@ body.is-dragging, body.is-dragging * {
     overflow: hidden; 
     border: 1px solid var(--border-color);
     cursor: grab; 
-    padding: 0; /* Padding removed, handled by centering logic for gameCanvas */
+    padding: 0; 
 }
 #gameCanvasContainer:active {
     cursor: grabbing;
@@ -271,72 +257,7 @@ body.is-dragging, body.is-dragging * {
     to { transform: translateY(calc(100vh + 60px)); }
 }
 
-.crazy-element {
-    position: absolute;
-    pointer-events: none;
-    opacity: 0; 
-    animation-iteration-count: 1; 
-    animation-fill-mode: forwards; 
-    z-index: 3; 
-}
-
-.crazy-dust {
-    width: 3px;
-    height: 3px;
-    background-color: var(--glow-tome-mana);
-    border-radius: 50%;
-    box-shadow: 0 0 5px var(--glow-tome-mana), 0 0 8px var(--glow-tome-mana);
-    animation-name: floatDrift, fadeInOut;
-    animation-duration: 3s, 3s; 
-    animation-timing-function: ease-in-out, linear;
-}
-
-.crazy-blur {
-    width: 20px;
-    height: 20px;
-    background-color: rgba(182, 158, 255, 0.1); 
-    border-radius: 50%;
-    filter: blur(5px);
-    animation-name: pulseBlur, fadeInOut;
-    animation-duration: 2s, 3s;
-    animation-timing-function: ease-in-out, linear;
-    animation-iteration-count: infinite, 1; 
-}
-
-.crazy-glyph {
-    font-family: var(--font-game); 
-    font-size: 16px;
-    color: var(--text-tome-mana);
-    text-shadow: 0 0 5px var(--glow-tome-mana);
-    animation-name: floatDriftRotate, fadeInOut;
-    animation-duration: 4s, 4s;
-    animation-timing-function: linear, linear;
-}
-
-
-@keyframes floatDrift {
-    0% { transform: translate(0,0) scale(0.5); opacity: 0; }
-    20% { opacity: 0.8; }
-    80% { opacity: 0.6; }
-    100% { transform: translate(calc(var(--drift-x, 0px) * 1px), calc(var(--drift-y, 0px) * 1px)) scale(1.2); opacity: 0; }
-}
-@keyframes floatDriftRotate { 
-    0% { transform: translate(0,0) rotate(0deg) scale(0.5); opacity: 0; }
-    20% { opacity: 0.9; }
-    80% { opacity: 0.7; }
-    100% { transform: translate(calc(var(--drift-x, 0px) * 1px), calc(var(--drift-y, 0px) * 1px)) rotate(calc(var(--drift-rot, 0deg) * 1deg)) scale(1); opacity: 0; }
-}
-
-@keyframes fadeInOut {
-    0%, 100% { opacity: 0; }
-    10%, 90% { opacity: 1; } 
-}
-
-@keyframes pulseBlur {
-    0%, 100% { filter: blur(5px); transform: scale(1); }
-    50% { filter: blur(8px); transform: scale(1.1); }
-}
-
+/* "Crazies" styles and keyframes removed */
 
 #commandInputBox {
     padding: 15px;

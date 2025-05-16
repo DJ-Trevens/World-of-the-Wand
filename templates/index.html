@@ -26,7 +26,7 @@
                     <label>
                         <input type="checkbox" id="localCommandsToggle" checked> Local Commands
                     </label>
-                    <button id="spawnCrazyButton" style="font-size: 0.7em; padding: 2px 5px; margin-left: 5px;">Spawn Crazy</button>
+                    <!-- Spawn Crazy Button Removed -->
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -59,7 +59,6 @@
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const localCommandsToggle = document.getElementById('localCommandsToggle');
-        const spawnCrazyButton = document.getElementById('spawnCrazyButton');
 
         let showDebugInfo = false; 
         let useLocalCommands = true;
@@ -67,8 +66,8 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 27; 
-        let GRID_HEIGHT = 17;
+        let GRID_WIDTH = 20; 
+        let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
         let OBSERVABLE_DEPTH = 17;
         let prevSelfPlayerState = null;
@@ -197,15 +196,13 @@
             tempSpan.style.fontFamily = getComputedStyle(gameCanvas).fontFamily;
             tempSpan.style.fontSize = getComputedStyle(gameCanvas).fontSize;
             tempSpan.style.lineHeight = getComputedStyle(gameCanvas).lineHeight;
-            tempSpan.style.whiteSpace = 'pre'; // Important for monospace width
+            tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
             tempSpan.style.position = 'absolute';
             tempSpan.textContent = 'M'; 
             document.body.appendChild(tempSpan);
             
             charRenderWidth = tempSpan.offsetWidth;
-            // For line-height < 1, offsetHeight might be larger than actual glyph box.
-            // Using fontSize * lineHeight (numeric) might be more stable for text grid height per line.
             const lh = parseFloat(getComputedStyle(gameCanvas).lineHeight);
             const fs = parseFloat(getComputedStyle(gameCanvas).fontSize);
             charRenderHeight = fs * lh; 
@@ -229,6 +226,7 @@
                 gameCanvas.style.transform = `translate(0px, 0px)`; 
                 return;
             }
+            // Ensure transform is applied even if pan values are 0 for initial setup
             gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
 
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
@@ -331,7 +329,7 @@
             if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
                  currentPanX = 0;
                  currentPanY = 0;
-                 gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+                 if (gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
             
@@ -343,7 +341,7 @@
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
-            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+            if (gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
 
@@ -356,10 +354,10 @@
             useLocalCommands = event.target.checked;
             localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
         });
-        spawnCrazyButton.addEventListener('click', spawnCrazyElement);
+        // spawnCrazyButton listener removed
 
 
-        socket.on('connect', () => { /* Fully handled by initial_state or default */ });
+        socket.on('connect', () => {});
 
         socket.on('initial_state', (data) => {
             selfPlayer = data.player; 
@@ -728,42 +726,7 @@
             updateWeatherEffects();
         };
 
-        function spawnCrazyElement() {
-            if (!gameCanvasContainer) return;
-
-            const crazy = document.createElement('div');
-            crazy.classList.add('crazy-element');
-            const types = ['dust', 'blur', 'glyph'];
-            const type = types[Math.floor(Math.random() * types.length)];
-            crazy.classList.add(`crazy-${type}`);
-
-            const containerRect = gameCanvasContainer.getBoundingClientRect();
-
-            crazy.style.left = Math.random() * containerRect.width + 'px';
-            crazy.style.top = Math.random() * containerRect.height + 'px';
-
-            if (type === 'glyph') {
-                const glyphs = ['✧', '✨', '✴', '룬', 'က', 'א', '§', '⁂', '※'];
-                crazy.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
-            }
-
-            const driftX = (Math.random() - 0.5) * 100; 
-            const driftY = (Math.random() - 0.5) * 100; 
-            const driftRot = (Math.random() - 0.5) * 360; 
-            crazy.style.setProperty('--drift-x', driftX);
-            crazy.style.setProperty('--drift-y', driftY);
-            crazy.style.setProperty('--drift-rot', driftRot);
-            
-            const duration = 2000 + Math.random() * 3000; 
-            crazy.style.animationDuration = `${duration / 1000}s, ${duration / 1000}s`;
-
-
-            rainOverlay.appendChild(crazy);
-
-            setTimeout(() => {
-                crazy.remove();
-            }, duration);
-        }
+        // "Crazies" functions and listeners removed.
 
         drawGrid();
         if (commandInput) { commandInput.focus(); }
@@ -782,13 +745,6 @@
         updateStatus(); 
         updateWeatherEffects();
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
-        
-        // setInterval(() => {
-        //     if (Math.random() < 0.02) { 
-        //        spawnCrazyElement();
-        //     }
-        // }, 10000);
-
 
     </script>
 </body>
