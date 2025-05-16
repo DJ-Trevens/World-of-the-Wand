@@ -29,6 +29,9 @@
                     <label>
                         Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05" value="0.35">
                     </label>
+                     <label>
+                        <input type="checkbox" id="themeToggle"> Mystic Night Theme
+                    </label>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -62,6 +65,7 @@
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const localCommandsToggle = document.getElementById('localCommandsToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
+        const themeToggle = document.getElementById('themeToggle');
 
         let showDebugInfo = false; 
         let useLocalCommands = true;
@@ -69,8 +73,8 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 27; 
-        let GRID_HEIGHT = 17;
+        let GRID_WIDTH = 20; 
+        let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
         let OBSERVABLE_DEPTH = 17;
         let prevSelfPlayerState = null;
@@ -202,7 +206,7 @@
             tempSpan.style.lineHeight = getComputedStyle(gameCanvas).lineHeight;
             tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
-            tempSpan.style.position = 'absolute';
+            tempSpan.style.position = 'absolute'; 
             tempSpan.textContent = 'M'; 
             document.body.appendChild(tempSpan);
             
@@ -217,9 +221,10 @@
                 charSizeEstimated = true;
                 console.log("Estimated char size (W x H):", charRenderWidth, "x", charRenderHeight);
             } else { 
-                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "16px") * 0.6; 
-                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "16px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
+                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * 0.6; 
+                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
                  console.warn("Failed to estimate char size accurately, using fallback:", charRenderWidth, charRenderHeight);
+                charSizeEstimated = true; 
             }
         }
 
@@ -264,10 +269,8 @@
             if (rainInterval) clearInterval(rainInterval);
             rainOverlay.innerHTML = ''; 
 
-            // Determine number of drops based on intensity, check every RAIN_INTERVAL_DELAY
-            // This approach means higher intensity -> higher probability of a drop in each check cycle
             rainInterval = setInterval(() => {
-                if (Math.random() < (intensity * 0.5) ) { // Adjust multiplier for desired density
+                if (Math.random() < (intensity * 0.5) ) { 
                     const drop = document.createElement('div');
                     drop.classList.add('raindrop');
                     drop.style.left = Math.random() * 100 + '%';
@@ -292,8 +295,10 @@
         
         function updateWeatherEffects() {
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval || rainIntensitySlider.value !== globalWeather.intensity.toFixed(2)) { // Check if intensity changed
-                    globalWeather.intensity = parseFloat(rainIntensitySlider.value); // Update from slider
+                // Check if rain is already running with the correct intensity
+                // This prevents restarting if intensity hasn't changed
+                if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
+                    globalWeather.intensity = rainIntensitySlider.valueAsNumber;
                     startRainEffect(globalWeather.intensity);
                 }
             } else {
@@ -355,6 +360,11 @@
             if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
+        function toggleTheme() {
+            document.body.classList.toggle('theme-mystic-night');
+            localStorage.setItem('theme', document.body.classList.contains('theme-mystic-night') ? 'mystic-night' : 'default');
+        }
+
 
         debugInfoToggle.addEventListener('change', (event) => {
             showDebugInfo = event.target.checked;
@@ -371,11 +381,13 @@
                 globalWeather.intensity = newIntensity;
                 localStorage.setItem('rainIntensity', globalWeather.intensity);
                 if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                    startRainEffect(globalWeather.intensity); // Restart rain with new intensity
+                    startRainEffect(globalWeather.intensity); 
                 }
                 if(showDebugInfo) addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
             }
         });
+        themeToggle.addEventListener('change', toggleTheme);
+
 
         socket.on('connect', () => {});
 
@@ -402,9 +414,18 @@
             if (savedRainIntensity !== null) { 
                 globalWeather.intensity = parseFloat(savedRainIntensity);
             } else {
-                globalWeather.intensity = 0.35; // Ensure default is set if not in localStorage
+                globalWeather.intensity = 0.35; 
             }
             rainIntensitySlider.value = globalWeather.intensity;
+            
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'mystic-night') {
+                document.body.classList.add('theme-mystic-night');
+                themeToggle.checked = true;
+            } else {
+                document.body.classList.remove('theme-mystic-night');
+                themeToggle.checked = false;
+            }
 
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
@@ -747,9 +768,9 @@
             globalWeather.isRaining = !globalWeather.isRaining;
              if (currentSceneData.InsideID === 0) { 
                 if (globalWeather.isRaining && !wasRaining) {
-                    addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
+                    if(showDebugInfo) addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
                 } else if (!globalWeather.isRaining && wasRaining) {
-                    addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
+                    if(showDebugInfo) addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
                 }
             }
             updateWeatherEffects();
@@ -757,7 +778,7 @@
          window.toggleInsideDebug = function() { 
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
             currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld" : "A Cozy Hut"; 
-            addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
+            if(showDebugInfo) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus();
             updateWeatherEffects();
         };
@@ -780,6 +801,15 @@
             globalWeather.intensity = parseFloat(savedRainIntensity);
         }
         rainIntensitySlider.value = globalWeather.intensity;
+
+        const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'mystic-night') {
+                document.body.classList.add('theme-mystic-night');
+                themeToggle.checked = true;
+            } else {
+                document.body.classList.remove('theme-mystic-night');
+                themeToggle.checked = false;
+        }
 
 
         updateStatus(); 
