@@ -1,12 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --bg-primary: #1a1f26; /* Darker, cool background */
-    --bg-secondary: #2c333e; /* Slightly lighter for panels */
-    --bg-tome: #f3eadd; /* Parchment */
-    --text-tome: #4a3b32; /* Dark brown for Tome text */
-    --text-primary: #c8d1dc; /* Main UI text - light gray/blue */
-    --text-game: #e0e0e0; /* Game canvas text */
+    --bg-primary: #1a1f26; 
+    --bg-secondary: #2c333e; 
+    --bg-tome: #f3eadd; 
+    --text-tome-ink: #4a3b32;    /* Dark brown for Tome ink text */
+    --text-tome-mana: #2a52be;   /* Deep blue for mana text */
+    --glow-tome-mana: #87cefa;   /* Lighter blue for mana glow */
+    --text-primary: #c8d1dc; 
+    --text-game: #e0e0e0; 
     --border-color: #444c5a;
     --highlight-blue: #61afef;
     --highlight-green: #98c379;
@@ -29,24 +31,24 @@ body {
     font-family: var(--font-ui);
     background-color: var(--bg-primary);
     color: var(--text-primary);
-    overflow: hidden; /* Prevent body scrollbars */
+    overflow: hidden; 
 }
 
 .main-ui-container {
     display: flex;
-    flex-grow: 1; /* Take all available space in body */
+    flex-grow: 1; 
     width: 100%;
     height: 100%;
     padding: 15px;
     box-sizing: border-box;
-    gap: 15px; /* Space between panels */
+    gap: 15px; 
 }
 
 .left-panel, .right-panel {
     display: flex;
     flex-direction: column;
-    height: 100%; /* Fill height of parent */
-    overflow: hidden; /* Prevent panels from causing scroll on main-ui-container */
+    height: 100%; 
+    overflow: hidden; 
     padding: 15px;
     box-sizing: border-box;
     background-color: var(--bg-secondary);
@@ -55,36 +57,36 @@ body {
 }
 
 .left-panel {
-    flex-basis: 40%; /* Tome takes up 40% initially */
+    flex-basis: 40%; 
     flex-shrink: 1;
-    min-width: 300px; /* Minimum width for the Tome */
+    min-width: 300px; 
 }
 
 .right-panel {
     flex-basis: 60%;
     flex-shrink: 1;
     min-width: 350px;
-    gap: 15px; /* Space between elements in the right panel */
+    gap: 15px; 
 }
 
 #commandLog { /* The Tome */
     background-color: var(--bg-tome);
-    color: var(--text-tome);
+    /* color is set by .log-style-ink or .log-style-mana */
     font-family: var(--font-tome);
-    font-size: 1.1em; /* Slightly larger for readability */
+    font-size: 1.1em; 
     line-height: 1.6;
     padding: 20px;
     border-radius: 6px;
     overflow-y: auto;
-    flex-grow: 1; /* Tome log takes all space in left panel */
-    border: 1px solid #d3c8b4; /* Slightly darker parchment border */
+    flex-grow: 1; 
+    border: 1px solid #d3c8b4; 
     box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
 }
 
 .log-entry {
-    margin-bottom: 8px; /* Use margin-bottom as it's normal flow now */
+    margin-bottom: 8px; 
     padding-bottom: 4px;
-    border-bottom: 1px dashed rgba(0,0,0,0.08); /* Subtle separator */
+    border-bottom: 1px dashed rgba(0,0,0,0.08); 
     word-wrap: break-word;
     white-space: pre-wrap;
 }
@@ -92,18 +94,48 @@ body {
     border-bottom: none;
 }
 
-/* Specific log type colors, now on parchment */
-.log-lore { color: var(--text-tome); }
-.log-system { color: #4a7a99; font-style: italic; } /* Darker blue on parchment */
-.log-event-good { color: #508550; } /* Darker green on parchment */
-.log-event-bad { color: #a05050; font-weight: bold; } /* Darker red on parchment */
-.log-user-input { color: #7a6a5f; opacity: 0.8; }
+/* New base styles for Ink and Mana entries */
+.log-style-ink {
+    color: var(--text-tome-ink);
+}
+
+.log-style-mana {
+    color: var(--text-tome-mana);
+    text-shadow: 0 0 5px var(--glow-tome-mana), 
+                 0 0 8px var(--glow-tome-mana),
+                 0 0 10px rgba(var(--glow-tome-mana), 0.7); 
+}
+
+
+/* Specific log type semantic styling */
+.log-type-lore {} 
+
+.log-type-system {
+    font-style: italic; 
+} 
+
+.log-type-event-good {
+    /* Example: Could add a subtle checkmark icon via ::before */
+}
+
+.log-type-event-bad {
+    font-weight: bold; 
+} 
+
+.log-type-user-input {
+    /* color and opacity now handled by log-style-ink and its specific selector if needed */
+    /* For .log-style-ink.log-type-user-input if you want specific user input ink style */
+}
+.log-style-ink.log-type-user-input {
+    opacity: 0.85;
+    color: #7a6a5f; /* A slightly different ink for user input */
+}
 
 
 #mainHeaderStatus {
     color: var(--text-primary);
     padding: 10px 15px;
-    background-color: rgba(0,0,0,0.2); /* Semi-transparent overlay on panel bg */
+    background-color: rgba(0,0,0,0.2); 
     border-radius: 6px;
     text-align: center;
     font-size: 1.1em;
@@ -113,14 +145,14 @@ body {
 
 #gameCanvasContainer {
     position: relative;
-    flex-grow: 1; /* Game view takes most space in right panel */
-    min-height: 0; /* Important for flex children */
+    flex-grow: 1; 
+    min-height: 0; 
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #12151a; /* Very dark bg for game canvas */
+    background-color: #12151a; 
     border-radius: 6px;
-    overflow: hidden; /* Clip canvas/rain if they try to overflow */
+    overflow: hidden; 
     border: 1px solid var(--border-color);
 }
 
@@ -130,12 +162,11 @@ body {
     line-height: 1.0;
     font-size: 16px;
     color: var(--text-game);
-    padding: 15px; /* Padding inside the canvas, around the text grid */
+    padding: 15px; 
     max-width: 100%;
     max-height: 100%;
-    overflow: auto; /* Scroll game grid if it's larger than allocated space */
+    overflow: auto; 
     z-index: 1;
-    /* background-color is now on gameCanvasContainer */
 }
 
 #rainOverlay {
@@ -152,16 +183,16 @@ body {
 .raindrop {
     position: absolute;
     bottom: 100%;
-    width: 1px; /* Thinner rain */
-    height: 60px; /* Longer streaks */
-    background: linear-gradient(to bottom, rgba(170, 190, 220, 0), rgba(170, 190, 220, 0.3)); /* More subtle blue */
+    width: 1px; 
+    height: 60px; 
+    background: linear-gradient(to bottom, rgba(170, 190, 220, 0), rgba(170, 190, 220, 0.3)); 
     animation: fall linear infinite;
     opacity: 0.7;
 }
 
 @keyframes fall {
     to {
-        transform: translateY(calc(100vh + 60px)); /* Ensure it falls well off screen */
+        transform: translateY(calc(100vh + 60px)); 
     }
 }
 
@@ -187,14 +218,14 @@ body {
 }
 
 #commandText {
-    background-color: rgba(0,0,0,0.2); /* Darker input field */
-    color: var(--text-primary);
+    background-color: rgba(0,0,0,0.2); 
+    color: var(--text-primary); 
     border: 1px solid var(--border-color);
     padding: 10px 12px;
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
-    font-family: var(--font-game); /* Monospace for command input can be nice */
+    font-family: var(--font-game); 
 }
 
 #commandText:focus {
@@ -204,7 +235,7 @@ body {
     box-shadow: 0 0 0 2px rgba(var(--highlight-blue), 0.2);
 }
 
-#commandForm button { /* "Seal" or "Rune" button */
+#commandForm button { 
     background-color: var(--highlight-blue);
     color: var(--bg-primary);
     border: none;
@@ -221,7 +252,7 @@ body {
 }
 
 #commandForm button:hover {
-    background-color: #7acaff; /* Lighter blue */
+    background-color: #7acaff; 
 }
 #commandForm button:active {
     transform: translateY(1px);
@@ -235,17 +266,17 @@ body {
         gap: 10px;
     }
     .left-panel, .right-panel {
-        flex-basis: auto; /* Let content or other flex props decide height */
+        flex-basis: auto; 
         width: 100%;
         min-width: unset;
     }
     .left-panel {
-        max-height: 40vh; /* Tome takes a portion of viewport height */
+        max-height: 40vh; 
     }
     .right-panel {
-        flex-grow: 1; /* Right panel (game etc) takes remaining space */
+        flex-grow: 1; 
     }
     #gameCanvas {
-        font-size: 14px; /* Slightly smaller font on small screens */
+        font-size: 14px; 
     }
 }
