@@ -39,7 +39,7 @@ body {
     color: var(--text-primary);
     overflow: hidden; 
 }
-body.is-dragging, body.is-dragging * {
+body.is-dragging, body.is-dragging * { /* Prevent text selection during drag */
     user-select: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -161,7 +161,7 @@ body.is-dragging, body.is-dragging * {
 #mainHeaderStatusContainer { 
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 10px; /* Will be space between debug and status text */
     background-color: rgba(0,0,0,0.25); 
     border-radius: 6px;
     padding: 0 10px; 
@@ -170,22 +170,24 @@ body.is-dragging, body.is-dragging * {
 }
 #debugMenu { 
     display: flex;
-    align-items: center;
+    flex-direction: column; /* Stack checkboxes vertically */
+    align-items: flex-start; /* Align checkboxes to the left */
     padding: 5px 0; 
     color: var(--text-primary);
     flex-shrink: 0;
 }
 #debugMenu label {
-    margin: 0; 
-    font-size: 0.8em; 
+    margin: 2px 0; 
+    font-size: 0.75em; /* Even smaller for compact debug options */
     cursor: pointer;
     display: flex;
     align-items: center;
     white-space: nowrap;
 }
 #debugMenu input[type="checkbox"] {
-    margin-right: 5px;
+    margin-right: 4px;
     vertical-align: middle;
+    transform: scale(0.9); /* Make checkbox slightly smaller */
 }
 
 #mainHeaderStatus {
@@ -224,7 +226,7 @@ body.is-dragging, body.is-dragging * {
     z-index: 1;
     position: absolute; 
     transition: transform 0.3s ease-out; 
-    /* Padding removed - handled by panning logic if desired */
+    padding: 0; /* Padding moved to container */
 }
 
 #rainOverlay {
@@ -267,18 +269,18 @@ body.is-dragging, body.is-dragging * {
 }
 
 #tickIndicator {
-    width: 14px; /* Increased size */
-    height: 14px; /* Increased size */
+    width: 14px; 
+    height: 14px; 
     background-color: #4a4e69; 
     border-radius: 50%;
-    margin-right: 12px; /* Increased margin */
+    margin-right: 12px; 
     display: inline-block;
-    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; /* Added box-shadow transition */
+    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
     box-shadow: 0 0 3px #222; 
 }
 #tickIndicator.tick-flash {
     background-color: var(--highlight-green);
-    box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); /* Brighter glow */
+    box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); 
 }
 
 
@@ -332,8 +334,21 @@ body.is-dragging, body.is-dragging * {
     transform: translateY(1px);
 }
 
-/* Relocated Debug Menu is no longer absolutely positioned on main-ui-container */
-/* but part of the mainHeaderStatusContainer flow */
+/* Absolute positioned debug menu - top left of viewport now */
+/* #debugMenu {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(44, 51, 62, 0.85); 
+    backdrop-filter: blur(3px); 
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    z-index: 1000;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+} Removed this absolute positioning. It's now part of mainHeaderStatusContainer */
+
 
 @media (max-width: 800px) {
     .main-ui-container {
@@ -359,7 +374,8 @@ body.is-dragging, body.is-dragging * {
     #mainHeaderStatusContainer {
         flex-wrap: wrap; 
         padding: 5px 10px;
+        justify-content: space-between; /* Push debug to left, status to rightish */
     }
-    #debugMenu { padding: 5px;} /* No title, so no h4 specific styles */
-    #mainHeaderStatus { font-size: 0.9em; }
+    #debugMenu { order: -1; /* Ensure debug info is on the left */ }
+    #mainHeaderStatus { font-size: 0.9em; text-align: right; }
 }

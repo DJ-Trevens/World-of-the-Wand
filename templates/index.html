@@ -23,6 +23,9 @@
                     <label>
                         <input type="checkbox" id="debugInfoToggle"> Debug Info
                     </label>
+                    <label>
+                        <input type="checkbox" id="localCommandsToggle" checked> Local Commands
+                    </label>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -54,8 +57,10 @@
         const commandInput = document.getElementById('commandText');
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
+        const localCommandsToggle = document.getElementById('localCommandsToggle');
 
         let showDebugInfo = false; 
+        let useLocalCommands = true; // Default to true
         
         let selfPlayer = null;
         let otherPlayers = {};
@@ -63,6 +68,7 @@
         let GRID_WIDTH = 27; 
         let GRID_HEIGHT = 17;
         let GAME_TICK_RATE = 0.75;
+        let OBSERVABLE_DEPTH = 17; // Updated
         let prevSelfPlayerState = null;
 
         let currentSceneData = {
@@ -70,8 +76,8 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: true,
-            intensity: 0.35
+            isRaining: false,
+            intensity: 0.6 
         };
         let rainInterval = null;
 
@@ -82,8 +88,6 @@
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
-        const OBSERVABLE_DEPTH = 7;
-        const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
 
         function get_dx_dy_from_direction_str(s) {
@@ -127,11 +131,12 @@
             
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
 
-            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
+            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * (OBSERVABLE_WIDTH || 1.0) )) { // Added default for OBSERVABLE_WIDTH
                 return true;
             }
             return false;
         }
+
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
@@ -281,45 +286,30 @@
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || !gameCanvas.firstChild) return; // No player or no grid content (like 'Summoning World...')
-
-            // Ensure grid dimensions are known and canvas has measurable content size
-            if (GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.clientWidth === 0 || gameCanvas.clientHeight === 0) {
-                // Fallback: center the gameCanvas itself if we can't calculate char positions
-                currentPanX = 0;
-                currentPanY = 0;
-                gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
-                return;
-            }
+            if (!selfPlayer || !gameCanvas.firstChild || GRID_WIDTH === 0 || GRID_HEIGHT === 0) return;
             
-            const contentWidth = gameCanvas.clientWidth;
-            const contentHeight = gameCanvas.clientHeight;
+            // Use scrollWidth/scrollHeight of gameCanvas for its full content dimensions
+            const fullGridContentWidth = gameCanvas.scrollWidth;
+            const fullGridContentHeight = gameCanvas.scrollHeight;
 
-            const charWidth = contentWidth / GRID_WIDTH;
-            const charHeight = contentHeight / GRID_HEIGHT;
+            const charRenderWidth = fullGridContentWidth / GRID_WIDTH;
+            const charRenderHeight = fullGridContentHeight / GRID_HEIGHT;
 
-            const computedStyle = getComputedStyle(gameCanvas);
-            const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
-            const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+            // Player's character cell's center X and Y within the gameCanvas's own content
+            const playerContentX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
+            const playerContentY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
-            const playerCellCenterXInContent = (selfPlayer.x * charWidth) + (charWidth / 2);
-            const playerCellCenterYInContent = (selfPlayer.y * charHeight) + (charHeight / 2);
-            
-            // Target position for the player's center, relative to the gameCanvasContainer's top-left
+            // Desired center of the gameCanvasContainer (the viewport)
             const containerCenterX = gameCanvasContainer.offsetWidth / 2;
             const containerCenterY = gameCanvasContainer.offsetHeight / 2;
 
-            // The gameCanvas's own top-left is effectively (paddingLeft, paddingTop) relative to its border-box for transform purposes if it's not already centered by other means.
-            // Since gameCanvas is absolutely positioned and we are calculating its pan:
-            // We want to move gameCanvas so that playerCellCenterXInContent (which is relative to the content-box of gameCanvas)
-            // aligns with containerCenterX.
-            // Pan = Desired Player Position in Container - Current Player Position in gameCanvas (relative to gameCanvas 0,0)
-            
-            targetPanX = containerCenterX - (paddingLeft + playerCellCenterXInContent) ;
-            targetPanY = containerCenterY - (paddingTop + playerCellCenterYInContent) ;
+            // Calculate the pan needed to bring playerContentX/Y to containerCenterX/Y
+            targetPanX = containerCenterX - playerContentX;
+            targetPanY = containerCenterY - playerContentY;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
+            // drawGrid will apply the transform
             gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
@@ -329,6 +319,11 @@
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
             updateStatus(); 
         });
+        localCommandsToggle.addEventListener('change', (event) => {
+            useLocalCommands = event.target.checked;
+            localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
+        });
+
 
         socket.on('connect', () => { /* Fully handled by initial_state or default */ });
 
@@ -342,18 +337,21 @@
             prevSelfPlayerState = { ...selfPlayer };
 
             const savedDebugInfo = localStorage.getItem('showDebugInfo');
-            if (savedDebugInfo !== null) {
-                showDebugInfo = JSON.parse(savedDebugInfo);
-            } else {
-                showDebugInfo = false; 
-            }
+            if (savedDebugInfo !== null) { showDebugInfo = JSON.parse(savedDebugInfo); } 
+            else { showDebugInfo = false; }
             debugInfoToggle.checked = showDebugInfo; 
+
+            const savedLocalCommands = localStorage.getItem('useLocalCommands');
+            if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); }
+            else { useLocalCommands = true; } // Default to on
+            localCommandsToggle.checked = useLocalCommands;
+
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus(); 
-                drawGrid(); // Draw first to establish canvas content and dimensions
+                drawGrid(); 
                 centerViewOnPlayer(); 
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
@@ -591,56 +589,81 @@
             }
 
             let commandToSend = { type: canonicalAction, details: {} };
-            let shouldEmit = false;
+            let shouldEmit = true; // Assume we emit by default unless handled locally
 
-            if (canonicalAction === "move") { 
+            if (useLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
+                shouldEmit = false; // Don't send to server for local commands
+                const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char);
+                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
+
+                if (dirResult.isValid) {
+                    let newX = selfPlayer.x + (canonicalAction === "move" ? dirResult.dx : 0);
+                    let newY = selfPlayer.y + (canonicalAction === "move" ? dirResult.dy : 0);
+                    
+                    // Basic boundary clamping for local mode
+                    newX = Math.max(0, Math.min(GRID_WIDTH - 1, newX));
+                    newY = Math.max(0, Math.min(GRID_HEIGHT - 1, newY));
+
+                    selfPlayer.x = newX;
+                    selfPlayer.y = newY;
+                    selfPlayer.char = dirResult.char;
+                    
+                    addLogMessage(`Tome (Local): You ${canonicalAction} ${effectiveTargetWord}.`, 'system');
+                    drawGrid();
+                    if (!isDragging) centerViewOnPlayer();
+                    updateStatus();
+                } else {
+                    addLogMessage(`Tome frowns (Local): Your path to "${effectiveTargetWord}" is unclear.`, 'event-bad');
+                }
+            } else if (canonicalAction === "move") { 
                 const effectiveTargetWord = messageContent || "forward";
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
                     commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
-                    shouldEmit = true;
                 } else { 
                     addLogMessage(`Tome frowns: You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, 'event-bad');
+                    shouldEmit = false;
                 }
             } else if (canonicalAction === "look") { 
-                 const effectiveTargetWord = messageContent || "forward";
+                 const effectiveTargetWord = messageContent || "forward"; // "forward" implies looking in current direction
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
-                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char };
-                    shouldEmit = true;
-                    addLogMessage(`Tome's gaze follows yours: You peer ${effectiveTargetWord}. The air is thick with untold stories.`, 'lore');
+                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char }; // dx, dy are 0 for look
+                    addLogMessage(`Tome's gaze follows yours: You peer ${effectiveTargetWord}.`, 'lore');
                 } else { 
                     addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
+                    shouldEmit = false;
                 }
             } else if (canonicalAction === "help") { 
                 addLogMessage("Tome patiently explains:\nTo MOVE, try: 'move north', 'go w', 'run forward', etc.\nTo LOOK: 'look east', 'face s', 'turn backward'.\nTo CAST: 'cast [spell name]'.\nTo DRINK: 'drink' or 'drink potion'.\nTo SPEAK: 'say [message]' or '[message] starting with single quote (').\nTo SHOUT: 'shout [message]' or '[message] starting with exclamation mark (!).\nMy knowledge expands as your journey unfolds.", 'system');
+                shouldEmit = false; // Help is client-side for now
             } else if (canonicalAction === "cast") { 
                  if (messageContent) {
                     commandToSend.details = { spellName: messageContent }; 
-                    shouldEmit = true;
                     addLogMessage(`Tome focuses: You begin to channel energy for "${messageContent}"...`, 'spell-cast');
                  } else { 
                     addLogMessage(`Tome asks: Cast what, O Wizard? You must name the incantation.`, 'event-bad');
+                    shouldEmit = false;
                  }
             } else if (canonicalAction === "drink") {
                 if (messageContent && !(messageContent.toLowerCase().includes("potion") || messageContent.toLowerCase().includes("flask"))) {
                     addLogMessage(`Tome queries: Drink what specifically? If a potion, just 'drink' or 'drink potion'.`, 'event-bad');
-                    commandInput.focus();
-                    return; 
+                    shouldEmit = false; 
+                } else {
+                    commandToSend.type = 'drink_potion'; // Ensure server gets correct type
+                    addLogMessage("Tome observes: You reach for a potion...", 'system');
                 }
-                commandToSend.type = 'drink_potion';
-                shouldEmit = true;
-                addLogMessage("Tome observes: You reach for a potion...", 'system');
             } else if (canonicalAction === "say" || canonicalAction === "shout") {
                 if (messageContent && messageContent.length > 0) {
                     commandToSend.details = { message: messageContent };
-                    shouldEmit = true;
                 } else { 
                     addLogMessage(`Tome asks: ${canonicalAction.charAt(0).toUpperCase() + canonicalAction.slice(1)} what, O Wizard? Your words are lost to the ether.`, 'event-bad');
+                    shouldEmit = false;
                 }
             }
             else { 
                 addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding.`, 'event-bad');
+                shouldEmit = false;
             }
 
             if (shouldEmit) {
@@ -673,12 +696,15 @@
         if (commandInput) { commandInput.focus(); }
         
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo');
-        if (savedDebugInfoOnLoad !== null) {
-            showDebugInfo = JSON.parse(savedDebugInfoOnLoad);
-        } else {
-            showDebugInfo = false; 
-        }
+        if (savedDebugInfoOnLoad !== null) { showDebugInfo = JSON.parse(savedDebugInfoOnLoad); } 
+        else { showDebugInfo = false; }
         debugInfoToggle.checked = showDebugInfo;
+
+        const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
+        if (savedLocalCommandsOnLoad !== null) { useLocalCommands = JSON.parse(savedLocalCommandsOnLoad); }
+        else { useLocalCommands = true; } // Default to true
+        localCommandsToggle.checked = useLocalCommands;
+
 
         updateStatus(); 
         updateWeatherEffects();
