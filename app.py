@@ -24,7 +24,7 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 50
+GRID_WIDTH = 40
 GRID_HEIGHT = 20
 GAME_TICK_RATE = 2.0
 
