@@ -12,14 +12,13 @@
     </script>
 </head>
 <body>
+    <!-- Order for flex layout -->
+    <div id = "mainHeaderStatus"> Pondering the Ethereal Wave... </div>
     <div id = "commandLog"></div>
-    <!-- Container for game canvas and rain overlay -->
     <div id="gameCanvasContainer">
         <div id = "gameCanvas"> Summoning World... </div>
-        <div id="rainOverlay"></div> <!-- Rain will be dynamically added here -->
+        <div id="rainOverlay"></div>
     </div>
-    <div id = "mainHeaderStatus"> Pondering the Ethereal Wave... </div>
-
     <div id = "commandInputBox">
         <form id = "commandForm">
             <label for = "commandText">Your will, Wizard?</label>
@@ -45,17 +44,15 @@
         let GAME_TICK_RATE = 2.0;
         let prevSelfPlayerState = null;
 
-        // --- Weather and Scene State (Client-Side Simulation) ---
         let currentSceneData = {
-            InsideID: 0, // 0 = outdoors, positive numbers for different indoor areas
-            name: "The Whispering Plains" // Example scene name
+            InsideID: 0, 
+            name: "The Whispering Plains" 
         };
         let globalWeather = {
             isRaining: false,
-            intensity: 0.6 // 0.1 (light) to 1.0 (heavy)
+            intensity: 0.6 
         };
         let rainInterval = null;
-        // --- End Weather and Scene State ---
 
 
         const FOG_CHAR = '▒';
@@ -160,33 +157,21 @@
             gameCanvas.textContent = output;
         }
 
-        // --- Weather Effect Functions ---
         function startRainEffect(intensity) {
-            if (rainInterval) clearInterval(rainInterval); // Clear existing interval if any
-            rainOverlay.innerHTML = ''; // Clear old raindrops
+            if (rainInterval) clearInterval(rainInterval);
+            rainOverlay.innerHTML = ''; 
 
-            const containerHeight = rainOverlay.offsetHeight; // Use actual height for fall animation
-
-            // Adjust drop creation rate based on intensity
-            const dropsPerSecond = 5 + (intensity * 25); // e.g., 5 to 30 drops/sec
+            const dropsPerSecond = 5 + (intensity * 25);
             rainInterval = setInterval(() => {
                 const drop = document.createElement('div');
                 drop.classList.add('raindrop');
                 drop.style.left = Math.random() * 100 + '%';
                 
-                // Vary animation duration for a more natural look
-                const duration = 0.5 + Math.random() * 0.5; // 0.5s to 1s fall time
+                const duration = 0.5 + Math.random() * 0.5; 
                 drop.style.animationDuration = duration + 's';
                 
-                // Adjust fall distance based on container height for the keyframes
-                // This requires dynamic keyframes or a trick. Simpler: animate to a large fixed value.
-                // The @keyframes 'fall' uses translateY(calc(100vh + 50px)), which might be too large/small
-                // A better way for dynamic height is to use JS to set the end translateY.
-                // For simplicity now, the CSS keyframe is generic.
-
                 rainOverlay.appendChild(drop);
 
-                // Remove drop after it finishes animation
                 drop.addEventListener('animationend', () => {
                     drop.remove();
                 });
@@ -196,29 +181,19 @@
         function stopRainEffect() {
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
-            // Existing drops will finish their animation and be removed by their own event listeners
-            // Optionally, remove all immediately: rainOverlay.innerHTML = '';
         }
 
         function updateWeatherEffects() {
-            // Adjust gameCanvasContainer height for rainOverlay if gameCanvas size changes
-            // This is a bit tricky if gameCanvas size is purely by content.
-            // For now, assuming rainOverlay correctly covers gameCanvas via its parent.
-             gameCanvasContainer.style.height = gameCanvas.offsetHeight + 'px';
-             gameCanvasContainer.style.width = gameCanvas.offsetWidth + 'px';
-
-
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval) { // Only start if not already raining (idempotency)
+                if (!rainInterval) { 
                     startRainEffect(globalWeather.intensity);
                 }
             } else {
-                if (rainInterval) { // Only stop if currently raining
+                if (rainInterval) { 
                     stopRainEffect();
                 }
             }
         }
-        // --- End Weather Effect Functions ---
 
         socket.on('connect', () => {
             updateStatus("Divining your essence...");
@@ -233,16 +208,12 @@
             otherPlayers = data.other_players || {};
             prevSelfPlayerState = { ...selfPlayer };
 
-            // Placeholder: Server should send currentSceneData and globalWeather
-            // currentSceneData = data.sceneData || { InsideID: 0, name: "The Starting Plains" };
-            // globalWeather = data.weatherData || { isRaining: false, intensity: 0.5 };
-
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus();
-                drawGrid(); // Draw grid first
-                updateWeatherEffects(); // Then update weather, which might need canvas dimensions
+                drawGrid(); 
+                updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in ${currentSceneData.name} at scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world awaits!`, 'lore');
             } else {
                 addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
@@ -273,18 +244,11 @@
         socket.on('game_state_update', (allPlayers) => {
             let foundSelf = false;
             const currentOtherPlayersInMyScene = {};
-            let previousInsideID = currentSceneData.InsideID; // Store before potential update
-
+            
             for (const playerData of allPlayers) {
                 if (playerData.id === myPlayerID) {
                     selfPlayer = playerData;
                     foundSelf = true;
-                    // Placeholder: Server should send new scene data if scene_x/y changed
-                    // For now, we assume currentSceneData.InsideID might change if player moves to a new pre-defined area.
-                    // This part needs proper server integration for scene data.
-                    // if (selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y) {
-                    //    fetchNewSceneData(selfPlayer.scene_x, selfPlayer.scene_y); // Imaginary function
-                    // }
                 } else if (selfPlayer && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                     currentOtherPlayersInMyScene[playerData.id] = playerData;
                 }
@@ -306,9 +270,11 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    // Simulate fetching new scene data; for now, just log and maybe toggle InsideID for testing
-                    // currentSceneData = getSceneDataFor(selfPlayer.scene_x, selfPlayer.scene_y); // Imaginary
                     addLogMessage(`Tome notes: You are now in scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}).`, 'system');
+                    // In a real scenario, fetch or receive new currentSceneData here.
+                    // For now, to test weather change if scene implies it:
+                    // currentSceneData.InsideID = (selfPlayer.scene_x % 2); // Example: even X scenes are outdoors
+                    updateWeatherEffects();
                 } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
@@ -326,10 +292,7 @@
             
             drawGrid();
             updateStatus(); 
-            // Check if InsideID actually changed to update weather correctly
-            // if (currentSceneData.InsideID !== previousInsideID || sceneCoordsChanged) {
-            updateWeatherEffects(); // Always call to ensure rain overlay is sized correctly
-            // }
+            updateWeatherEffects(); 
         });
 
         function getDirectionWord(char) {
@@ -345,7 +308,7 @@
             updateStatus("Severed from the Ethereal Plane! (Disconnected)");
             addLogMessage("Tome wails: Disconnected from the server! The weave unravels!", 'event-bad');
             selfPlayer = null; otherPlayers = {}; prevSelfPlayerState = null;
-            stopRainEffect(); // Stop rain on disconnect
+            stopRainEffect(); 
             drawGrid();
         });
 
@@ -420,7 +383,7 @@
                 return;
             }
             const inputText = commandInput.textContent.trim();
-            commandInput.innerHTML = ''; // Clear input
+            commandInput.innerHTML = '';
 
             if (!inputText) return;
             addLogMessage(`> ${inputText}`, 'user-input');
@@ -466,7 +429,6 @@
                 if (dirResult.isValid) {
                     commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char };
                     shouldEmit = true;
-                    // Add client-side "look" description if server doesn't provide one immediately
                     addLogMessage(`Tome's gaze follows yours: You peer ${effectiveTargetWord}. The air is thick with untold stories.`, 'lore');
 
                 } else {
@@ -492,7 +454,6 @@
             commandInput.focus();
         });
         
-        // Debug function to toggle rain
         window.toggleRainDebug = function() {
             globalWeather.isRaining = !globalWeather.isRaining;
             if (globalWeather.isRaining) {
@@ -509,11 +470,9 @@
             updateWeatherEffects();
         };
 
-
-        // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
-        updateWeatherEffects(); // Initialize weather effects based on default state
+        updateWeatherEffects();
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'system');
 
     </script>
