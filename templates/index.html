@@ -18,7 +18,7 @@
         </div>
 
         <div class="right-panel">
-            <div id="mainHeaderStatus">Pondering the Ethereal Wave...</div>
+            <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
 
             <div id="gameCanvasContainer">
                 <div id="gameCanvas">Summoning World...</div>
@@ -47,8 +47,8 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 40; 
-        let GRID_HEIGHT = 20;
+        let GRID_WIDTH = 20; 
+        let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 1.0;
         let prevSelfPlayerState = null;
 
@@ -117,25 +117,24 @@
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
             
-            let displayStyle = 'ink'; // Default to ink
+            let displayStyle = 'ink';
 
             switch (type) {
-                // Explicitly MANA-styled messages
-                case 'event-bad':          // Major negative events like taking significant damage, debuffs
-                case 'chat-shout':         // Player shouts have a magical projection
-                case 'server-major-event': // For future big server events (disasters, world changes)
-                case 'player-trade':       // For future trade confirmations or alerts
-                case 'player-damage':      // When player takes damage from another player/significant monster
+                case 'event-bad':         
+                case 'chat-shout':       
+                case 'server-major-event': 
+                case 'player-trade':       
+                case 'player-damage':
+                case 'welcome-message': // Special type for the initial welcome
                     displayStyle = 'mana';
                     break;
                 
-                // Explicitly INK-styled messages (or default to ink)
-                case 'system':             // General system messages, action confirmations, mana costs
-                case 'event-good':         // Minor positive events, potion effects (unless very dramatic)
-                case 'spell-cast':         // Notification of own spell casting (not the effect itself)
-                case 'lore':               // World descriptions, "look" results
-                case 'user-input':         // Player's own typed commands
-                case 'chat-say':           // Regular player chat
+                case 'system':            
+                case 'event-good':        
+                case 'spell-cast':        
+                case 'lore':              
+                case 'user-input':        
+                case 'chat-say':          
                 default:
                     displayStyle = 'ink';
                     break;
@@ -150,10 +149,10 @@
             });
         }
 
-        function updateStatus(status) {
-            if (status) {
-                mainHeaderStatus.textContent = status;
-            } else if (selfPlayer) {
+        function updateStatus(statusText) { // Renamed for clarity
+            if (statusText) { // If a specific status is passed, use it
+                mainHeaderStatus.textContent = statusText;
+            } else if (selfPlayer) { // Otherwise, construct from player data
                 let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (Sector ${currentSceneData.InsideID})`;
                 let healthInfo = (typeof selfPlayer.current_health !== 'undefined') ? `${selfPlayer.current_health}/${selfPlayer.max_health} HP` : "HP ?";
                 let manaInfo = (typeof selfPlayer.current_mana !== 'undefined') ? `${selfPlayer.current_mana}/${selfPlayer.max_mana} MP` : "MP ?";
@@ -161,7 +160,7 @@
                 
                 mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | ${healthInfo} | ${manaInfo} | ${potionsInfo} | Wand: 100%`;
             } else {
-                mainHeaderStatus.textContent = "Awaiting Your Manifestation..."; // Default before initial_state
+                mainHeaderStatus.textContent = "Welcome to the World of the Wand!"; // Default before connect/initial_state
             }
         }
 
@@ -234,10 +233,12 @@
             }
         }
 
-        socket.on('connect', () => { updateStatus("Divining your essence..."); });
+        socket.on('connect', () => { 
+            // Status is now set by initial_state or by default in updateStatus if selfPlayer is null
+        });
 
         socket.on('initial_state', (data) => {
-            selfPlayer = data.player; // Crucial: selfPlayer is set here
+            selfPlayer = data.player; 
             myPlayerID = selfPlayer.id;
             GRID_WIDTH = data.grid_width; 
             GRID_HEIGHT = data.grid_height;
@@ -248,10 +249,10 @@
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                updateStatus(); // Now selfPlayer is defined, so status bar updates
+                updateStatus(); 
                 drawGrid(); 
                 updateWeatherEffects(); 
-                addLogMessage(`Tome: You have materialized in ${currentSceneData.name} at scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world awaits!`, 'lore');
+                addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore'); // Adjusted message
                  if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
                     addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                 }
@@ -316,7 +317,7 @@
             
             for (const playerData of allPlayers) {
                 if (playerData.id === myPlayerID) {
-                    selfPlayer = playerData; // Update selfPlayer state
+                    selfPlayer = playerData; 
                     foundSelf = true;
                 } else if (selfPlayer && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                     currentOtherPlayersInMyScene[playerData.id] = playerData;
@@ -325,9 +326,9 @@
             otherPlayers = currentOtherPlayersInMyScene;
 
             if (!foundSelf && myPlayerID) {
-                updateStatus("Your connection to this world wavers... (bad connection)"); // Keep this status if desynced
+                updateStatus("Your connection to this world wavers... (bad connection)");
                 addLogMessage("Tome's script flickers: Warning! Your connection to self is unstable.", 'event-bad');
-            } else if (selfPlayer) { // Only update status fully if selfPlayer is valid
+            } else if (selfPlayer) { 
                  updateStatus(); 
             }
 
@@ -357,7 +358,6 @@
             if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
             
             drawGrid();
-            // updateStatus(); // Already called above conditionally
             updateWeatherEffects(); 
         });
 
@@ -482,7 +482,6 @@
                 if (dirResult.isValid) {
                     commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
                     shouldEmit = true;
-                    // Removed some less relevant inner checks for simplicity in this step
                 } else { 
                     addLogMessage(`Tome frowns: You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, 'event-bad');
                 }
@@ -519,7 +518,6 @@
                 if (messageContent && messageContent.length > 0) {
                     commandToSend.details = { message: messageContent };
                     shouldEmit = true;
-                    // Removed client-side "Tome prepares..." as server will confirm if mana is sufficient for shout etc.
                 } else { 
                     addLogMessage(`Tome asks: ${canonicalAction.charAt(0).toUpperCase() + canonicalAction.slice(1)} what, O Wizard? Your words are lost to the ether.`, 'event-bad');
                 }
@@ -554,11 +552,12 @@
             updateWeatherEffects();
         };
 
+        // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
-        updateStatus(); // Call updateStatus initially to clear "Divining your essence..." if possible
+        updateStatus(); // Update status before any messages for a cleaner initial load
         updateWeatherEffects();
-        addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'system');
+        addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message'); // Use 'welcome-message' type
 
     </script>
 </body>

@@ -24,8 +24,8 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 40
-GRID_HEIGHT = 20
+GRID_WIDTH = 20  # Updated
+GRID_HEIGHT = 15 # Updated
 GAME_TICK_RATE = 1.0
 SHOUT_MANA_COST = 5
 
@@ -39,7 +39,7 @@ def get_player_name(sid):
 
 def game_loop():
     while True:
-        try: # Added try-except to catch errors in the loop
+        try:
             socketio.sleep(GAME_TICK_RATE)
             for sid, actionData in list(queuedActions.items()):
                 if actionData and sid in players:
@@ -149,9 +149,9 @@ def game_loop():
             current_player_states = list(players.values())
             socketio.emit('game_state_update', current_player_states)
         except Exception as e:
-            print(f"!!! ERROR IN GAME LOOP: {e} !!!") # Log any errors from the game loop
+            print(f"!!! ERROR IN GAME LOOP: {e} !!!") 
             import traceback
-            traceback.print_exc() # Print full traceback
+            traceback.print_exc() 
         
 @socketio.on('connect')
 def handle_connect(auth=None):
@@ -161,8 +161,8 @@ def handle_connect(auth=None):
         'name': get_player_name(sid),
         'scene_x': 0,
         'scene_y': 0,
-        'x': 0,
-        'y': 0,
+        'x': GRID_WIDTH // 2,  # Spawn in middle
+        'y': GRID_HEIGHT // 2, # Spawn in middle
         'char': random.choice(['^', 'v', '<', '>']),
         'max_health': 100,
         'current_health': 100,
