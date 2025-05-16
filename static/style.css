@@ -1,3 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
+
+:root {
+    --bg-primary: #1a1f26; /* Darker, cool background */
+    --bg-secondary: #2c333e; /* Slightly lighter for panels */
+    --bg-tome: #f3eadd; /* Parchment */
+    --text-tome: #4a3b32; /* Dark brown for Tome text */
+    --text-primary: #c8d1dc; /* Main UI text - light gray/blue */
+    --text-game: #e0e0e0; /* Game canvas text */
+    --border-color: #444c5a;
+    --highlight-blue: #61afef;
+    --highlight-green: #98c379;
+    --highlight-red: #e06c75;
+    --font-tome: 'EB Garamond', serif;
+    --font-ui: 'Roboto', sans-serif;
+    --font-game: 'Consolas', 'Courier New', monospace;
+}
+
 html {
     height: 100%;
     overflow: hidden;
@@ -5,104 +23,119 @@ html {
 
 body {
     display: flex;
-    flex-direction: column;
-    height: 100vh; /* Use full viewport height */
-    max-height: 100vh; /* Explicitly prevent body from exceeding viewport */
+    height: 100vh;
+    max-height: 100vh;
     margin: 0;
-    padding: 10px; /* Padding inside the 100vh */
+    font-family: var(--font-ui);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden; /* Prevent body scrollbars */
+}
+
+.main-ui-container {
+    display: flex;
+    flex-grow: 1; /* Take all available space in body */
+    width: 100%;
+    height: 100%;
+    padding: 15px;
     box-sizing: border-box;
-    font-family: 'Courier New', Courier, monospace;
-    background-color: #1a1a1a;
-    color: #e0e0e0;
-    align-items: center;
-    overflow-y: hidden; /* Prevent body itself from scrolling */
+    gap: 15px; /* Space between panels */
 }
 
-/* Common styling for main blocks */
-#mainHeaderStatus,
-#commandLog,
-#gameCanvasContainer,
-#commandInputBox {
-    width: 100%; /* Take full width up to their specific max-widths */
+.left-panel, .right-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Fill height of parent */
+    overflow: hidden; /* Prevent panels from causing scroll on main-ui-container */
+    padding: 15px;
     box-sizing: border-box;
-    margin-bottom: 10px; /* Consistent spacing, last one might not need it */
-}
-#commandInputBox {
-    margin-bottom: 0; /* Last element, no bottom margin needed */
-}
-
-
-#mainHeaderStatus {
-    max-width: 740px;
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #275E8C;
-    padding: 8px 15px; /* Slightly reduced padding */
-    background-color: #2a2a2a;
-    border-radius: 5px;
-    text-align: center;
-    flex-shrink: 0; /* Prevent shrinking */
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-#commandLog {
-    max-width: 740px;
-    /* height: 200px; Let flexbox determine height more dynamically */
-    max-height: 200px; /* Max height it can take */
-    min-height: 80px;  /* Minimum to stay visible */
-    flex-basis: 150px; /* Initial ideal size before growing/shrinking */
-    flex-shrink: 1;    /* Allow shrinking if space is tight */
-    flex-grow: 0.5;    /* Allow some growth, less than game canvas */
-    border: 1px solid #303030;
-    background-color: #111111;
-    padding: 10px;
+.left-panel {
+    flex-basis: 40%; /* Tome takes up 40% initially */
+    flex-shrink: 1;
+    min-width: 300px; /* Minimum width for the Tome */
+}
+
+.right-panel {
+    flex-basis: 60%;
+    flex-shrink: 1;
+    min-width: 350px;
+    gap: 15px; /* Space between elements in the right panel */
+}
+
+#commandLog { /* The Tome */
+    background-color: var(--bg-tome);
+    color: var(--text-tome);
+    font-family: var(--font-tome);
+    font-size: 1.1em; /* Slightly larger for readability */
+    line-height: 1.6;
+    padding: 20px;
+    border-radius: 6px;
     overflow-y: auto;
-    font-size: 0.9em;
-    border-radius: 3px;
-    line-height: 1.4;
+    flex-grow: 1; /* Tome log takes all space in left panel */
+    border: 1px solid #d3c8b4; /* Slightly darker parchment border */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
 }
 
 .log-entry {
-    margin-top: 5px;
+    margin-bottom: 8px; /* Use margin-bottom as it's normal flow now */
+    padding-bottom: 4px;
+    border-bottom: 1px dashed rgba(0,0,0,0.08); /* Subtle separator */
     word-wrap: break-word;
     white-space: pre-wrap;
 }
+.log-entry:last-child {
+    border-bottom: none;
+}
 
-.log-lore { color: #FFFFFF; }
-.log-system { color: #5D9CEC; font-style: italic; }
-.log-event-good { color: #33CC33; }
-.log-event-bad { color: #FF4136; font-weight: bold; }
-.log-user-input { color: #AAAAAA; }
+/* Specific log type colors, now on parchment */
+.log-lore { color: var(--text-tome); }
+.log-system { color: #4a7a99; font-style: italic; } /* Darker blue on parchment */
+.log-event-good { color: #508550; } /* Darker green on parchment */
+.log-event-bad { color: #a05050; font-weight: bold; } /* Darker red on parchment */
+.log-user-input { color: #7a6a5f; opacity: 0.8; }
 
+
+#mainHeaderStatus {
+    color: var(--text-primary);
+    padding: 10px 15px;
+    background-color: rgba(0,0,0,0.2); /* Semi-transparent overlay on panel bg */
+    border-radius: 6px;
+    text-align: center;
+    font-size: 1.1em;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+}
 
 #gameCanvasContainer {
     position: relative;
-    max-width: 700px;
-    flex-grow: 1; /* This will take up the most available vertical space */
-    min-height: 0; /* Crucial for allowing this flex item to shrink properly */
-    display: flex; /* To center the gameCanvas within it */
+    flex-grow: 1; /* Game view takes most space in right panel */
+    min-height: 0; /* Important for flex children */
+    display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden; /* Hide anything from gameCanvas that might try to escape bounds */
+    background-color: #12151a; /* Very dark bg for game canvas */
+    border-radius: 6px;
+    overflow: hidden; /* Clip canvas/rain if they try to overflow */
+    border: 1px solid var(--border-color);
 }
 
 #gameCanvas {
+    font-family: var(--font-game);
     white-space: pre;
     line-height: 1.0;
     font-size: 16px;
-    border: 1px solid #333333;
-    padding: 20px;
-    color: #c8c8c8;
-    background-color: #0f0f0f;
-    text-align: left;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
-    border-radius: 3px;
-    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
-    
-    max-width: 100%;   /* Don't exceed container width */
-    max-height: 100%;  /* Don't exceed container height */
-    overflow: auto;    /* Scroll internal content (text grid) if it's too big */
-    
+    color: var(--text-game);
+    padding: 15px; /* Padding inside the canvas, around the text grid */
+    max-width: 100%;
+    max-height: 100%;
+    overflow: auto; /* Scroll game grid if it's larger than allocated space */
     z-index: 1;
+    /* background-color is now on gameCanvasContainer */
 }
 
 #rainOverlay {
@@ -119,82 +152,100 @@ body {
 .raindrop {
     position: absolute;
     bottom: 100%;
-    width: 1px;
-    height: 50px;
-    background: linear-gradient(to bottom, rgba(173, 216, 230, 0), rgba(173, 216, 230, 0.4));
+    width: 1px; /* Thinner rain */
+    height: 60px; /* Longer streaks */
+    background: linear-gradient(to bottom, rgba(170, 190, 220, 0), rgba(170, 190, 220, 0.3)); /* More subtle blue */
     animation: fall linear infinite;
+    opacity: 0.7;
 }
 
 @keyframes fall {
     to {
-        transform: translateY(calc(100vh + 50px)); /* Fall well past the viewport */
+        transform: translateY(calc(100vh + 60px)); /* Ensure it falls well off screen */
     }
 }
 
 #commandInputBox {
-    max-width: 740px;
-    padding: 10px 15px; /* Slightly reduced padding */
-    background-color: #202020;
-    border-radius: 5px;
-    border: 1px solid #303030;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex-shrink: 0; /* Prevent shrinking */
-    margin-top: auto; /* Pushes to bottom if body has extra space, but won't if body is full */
+    padding: 15px;
+    background-color: rgba(0,0,0,0.1);
+    border-radius: 6px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border-color);
 }
-
 
 #commandForm {
     display: flex;
     align-items: center;
     width: 100%;
-    max-width: 700px;
-    justify-content: center;
-    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
 }
 
 #commandForm label {
-    color: #b0b0b0;
-    margin-right: 10px;
-    font-weight: bold;
-    white-space: nowrap;
+    color: var(--text-primary);
+    margin-right: 12px;
+    font-size: 0.9em;
+    font-weight: 500;
 }
 
 #commandText {
-    background-color: #282828;
-    color: #e0e0e0;
-    border: 1px solid #444444;
-    padding: 8px 10px;
+    background-color: rgba(0,0,0,0.2); /* Darker input field */
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 10px 12px;
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
-    min-width: 150px;
-    margin-right: 10px;
-    font-family: inherit;
+    font-family: var(--font-game); /* Monospace for command input can be nice */
 }
 
 #commandText:focus {
     outline: none;
-    border-color: #5D9CEC;
-    box-shadow: 0 0 8px rgba(93, 156, 236, 0.4);
+    border-color: var(--highlight-blue);
+    background-color: rgba(0,0,0,0.3);
+    box-shadow: 0 0 0 2px rgba(var(--highlight-blue), 0.2);
 }
 
-#commandForm button {
-    background-color: #383838;
-    color: #e0e0e0;
-    border: 1px solid #555555;
-    padding: 8px 18px;
+#commandForm button { /* "Seal" or "Rune" button */
+    background-color: var(--highlight-blue);
+    color: var(--bg-primary);
+    border: none;
+    padding: 10px 20px;
+    margin-left: 10px;
     cursor: pointer;
     border-radius: 4px;
-    font-weight: bold;
-    font-size: 1em;
-    white-space: nowrap;
-    font-family: "Consolas", "Lucida Console", "Courier New", monospace;
+    font-weight: 500;
+    font-family: var(--font-ui);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
 #commandForm button:hover {
-    background-color: #484848;
-    border-color: #5D9CEC;
-    color: #5D9CEC;
+    background-color: #7acaff; /* Lighter blue */
+}
+#commandForm button:active {
+    transform: translateY(1px);
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 800px) {
+    .main-ui-container {
+        flex-direction: column;
+        padding: 10px;
+        gap: 10px;
+    }
+    .left-panel, .right-panel {
+        flex-basis: auto; /* Let content or other flex props decide height */
+        width: 100%;
+        min-width: unset;
+    }
+    .left-panel {
+        max-height: 40vh; /* Tome takes a portion of viewport height */
+    }
+    .right-panel {
+        flex-grow: 1; /* Right panel (game etc) takes remaining space */
+    }
+    #gameCanvas {
+        font-size: 14px; /* Slightly smaller font on small screens */
+    }
 }

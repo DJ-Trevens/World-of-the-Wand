@@ -3,8 +3,10 @@
 <head>
     <meta charset = "UTF-8">
     <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
-    <title>World of the Wand</title>
+    <title>World of the Wand - Tome of Echoes</title> <!-- New Title -->
     <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
+    <!-- Favicon placeholder - consider adding one! -->
+    <!-- <link rel="icon" href="{{url_for('game.static', filename='favicon.ico')}}" type="image/x-icon"> -->
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
@@ -12,19 +14,31 @@
     </script>
 </head>
 <body>
-    <!-- Order for flex layout -->
-    <div id = "mainHeaderStatus"> Pondering the Ethereal Wave... </div>
-    <div id = "commandLog"></div>
-    <div id="gameCanvasContainer">
-        <div id = "gameCanvas"> Summoning World... </div>
-        <div id="rainOverlay"></div>
-    </div>
-    <div id = "commandInputBox">
-        <form id = "commandForm">
-            <label for = "commandText">Your will, Wizard?</label>
-            <div id = "commandText" contenteditable = "true" spellcheck = "false" autocomplete = "off" role = "textbox" aria-multiline = "false"></div>
-            <button type = "submit">Commit</button>
-        </form>
+    <div class="main-ui-container">
+        <div class="left-panel">
+            <!-- The Tome: Command Log -->
+            <div id="commandLog"></div>
+        </div>
+
+        <div class="right-panel">
+            <!-- Status Header -->
+            <div id="mainHeaderStatus">Pondering the Ethereal Wave...</div>
+
+            <!-- Game View Container -->
+            <div id="gameCanvasContainer">
+                <div id="gameCanvas">Summoning World...</div>
+                <div id="rainOverlay"></div>
+            </div>
+
+            <!-- Command Input Area -->
+            <div id="commandInputBox">
+                <form id="commandForm">
+                    <label for="commandText">Inscribe Thy Will:</label> <!-- Thematic Label -->
+                    <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
+                    <button type="submit">Commit</button>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -55,8 +69,8 @@
         let rainInterval = null;
 
 
-        const FOG_CHAR = '▒';
-        const FLOOR_CHAR = '.';
+        const FOG_CHAR = '░'; // Lighter fog char
+        const FLOOR_CHAR = '·'; // More subtle floor
         const OBSERVABLE_DEPTH = 7;
         const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
@@ -111,14 +125,19 @@
             logEntry.classList.add('log-entry', `log-${type}`);
             logEntry.textContent = message;
             commandLog.appendChild(logEntry);
-            commandLog.scrollTop = commandLog.scrollHeight;
+            // Scroll to the new message
+            // Using requestAnimationFrame for smoother scroll after append
+            requestAnimationFrame(() => {
+                 commandLog.scrollTop = commandLog.scrollHeight;
+            });
         }
 
         function updateStatus(status) {
             if (status) {
                 mainHeaderStatus.textContent = status;
             } else if (selfPlayer) {
-                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} (${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ID:'+currentSceneData.InsideID }) | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
+                let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (Sector ${currentSceneData.InsideID})`;
+                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | Mana: 175/175 | Wand: 100%`;
             } else {
                 mainHeaderStatus.textContent = "Awaiting Your Manifestation...";
             }
@@ -126,7 +145,7 @@
 
         function drawGrid() {
             if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
-                gameCanvas.textContent = "The mists obscure your vision... (Awaiting server data)";
+                gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
                 return;
             }
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
@@ -154,21 +173,22 @@
                 }
                 output += "\n";
             }
-            gameCanvas.textContent = output;
+            gameCanvas.textContent = output.trimEnd(); // Trim trailing newline
         }
 
         function startRainEffect(intensity) {
             if (rainInterval) clearInterval(rainInterval);
             rainOverlay.innerHTML = ''; 
 
-            const dropsPerSecond = 5 + (intensity * 25);
+            const dropsPerSecond = 5 + (intensity * 35); // Increased max drops for intensity
             rainInterval = setInterval(() => {
                 const drop = document.createElement('div');
                 drop.classList.add('raindrop');
                 drop.style.left = Math.random() * 100 + '%';
                 
-                const duration = 0.5 + Math.random() * 0.5; 
+                const duration = 0.4 + Math.random() * 0.4; // Faster rain: 0.4s to 0.8s
                 drop.style.animationDuration = duration + 's';
+                drop.style.animationDelay = Math.random() * 0.2 + 's'; // Stagger starts
                 
                 rainOverlay.appendChild(drop);
 
@@ -181,9 +201,12 @@
         function stopRainEffect() {
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
+            // Raindrops will remove themselves on animation end
         }
 
         function updateWeatherEffects() {
+            // The rainOverlay is absolutely positioned to gameCanvasContainer,
+            // so it should always cover the gameCanvas correctly.
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
                 if (!rainInterval) { 
                     startRainEffect(globalWeather.intensity);
@@ -208,6 +231,10 @@
             otherPlayers = data.other_players || {};
             prevSelfPlayerState = { ...selfPlayer };
 
+            // Placeholder: Server should send currentSceneData and globalWeather
+            // currentSceneData = data.sceneData || { InsideID: 0, name: "The Starting Plains" };
+            // globalWeather = data.weatherData || { isRaining: false, intensity: 0.5 };
+
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
@@ -215,6 +242,9 @@
                 drawGrid(); 
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in ${currentSceneData.name} at scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world awaits!`, 'lore');
+                 if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
+                    addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", "system");
+                }
             } else {
                 addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
             }
@@ -237,9 +267,31 @@
             }
         });
         
-        socket.on('lore_message', (data) => {
+        socket.on('lore_message', (data) => { // For server-sent lore, like scene transitions
             addLogMessage(data.message, data.type || 'lore');
         });
+
+        // Example: Server could send weather updates
+        socket.on('weather_update', (weatherData) => {
+            const wasRaining = globalWeather.isRaining;
+            globalWeather = weatherData;
+            updateWeatherEffects();
+            if (currentSceneData.InsideID === 0) { // Only announce if outdoors
+                if (globalWeather.isRaining && !wasRaining) {
+                    addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", "system");
+                } else if (!globalWeather.isRaining && wasRaining) {
+                    addLogMessage("Tome notes: The rain lessens and finally stops.", "system");
+                }
+            }
+        });
+         // Example: Server sends new scene info (including InsideID)
+        socket.on('scene_data_update', (sceneData) => {
+            currentSceneData = sceneData;
+            updateStatus(); // Update header with new scene name/type
+            updateWeatherEffects(); // Weather might change if moving in/outdoors
+            addLogMessage(`Tome turns a page: You find yourself in ${currentSceneData.name}.`, 'lore');
+        });
+
 
         socket.on('game_state_update', (allPlayers) => {
             let foundSelf = false;
@@ -264,17 +316,15 @@
                 const sceneCoordsChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
                 
                 if (sceneCoordsChanged) {
+                    // Server will send a 'lore_message' for the actual transition text.
+                    // Server should also send 'scene_data_update' if the InsideID or name changes.
+                    // Client just needs to update its local list of other players.
                     otherPlayers = {}; 
                     for (const playerData of allPlayers) {
                         if (playerData.id !== myPlayerID && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    addLogMessage(`Tome notes: You are now in scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}).`, 'system');
-                    // In a real scenario, fetch or receive new currentSceneData here.
-                    // For now, to test weather change if scene implies it:
-                    // currentSceneData.InsideID = (selfPlayer.scene_x % 2); // Example: even X scenes are outdoors
-                    updateWeatherEffects();
                 } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
@@ -292,7 +342,7 @@
             
             drawGrid();
             updateStatus(); 
-            updateWeatherEffects(); 
+            updateWeatherEffects(); // Call to ensure rain overlay syncs with game view changes
         });
 
         function getDirectionWord(char) {
@@ -435,7 +485,7 @@
                      addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
                 }
             } else if (canonicalAction === "help") {
-                addLogMessage("Tome patiently explains: My pages are still being written for detailed help. For now, try 'move [direction]' (north, south, east, west, forward, backward) or 'look [direction]'. You can also try 'cast [spell name]'.", 'system');
+                addLogMessage("Tome patiently explains:\nTo MOVE, try: 'move north', 'go w', 'run forward', etc.\nTo LOOK: 'look east', 'face s', 'turn backward'.\nTo CAST: 'cast [spell name]'.\nMy knowledge expands as your journey unfolds.", 'system');
             } else if (canonicalAction === "cast") {
                  if (targetWord) {
                     commandToSend.details = { spellName: targetWord }; 
@@ -454,22 +504,28 @@
             commandInput.focus();
         });
         
+        // Debug functions
         window.toggleRainDebug = function() {
+            const wasRaining = globalWeather.isRaining;
             globalWeather.isRaining = !globalWeather.isRaining;
-            if (globalWeather.isRaining) {
-                addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
-            } else {
-                addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
+             if (currentSceneData.InsideID === 0) { // Only show message if outdoors
+                if (globalWeather.isRaining && !wasRaining) {
+                    addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
+                } else if (!globalWeather.isRaining && wasRaining) {
+                    addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
+                }
             }
             updateWeatherEffects();
         };
          window.toggleInsideDebug = function() {
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
-            addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors'}.`, "system");
+            currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld" : "A Cozy Hut"; // Example name change
+            addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus();
             updateWeatherEffects();
         };
 
+        // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
         updateWeatherEffects();
