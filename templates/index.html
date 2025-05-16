@@ -63,7 +63,7 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: false,
+            isRaining: true,
             intensity: 0.6 
         };
         let rainInterval = null;
@@ -219,7 +219,7 @@
         }
 
         socket.on('connect', () => {
-            updateStatus("Divining your essence...");
+            //updateStatus("Divining your essence...");
         });
 
         socket.on('initial_state', (data) => {
