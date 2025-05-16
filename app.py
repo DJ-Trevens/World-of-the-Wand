@@ -31,7 +31,7 @@ GAME_TICK_RATE = 2.0
 # Game State
 players = {}
 queuedActions = {}
-_game_loop_started = False # Ensure game loop starts only once
+_game_loop_started = False
 
 def game_loop():
     while True:
@@ -47,14 +47,12 @@ def game_loop():
                     dy = details.get('dy', 0)
                     newChar = details.get('newChar', player['char'])
 
-                    # Handle local movement and potential scene transitions
                     new_x_local = player['x'] + dx
                     new_y_local = player['y'] + dy
                     
                     scene_changed = False
                     transition_message = ""
 
-                    # Check X-axis scene transition
                     if new_x_local < 0:
                         player['scene_x'] -= 1
                         player['x'] = GRID_WIDTH - 1
@@ -68,13 +66,11 @@ def game_loop():
                     else:
                         player['x'] = new_x_local
 
-                    # Check Y-axis scene transition
-                    # Note: Positive Y for scene coords is often South, Negative Y is North
                     if new_y_local < 0:
                         player['scene_y'] -= 1 
                         player['y'] = GRID_HEIGHT - 1
                         scene_changed = True
-                        if not transition_message: # Avoid double message if changing corner
+                        if not transition_message:
                              transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({player['scene_x']},{player['scene_y']})."
                     elif new_y_local >= GRID_HEIGHT:
                         player['scene_y'] += 1
@@ -83,21 +79,16 @@ def game_loop():
                         if not transition_message:
                             transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({player['scene_x']},{player['scene_y']})."
                     else:
-                        # Only update y if not part of x-transition that already set it
                         if not (new_x_local < 0 or new_x_local >= GRID_WIDTH) :
                             player['y'] = new_y_local
                     
                     player['char'] = newChar
                     
                     if scene_changed:
-                        # TODO: Load/generate new scene data and send to player.
-                        # TODO: Notify players in old/new scenes about player movement.
                         socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
 
                 queuedActions[sid] = None 
         
-        # TODO: Optimize game_state_update to only send relevant data (e.g., players in the same scene).
-        # This currently sends all player states to all clients.
         current_player_states = list(players.values())
         socketio.emit('game_state_update', current_player_states)
         
@@ -106,16 +97,15 @@ def handle_connect(auth=None):
     sid = request.sid 
     newPlayer = {
         'id': sid,
-        'scene_x': 0,   # Default scene
+        'scene_x': 0,
         'scene_y': 0,
-        'x': 0,         # Spawn at 0,0 of the scene
+        'x': 0,
         'y': 0,
         'char': random.choice(['^', 'v', '<', '>'])
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
 
-    # For initial state, send only other players in the same scene
     otherPlayersInScene = {
         playerID: playerData for playerID, playerData in players.items()
         if playerID != sid and \
@@ -131,8 +121,6 @@ def handle_connect(auth=None):
         'tick_rate': GAME_TICK_RATE
     })
 
-    # Notify other players (ideally only those in the same scene)
-    # This broadcast needs refinement for scene-based visibility.
     try:
         socketio.server.emit('player_joined', newPlayer, skip_sid=sid, namespace='/') 
     except Exception as e:
@@ -146,19 +134,17 @@ def handle_connect(auth=None):
 def handle_disconnect(reason=None):
     sid = request.sid 
     if sid in players:
-        player_data = players[sid] # Get player data before deleting
+        player_data = players[sid]
         del players[sid]
         if sid in queuedActions: 
             del queuedActions[sid]
         
-        # Notify other players (ideally only those in the same scene)
-        # This broadcast needs refinement for scene-based visibility.
         try:
             socketio.server.emit('player_left', player_data['id'], skip_sid=sid, namespace='/')
         except Exception as e:
             print(f"ERROR emitting player_left directly: {e}")
             try:
-                socketio.emit('player_left', player_data['id'], broadcast=True) # Fallback
+                socketio.emit('player_left', player_data['id'], broadcast=True)
             except Exception as e_fallback:
                 print(f"ERROR with fallback player_left: {e_fallback}")
 
@@ -167,7 +153,7 @@ def handle_queue_command(data):
     sid = request.sid
     if sid in players:
         actionType = data.get('type')
-        if actionType in ['move', 'look', 'cast']: # Allow 'cast' to be queued
+        if actionType in ['move', 'look', 'cast']:
             queuedActions[sid] = data 
             emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
         else:

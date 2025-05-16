@@ -37,12 +37,11 @@ body {
     font-size: 0.9em;
     border-radius: 3px;
     line-height: 1.4;
-    display: flex;
-    flex-direction: column-reverse;
+    /* flex-direction: column-reverse; /* REMOVED for natural log flow */
 }
 
 .log-entry {
-    margin-top: 5px;
+    margin-top: 5px; /* Space above each log entry */
     word-wrap: break-word;
     white-space: pre-wrap;
 }
@@ -55,23 +54,22 @@ body {
 
 
 #gameCanvas {
-    max-width: 700px; /* Max width constraint for the game canvas container */
+    max-width: 700px;
     white-space: pre;
     line-height: 1.0;
     font-size: 16px;
     border: 1px solid #333333;
-    padding: 20px; /* Provides the "slightly larger" feel */
+    padding: 20px;
     color: #c8c8c8;
     background-color: #0f0f0f;
     text-align: left;
-    width: auto; /* Allows canvas to shrink-wrap to its text content + padding */
-    height: auto; /* Allows canvas to shrink-wrap to its text content + padding */
-    display: inline-block; /* Key for shrink-wrapping width/height */
+    min-height: 300px;
+    flex-grow: 1;
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) inset;
     border-radius: 3px;
     margin-bottom: 15px;
     font-family: "Consolas", "Lucida Console", "Courier New", monospace;
-    overflow: auto; /* In case content is unexpectedly large */
+    overflow: auto;
 }
 
 #mainHeaderStatus {
@@ -98,7 +96,7 @@ body {
     flex-direction: column;
     align-items: center;
     flex-shrink: 0;
-    margin-top: auto; /* Pushes this to the bottom if there's vertical space */
+    margin-top: auto;
 }
 
 
@@ -129,7 +127,7 @@ body {
     min-width: 150px;
     margin-right: 10px;
     font-family: inherit;
-    transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out;
+    /* transition: color 0.2s ease-in-out, border-color 0.2s ease-in-out; /* REMOVED for instant color change */
 }
 
 #commandText:focus {

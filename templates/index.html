@@ -1,4 +1,3 @@
-      
 <!DOCTYPE html>
 <html lang = "en">
 <head>
@@ -116,17 +115,14 @@
             }
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
             
-            // Draw other players in the same scene
             for (const playerID in otherPlayers) {
                 const otherGuy = otherPlayers[playerID];
-                // Ensure they are in the current player's scene (already filtered in game_state_update, but good check)
                 if (otherGuy.scene_x === selfPlayer.scene_x && otherGuy.scene_y === selfPlayer.scene_y) {
                     if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
                         displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
                     }
                 }
             }
-            // Draw self player
             if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
                 displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
             }
@@ -155,7 +151,7 @@
             GRID_WIDTH = data.grid_width;
             GRID_HEIGHT = data.grid_height;
             GAME_TICK_RATE = data.tick_rate;
-            otherPlayers = data.other_players || {}; // Server sends players in the same scene
+            otherPlayers = data.other_players || {};
             prevSelfPlayerState = { ...selfPlayer };
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
@@ -214,18 +210,15 @@
                 const sceneChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
                 
                 if (sceneChanged) {
-                    // Server sends 'lore_message' for transition. Client handles other players.
-                    otherPlayers = {}; // Clear others as we've "moved" scenes from client's perspective
-                    // Re-populate otherPlayers with those in the new scene from the current game_state_update
+                    otherPlayers = {}; 
                     for (const playerData of allPlayers) {
                         if (playerData.id !== myPlayerID && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    // TODO: Client might need to request new map data for the scene here if it's not part of game_state_update
                     addLogMessage(`Tome notes: You are now in scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world may look different.`, 'system');
 
-                } else { // Only log local move/turn if scene hasn't changed (server handles scene change message)
+                } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
 
@@ -423,7 +416,7 @@
                 addLogMessage("Tome patiently explains: My pages are still being written for detailed help. For now, try 'move [direction]' (north, south, east, west, forward, backward) or 'look [direction]'. You can also try 'cast [spell name]'.", 'system');
             } else if (canonicalAction === "cast") {
                  if (targetWord) {
-                    commandToSend.details = { spellName: targetWord }; // Example detail
+                    commandToSend.details = { spellName: targetWord }; 
                     shouldEmit = true;
                     addLogMessage(`Tome focuses: You begin to channel energy for "${targetWord}"...`, 'system');
                  } else {
