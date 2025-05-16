@@ -26,6 +26,7 @@
                     <label>
                         <input type="checkbox" id="localCommandsToggle" checked> Local Commands
                     </label>
+                    <button id="spawnCrazyButton" style="font-size: 0.7em; padding: 2px 5px; margin-left: 5px;">Spawn Crazy</button>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -58,6 +59,7 @@
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const localCommandsToggle = document.getElementById('localCommandsToggle');
+        const spawnCrazyButton = document.getElementById('spawnCrazyButton');
 
         let showDebugInfo = false; 
         let useLocalCommands = true;
@@ -76,8 +78,8 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: false,
-            intensity: 0.6 
+            isRaining: true, 
+            intensity: 0.35 
         };
         let rainInterval = null;
 
@@ -85,6 +87,11 @@
         let startDragX, startDragY;
         let currentPanX = 0, currentPanY = 0; 
         let targetPanX = 0, targetPanY = 0;   
+
+        let charRenderWidth = 10; 
+        let charRenderHeight = 16; 
+        let charSizeEstimated = false;
+
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
@@ -130,7 +137,7 @@
             }
             
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            const OBSERVABLE_WIDTH_CONST = 1.0; // Define it if not global
+            const OBSERVABLE_WIDTH_CONST = 1.0;
 
             if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH_CONST )) {
                 return true;
@@ -183,10 +190,43 @@
             }
         }
 
+        function estimateCharacterSize() {
+            if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("The mists")) return;
+            
+            const tempSpan = document.createElement('span');
+            tempSpan.style.fontFamily = getComputedStyle(gameCanvas).fontFamily;
+            tempSpan.style.fontSize = getComputedStyle(gameCanvas).fontSize;
+            tempSpan.style.lineHeight = getComputedStyle(gameCanvas).lineHeight;
+            tempSpan.style.whiteSpace = 'pre'; // Important for monospace width
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.textContent = 'M'; 
+            document.body.appendChild(tempSpan);
+            
+            charRenderWidth = tempSpan.offsetWidth;
+            // For line-height < 1, offsetHeight might be larger than actual glyph box.
+            // Using fontSize * lineHeight (numeric) might be more stable for text grid height per line.
+            const lh = parseFloat(getComputedStyle(gameCanvas).lineHeight);
+            const fs = parseFloat(getComputedStyle(gameCanvas).fontSize);
+            charRenderHeight = fs * lh; 
+            
+            document.body.removeChild(tempSpan);
+
+            if (charRenderWidth > 0 && charRenderHeight > 0) {
+                charSizeEstimated = true;
+                console.log("Estimated char size (W x H):", charRenderWidth, "x", charRenderHeight);
+            } else { 
+                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize) * 0.6; 
+                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize) * parseFloat(getComputedStyle(gameCanvas).lineHeight || 1);
+                 console.warn("Failed to estimate char size accurately, using fallback:", charRenderWidth, charRenderHeight);
+            }
+        }
+
+
         function drawGrid() {
             if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
                 gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
-                gameCanvas.style.transform = `translate(0px, 0px)`; // Reset pan if no data
+                gameCanvas.style.transform = `translate(0px, 0px)`; 
                 return;
             }
             gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
@@ -266,7 +306,7 @@
             if (!isDragging) return;
             currentPanX = e.clientX - startDragX;
             currentPanY = e.clientY - startDragY;
-            drawGrid();
+            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         });
 
         window.addEventListener('mouseup', (e) => {
@@ -275,7 +315,7 @@
             document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
             gameCanvas.style.transition = 'transform 0.3s ease-out';
-            centerViewOnPlayer();
+            requestAnimationFrame(centerViewOnPlayer);
         });
         gameCanvasContainer.addEventListener('mouseleave', () => {
             if(isDragging){
@@ -283,28 +323,23 @@
                 document.body.classList.remove('is-dragging');
                 gameCanvasContainer.style.cursor = 'grab';
                 gameCanvas.style.transition = 'transform 0.3s ease-out';
-                centerViewOnPlayer();
+                requestAnimationFrame(centerViewOnPlayer);
             }
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvas.textContent || gameCanvas.textContent.startsWith("The mists")) {
+            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
                  currentPanX = 0;
                  currentPanY = 0;
                  gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
             
-            // Estimate character size based on rendered gameCanvas dimensions
-            // This needs gameCanvas to have its content (the grid text) set by drawGrid first.
-            const charRenderWidth = gameCanvas.scrollWidth / GRID_WIDTH;
-            const charRenderHeight = gameCanvas.scrollHeight / GRID_HEIGHT;
+            const playerVisualCenterX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
+            const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
-            const playerCenterXInCanvasContent = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
-            const playerCenterYInCanvasContent = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
-
-            targetPanX = (gameCanvasContainer.clientWidth / 2) - playerCenterXInCanvasContent;
-            targetPanY = (gameCanvasContainer.clientHeight / 2) - playerCenterYInCanvasContent;
+            targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
+            targetPanY = (gameCanvasContainer.clientHeight / 2) - playerVisualCenterY;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
@@ -321,6 +356,7 @@
             useLocalCommands = event.target.checked;
             localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
         });
+        spawnCrazyButton.addEventListener('click', spawnCrazyElement);
 
 
         socket.on('connect', () => { /* Fully handled by initial_state or default */ });
@@ -348,12 +384,13 @@
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                drawGrid(); // Draw grid first to get dimensions
-                requestAnimationFrame(() => { // Defer centering until after render
-                     updateStatus();
-                     centerViewOnPlayer(); 
-                     updateWeatherEffects(); 
-                     addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
+                drawGrid(); 
+                requestAnimationFrame(() => { 
+                    estimateCharacterSize(); 
+                    updateStatus(); 
+                    centerViewOnPlayer(); 
+                    updateWeatherEffects(); 
+                    addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
                      if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
                         addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                     }
@@ -691,6 +728,43 @@
             updateWeatherEffects();
         };
 
+        function spawnCrazyElement() {
+            if (!gameCanvasContainer) return;
+
+            const crazy = document.createElement('div');
+            crazy.classList.add('crazy-element');
+            const types = ['dust', 'blur', 'glyph'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            crazy.classList.add(`crazy-${type}`);
+
+            const containerRect = gameCanvasContainer.getBoundingClientRect();
+
+            crazy.style.left = Math.random() * containerRect.width + 'px';
+            crazy.style.top = Math.random() * containerRect.height + 'px';
+
+            if (type === 'glyph') {
+                const glyphs = ['✧', '✨', '✴', '룬', 'က', 'א', '§', '⁂', '※'];
+                crazy.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
+            }
+
+            const driftX = (Math.random() - 0.5) * 100; 
+            const driftY = (Math.random() - 0.5) * 100; 
+            const driftRot = (Math.random() - 0.5) * 360; 
+            crazy.style.setProperty('--drift-x', driftX);
+            crazy.style.setProperty('--drift-y', driftY);
+            crazy.style.setProperty('--drift-rot', driftRot);
+            
+            const duration = 2000 + Math.random() * 3000; 
+            crazy.style.animationDuration = `${duration / 1000}s, ${duration / 1000}s`;
+
+
+            rainOverlay.appendChild(crazy);
+
+            setTimeout(() => {
+                crazy.remove();
+            }, duration);
+        }
+
         drawGrid();
         if (commandInput) { commandInput.focus(); }
         
@@ -708,6 +782,13 @@
         updateStatus(); 
         updateWeatherEffects();
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
+        
+        // setInterval(() => {
+        //     if (Math.random() < 0.02) { 
+        //        spawnCrazyElement();
+        //     }
+        // }, 10000);
+
 
     </script>
 </body>

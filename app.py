@@ -42,7 +42,6 @@ def game_loop():
     while True:
         try: 
             socketio.sleep(GAME_TICK_RATE)
-            # print(f"Game tick - Players: {len(players)}, Queued: {len(queuedActions)}") 
             for sid, actionData in list(queuedActions.items()):
                 if actionData and sid in players:
                     player = players[sid]
@@ -97,7 +96,7 @@ def game_loop():
                     elif actionType == 'drink_potion':
                         if player['potions'] > 0:
                             player['potions'] -= 1
-                            player['current_health'] = min(player['max_health'], player['current_health'] + 15)
+                            player['current_health'] = min(player['max_health'], player['current_health'] + 15) 
                             potion_effect_message = "You drink a potion. You feel a warmth spread through you, slightly invigorating!"
                             socketio.emit('lore_message', {'message': f"Tome notes: {potion_effect_message}", 'type': 'event-good'}, room=sid)
                         else:
@@ -149,7 +148,6 @@ def game_loop():
                     queuedActions[sid] = None 
             
             current_player_states = list(players.values())
-            # print("Emitting game_state_update @", time.time(), ":", current_player_states) 
             socketio.emit('game_state_update', current_player_states)
         except Exception as e:
             print(f"!!! ERROR IN GAME LOOP: {e} !!!") 
