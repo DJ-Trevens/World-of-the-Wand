@@ -12,7 +12,7 @@
     --border-color: #444c5a;
     --highlight-blue: #61afef;
     --highlight-green: #98c379;
-    --highlight-red: #e06c75; /* Low health color */
+    --highlight-red: #e06c75;
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
@@ -59,7 +59,7 @@ body {
     flex-basis: 40%; 
     flex-shrink: 1;
     min-width: 300px; 
-    padding: 15px; /* Padding on the panel itself */
+    padding: 15px;
 }
 
 .right-panel {
@@ -67,7 +67,7 @@ body {
     flex-shrink: 1;
     min-width: 350px;
     gap: 15px; 
-    padding: 15px; /* Padding on the panel itself */
+    padding: 15px;
 }
 
 #commandLog { 
@@ -75,7 +75,7 @@ body {
     font-family: var(--font-tome);
     font-size: 1.1em; 
     line-height: 1.6;
-    padding: 20px; /* Padding inside the tome */
+    padding: 20px;
     border-radius: 6px;
     overflow-y: auto;
     flex-grow: 1; 
@@ -110,6 +110,15 @@ body {
     opacity: 0.85;
     color: #7a6a5f; 
 }
+/* Chat message specific styling */
+.log-type-chat-say {
+    /* Usually ink styled */
+}
+.log-type-chat-shout {
+    font-weight: bold; /* Shouts are bold */
+    /* Typically mana styled for magical projection */
+}
+
 
 #mainHeaderStatus {
     color: var(--text-primary);
@@ -117,19 +126,20 @@ body {
     background-color: rgba(0,0,0,0.2); 
     border-radius: 6px;
     text-align: center;
-    font-size: 1.0em; /* Slightly smaller to accommodate more info */
+    font-size: 1.0em;
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-color);
     line-height: 1.4;
 }
 
-/* New container for game and health */
+/* Container for game area - simplified as helix is gone */
 .game-area-flex-container {
-    display: flex;
+    display: flex; /* It will just hold gameCanvasContainer now */
     flex-grow: 1;
-    min-height: 0; /* Critical for flex shrinking */
-    gap: 15px;
+    min-height: 0; 
+    /* No gap needed if only one child */
 }
+
 
 #gameCanvasContainer {
     position: relative;
@@ -148,7 +158,7 @@ body {
     font-family: var(--font-game);
     white-space: pre;
     line-height: 1.0;
-    font-size: 16px;
+    font-size: 18px; /* Updated font size */
     color: var(--text-game);
     padding: 15px; 
     max-width: 100%;
@@ -181,35 +191,6 @@ body {
 @keyframes fall {
     to { transform: translateY(calc(100vh + 60px)); }
 }
-
-
-/* Health Helix Styling */
-#healthHelixContainer {
-    flex-basis: 60px; /* Width of the health bar area */
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(0,0,0,0.1); /* Subtle background */
-    padding: 10px 5px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-}
-
-#healthHelixCanvas {
-    width: 100%; /* Canvas takes width of its container */
-    height: 100%; /* Canvas takes height of its container */
-    /* Actual pixel dimensions set in JS */
-}
-.health-label {
-    font-size: 0.8em;
-    color: var(--text-primary);
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
 
 #commandInputBox {
     padding: 15px;
@@ -279,18 +260,10 @@ body {
         flex-basis: auto; 
         width: 100%;
         min-width: unset;
-        padding: 10px; /* Reduce padding on smaller screens */
+        padding: 10px;
     }
     .left-panel { max-height: 35vh; }
     .right-panel { flex-grow: 1; }
-    .game-area-flex-container {
-        flex-direction: column-reverse; /* Stack health below game on small screens */
-    }
-    #healthHelixContainer {
-        flex-basis: 50px; /* Height for horizontal bar */
-        width: 100%;
-        flex-direction: row; /* Label and canvas side-by-side */
-    }
-    .health-label { margin-bottom: 0; margin-right: 10px;}
-    #gameCanvas { font-size: 14px; }
+    /* .game-area-flex-container can remain as is, or if you had specific mobile layout for it */
+    #gameCanvas { font-size: 16px; /* Slightly smaller for very small screens */ }
 }

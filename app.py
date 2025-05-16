@@ -24,14 +24,19 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 40
+GRID_WIDTH = 40  # Updated
 GRID_HEIGHT = 20
-GAME_TICK_RATE = 1.0
+GAME_TICK_RATE = 1.0  # Updated
+SHOUT_MANA_COST = 5
 
 # Game State
 players = {}
 queuedActions = {}
 _game_loop_started = False
+
+def get_player_name(sid):
+    # Simple name for now, could be expanded
+    return f"Wizard-{sid[:4]}"
 
 def game_loop():
     while True:
@@ -88,16 +93,58 @@ def game_loop():
                         socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
                 
                 elif actionType == 'drink_potion':
-                    # Basic server-side handling for potion drinking
                     if player['potions'] > 0:
                         player['potions'] -= 1
-                        # Placeholder: Simple health gain
                         player['current_health'] = min(player['max_health'], player['current_health'] + 15)
                         potion_effect_message = "You drink a potion. You feel a warmth spread through you, slightly invigorating!"
                         socketio.emit('lore_message', {'message': f"Tome notes: {potion_effect_message}", 'type': 'event-good'}, room=sid)
                     else:
                         socketio.emit('lore_message', {'message': "Tome sighs: You reach for a potion, but your satchel is empty.", 'type': 'event-bad'}, room=sid)
 
+                elif actionType == 'say':
+                    message_text = details.get('message', '')
+                    if message_text:
+                        chat_data = {
+                            'sender_name': get_player_name(sid),
+                            'message': message_text,
+                            'type': 'say',
+                            'scene_coords': f"({player['scene_x']},{player['scene_y']})"
+                        }
+                        # Broadcast to players in the same scene
+                        for p_sid, p_data in players.items():
+                            if p_data['scene_x'] == player['scene_x'] and p_data['scene_y'] == player['scene_y']:
+                                socketio.emit('chat_message', chat_data, room=p_sid)
+                
+                elif actionType == 'shout':
+                    message_text = details.get('message', '')
+                    if message_text:
+                        if player['current_mana'] >= SHOUT_MANA_COST:
+                            player['current_mana'] -= SHOUT_MANA_COST
+                            chat_data = {
+                                'sender_name': get_player_name(sid),
+                                'message': message_text,
+                                'type': 'shout',
+                                'scene_coords': f"({player['scene_x']},{player['scene_y']})"
+                            }
+                            # Broadcast to players in current and adjacent scenes
+                            current_scene_x, current_scene_y = player['scene_x'], player['scene_y']
+                            adjacent_scenes = [
+                                (current_scene_x, current_scene_y),       # Current
+                                (current_scene_x + 1, current_scene_y),   # East
+                                (current_scene_x - 1, current_scene_y),   # West
+                                (current_scene_x, current_scene_y + 1),   # South
+                                (current_scene_x, current_scene_y - 1)    # North
+                            ]
+                            targeted_sids = set()
+                            for p_sid, p_data in players.items():
+                                if (p_data['scene_x'], p_data['scene_y']) in adjacent_scenes:
+                                    targeted_sids.add(p_sid)
+                            
+                            for target_sid in targeted_sids:
+                                socketio.emit('chat_message', chat_data, room=target_sid)
+                            socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid)
+                        else:
+                            socketio.emit('lore_message', {'message': f"Tome warns: You lack the {SHOUT_MANA_COST} mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
 
                 queuedActions[sid] = None 
         
@@ -109,6 +156,7 @@ def handle_connect(auth=None):
     sid = request.sid 
     newPlayer = {
         'id': sid,
+        'name': get_player_name(sid), # Assign name on connect
         'scene_x': 0,
         'scene_y': 0,
         'x': 0,
@@ -116,10 +164,9 @@ def handle_connect(auth=None):
         'char': random.choice(['^', 'v', '<', '>']),
         'max_health': 100,
         'current_health': 100,
-        'potions': 7, # Starting potions for testing
-        'max_mana': 175, # Assuming this exists for status
-        'current_mana': 175, # Assuming this exists for status
-
+        'max_mana': 175, 
+        'current_mana': 175,
+        'potions': 7,
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
@@ -140,11 +187,12 @@ def handle_connect(auth=None):
     })
 
     try:
-        socketio.server.emit('player_joined', newPlayer, skip_sid=sid, namespace='/') 
+        # Send richer player data for player_joined
+        socketio.server.emit('player_joined', { 'id': newPlayer['id'], 'name': newPlayer['name'], 'char': newPlayer['char'], 'x': newPlayer['x'], 'y': newPlayer['y'], 'scene_x': newPlayer['scene_x'], 'scene_y': newPlayer['scene_y'] }, skip_sid=sid, namespace='/') 
     except Exception as e:
         print(f"ERROR emitting player_joined directly: {e}")
         try:
-            socketio.emit('player_joined', newPlayer, skip_sid=sid)
+            socketio.emit('player_joined', { 'id': newPlayer['id'], 'name': newPlayer['name'], 'char': newPlayer['char'], 'x': newPlayer['x'], 'y': newPlayer['y'], 'scene_x': newPlayer['scene_x'], 'scene_y': newPlayer['scene_y'] }, skip_sid=sid)
         except Exception as e_fallback:
             print(f"ERROR with fallback player_joined: {e_fallback}")
 
@@ -171,11 +219,9 @@ def handle_queue_command(data):
     sid = request.sid
     if sid in players:
         actionType = data.get('type')
-        # Added 'drink_potion' to recognized server-side actions
-        if actionType in ['move', 'look', 'cast', 'drink_potion']:
+        if actionType in ['move', 'look', 'cast', 'drink_potion', 'say', 'shout']:
             queuedActions[sid] = data 
-            # For drink_potion, the result message comes after processing, not just queueing.
-            if actionType != 'drink_potion':
+            if actionType not in ['drink_potion', 'say', 'shout']: # These provide their own feedback
                 emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
         else:
             emit('action_failed', {'message': "Your old brain is wrought with confusion. (unknown command. Type '?' for help.)"})
