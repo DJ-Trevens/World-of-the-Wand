@@ -18,7 +18,14 @@
         </div>
 
         <div class="right-panel">
-            <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
+            <div id="mainHeaderStatusContainer">
+                <div id="debugMenu">
+                    <label>
+                        <input type="checkbox" id="debugInfoToggle"> Debug Info
+                    </label>
+                </div>
+                <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
+            </div>
 
             <div id="gameCanvasContainer">
                 <div id="gameCanvas">Summoning World...</div>
@@ -35,13 +42,6 @@
                 </form>
             </div>
         </div>
-
-        <div id="debugMenu">
-            <h4>Debug Options</h4>
-            <label>
-                <input type="checkbox" id="debugInfoToggle"> Show Debug Info
-            </label>
-        </div>
     </div>
 
     <script>
@@ -53,7 +53,6 @@
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
         const tickIndicator = document.getElementById('tickIndicator');
-
         const debugInfoToggle = document.getElementById('debugInfoToggle');
 
         let showDebugInfo = false; 
@@ -61,7 +60,7 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 20; 
+        let GRID_WIDTH = 27; 
         let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
         let prevSelfPlayerState = null;
@@ -71,15 +70,19 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: true,
-            intensity: 0.45 
+            isRaining: false,
+            intensity: 0.6 
         };
         let rainInterval = null;
 
+        let isDragging = false;
+        let startDragX, startDragY;
+        let currentPanX = 0, currentPanY = 0; 
+        let targetPanX = 0, targetPanY = 0;   
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
-        const OBSERVABLE_DEPTH = 7;
+        const OBSERVABLE_DEPTH = 12;
         const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
 
@@ -118,25 +121,18 @@
             if (!observerChar) return false;
             let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
 
-            // Aura Vision
             if (scry || manhattanDist <= AURA_VISION_RANGE) {
                 return true;
             }
             
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
 
-            // Observation Cone (Forward vision)
-            // ry < 0 means target is in front (relative Y is negative)
-            // Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH) defines the cone width
             if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
                 return true;
             }
-
-            // Tiles at Manhattan distance 2 that are diagonal (abs(worldDX)==1 && abs(worldDY)==1)
-            // will only be visible if they fall into the cone above.
-            // The previous specific rule for some diagonals outside the cone has been removed.
             return false;
         }
+
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
@@ -170,7 +166,8 @@
             if (statusText) {
                 mainHeaderStatus.textContent = statusText;
             } else if (selfPlayer) {
-                let baseStatus = `HP: ${selfPlayer.current_health}/${selfPlayer.max_health} | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
+                let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
+                let baseStatus = `Health: ${healthPercentage}% | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
                 if (showDebugInfo) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
                      baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) | ${baseStatus}`;
@@ -186,6 +183,8 @@
                 gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
                 return;
             }
+            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
             
             for (const playerID in otherPlayers) {
@@ -247,13 +246,63 @@
             }
         }
 
+        gameCanvasContainer.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true;
+            gameCanvasContainer.style.cursor = 'grabbing';
+            startDragX = e.clientX - currentPanX;
+            startDragY = e.clientY - currentPanY;
+            gameCanvas.style.transition = 'none';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            currentPanX = e.clientX - startDragX;
+            currentPanY = e.clientY - startDragY;
+            drawGrid();
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (e.button !== 0 || !isDragging) return;
+            isDragging = false;
+            gameCanvasContainer.style.cursor = 'grab';
+            gameCanvas.style.transition = 'transform 0.3s ease-out';
+            centerViewOnPlayer();
+        });
+        gameCanvasContainer.addEventListener('mouseleave', () => {
+            if(isDragging){
+                isDragging = false;
+                gameCanvasContainer.style.cursor = 'grab';
+                gameCanvas.style.transition = 'transform 0.3s ease-out';
+                centerViewOnPlayer();
+            }
+        });
+
+        function centerViewOnPlayer() {
+            if (!selfPlayer || !gameCanvas.firstChild || !gameCanvas.firstChild.nodeValue) return; 
+
+            const charWidth = gameCanvas.offsetWidth / GRID_WIDTH; 
+            const charHeight = gameCanvas.offsetHeight / GRID_HEIGHT;
+
+            const playerCanvasX = selfPlayer.x * charWidth + charWidth / 2;
+            const playerCanvasY = selfPlayer.y * charHeight + charHeight / 2;
+
+            targetPanX = (gameCanvasContainer.offsetWidth / 2) - playerCanvasX;
+            targetPanY = (gameCanvasContainer.offsetHeight / 2) - playerCanvasY;
+            
+            currentPanX = targetPanX;
+            currentPanY = targetPanY;
+            drawGrid();
+        }
+
+
         debugInfoToggle.addEventListener('change', (event) => {
             showDebugInfo = event.target.checked;
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
             updateStatus(); 
         });
 
-        socket.on('connect', () => { /* Status updated by initial_state or default */ });
+        socket.on('connect', () => { /* Fully handled by initial_state or default */ });
 
         socket.on('initial_state', (data) => {
             selfPlayer = data.player; 
@@ -277,6 +326,7 @@
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus(); 
                 drawGrid(); 
+                centerViewOnPlayer(); 
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
                  if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
@@ -339,7 +389,7 @@
 
         let tickFlashTimeout = null;
         socket.on('game_state_update', (allPlayers) => {
-            console.log("Client received game_state_update:", allPlayers); // For debugging server connection
+            console.log("Client received game_state_update"); 
             if(tickIndicator) {
                 tickIndicator.classList.add('tick-flash');
                 if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
@@ -377,22 +427,26 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
+                    centerViewOnPlayer(); 
                 } else { 
-                    const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
+                    const movedX = selfPlayer.x !== prevSelfPlayerState.x;
+                    const movedY = selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
 
-                    if (movedLocal) {
+                    if (movedX || movedY) {
                         let facingDirectionWord = getDirectionWord(selfPlayer.char);
                         addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
+                        if (!isDragging) centerViewOnPlayer(); 
                     } else if (turned) {
                         let facingDirectionWord = getDirectionWord(selfPlayer.char);
                         addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
+                         if (!isDragging) centerViewOnPlayer(); 
                     }
                 }
             }
             if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
             
-            drawGrid();
+            drawGrid(); 
             updateWeatherEffects(); 
         });
 
@@ -587,7 +641,6 @@
             updateWeatherEffects();
         };
 
-        // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
         
