@@ -61,17 +61,17 @@
         let otherPlayers = {};
         let myPlayerID = null;
         let GRID_WIDTH = 27; 
-        let GRID_HEIGHT = 15;
+        let GRID_HEIGHT = 17;
         let GAME_TICK_RATE = 0.75;
         let prevSelfPlayerState = null;
 
         let currentSceneData = {
             InsideID: 0, 
-            name: "The Whispering Plains" 
+            name: "The Whispering Plains"
         };
         let globalWeather = {
-            isRaining: false,
-            intensity: 0.6 
+            isRaining: true,
+            intensity: 0.5
         };
         let rainInterval = null;
 
@@ -82,7 +82,7 @@
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
-        const OBSERVABLE_DEPTH = 12;
+        const OBSERVABLE_DEPTH = 7;
         const OBSERVABLE_WIDTH = 1.0;
         const AURA_VISION_RANGE = 1;
 
@@ -132,7 +132,6 @@
             }
             return false;
         }
-
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
@@ -249,6 +248,7 @@
         gameCanvasContainer.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             isDragging = true;
+            document.body.classList.add('is-dragging');
             gameCanvasContainer.style.cursor = 'grabbing';
             startDragX = e.clientX - currentPanX;
             startDragY = e.clientY - currentPanY;
@@ -265,6 +265,7 @@
         window.addEventListener('mouseup', (e) => {
             if (e.button !== 0 || !isDragging) return;
             isDragging = false;
+            document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
             gameCanvas.style.transition = 'transform 0.3s ease-out';
             centerViewOnPlayer();
@@ -272,6 +273,7 @@
         gameCanvasContainer.addEventListener('mouseleave', () => {
             if(isDragging){
                 isDragging = false;
+                document.body.classList.remove('is-dragging');
                 gameCanvasContainer.style.cursor = 'grab';
                 gameCanvas.style.transition = 'transform 0.3s ease-out';
                 centerViewOnPlayer();
@@ -279,20 +281,46 @@
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || !gameCanvas.firstChild || !gameCanvas.firstChild.nodeValue) return; 
+            if (!selfPlayer || !gameCanvas.firstChild) return; // No player or no grid content (like 'Summoning World...')
 
-            const charWidth = gameCanvas.offsetWidth / GRID_WIDTH; 
-            const charHeight = gameCanvas.offsetHeight / GRID_HEIGHT;
+            // Ensure grid dimensions are known and canvas has measurable content size
+            if (GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.clientWidth === 0 || gameCanvas.clientHeight === 0) {
+                // Fallback: center the gameCanvas itself if we can't calculate char positions
+                currentPanX = 0;
+                currentPanY = 0;
+                gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+                return;
+            }
+            
+            const contentWidth = gameCanvas.clientWidth;
+            const contentHeight = gameCanvas.clientHeight;
 
-            const playerCanvasX = selfPlayer.x * charWidth + charWidth / 2;
-            const playerCanvasY = selfPlayer.y * charHeight + charHeight / 2;
+            const charWidth = contentWidth / GRID_WIDTH;
+            const charHeight = contentHeight / GRID_HEIGHT;
 
-            targetPanX = (gameCanvasContainer.offsetWidth / 2) - playerCanvasX;
-            targetPanY = (gameCanvasContainer.offsetHeight / 2) - playerCanvasY;
+            const computedStyle = getComputedStyle(gameCanvas);
+            const paddingLeft = parseFloat(computedStyle.paddingLeft) || 0;
+            const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+
+            const playerCellCenterXInContent = (selfPlayer.x * charWidth) + (charWidth / 2);
+            const playerCellCenterYInContent = (selfPlayer.y * charHeight) + (charHeight / 2);
+            
+            // Target position for the player's center, relative to the gameCanvasContainer's top-left
+            const containerCenterX = gameCanvasContainer.offsetWidth / 2;
+            const containerCenterY = gameCanvasContainer.offsetHeight / 2;
+
+            // The gameCanvas's own top-left is effectively (paddingLeft, paddingTop) relative to its border-box for transform purposes if it's not already centered by other means.
+            // Since gameCanvas is absolutely positioned and we are calculating its pan:
+            // We want to move gameCanvas so that playerCellCenterXInContent (which is relative to the content-box of gameCanvas)
+            // aligns with containerCenterX.
+            // Pan = Desired Player Position in Container - Current Player Position in gameCanvas (relative to gameCanvas 0,0)
+            
+            targetPanX = containerCenterX - (paddingLeft + playerCellCenterXInContent) ;
+            targetPanY = containerCenterY - (paddingTop + playerCellCenterYInContent) ;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
-            drawGrid();
+            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
 
@@ -325,7 +353,7 @@
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus(); 
-                drawGrid(); 
+                drawGrid(); // Draw first to establish canvas content and dimensions
                 centerViewOnPlayer(); 
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
@@ -394,7 +422,7 @@
                 tickIndicator.classList.add('tick-flash');
                 if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
                 tickFlashTimeout = setTimeout(() => {
-                    tickIndicator.classList.remove('tick-flash');
+                    if(tickIndicator) tickIndicator.classList.remove('tick-flash');
                 }, 150); 
             }
 
@@ -427,7 +455,7 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    centerViewOnPlayer(); 
+                    if(!isDragging) centerViewOnPlayer(); 
                 } else { 
                     const movedX = selfPlayer.x !== prevSelfPlayerState.x;
                     const movedY = selfPlayer.y !== prevSelfPlayerState.y;

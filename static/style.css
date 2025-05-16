@@ -39,6 +39,13 @@ body {
     color: var(--text-primary);
     overflow: hidden; 
 }
+body.is-dragging, body.is-dragging * {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
 
 .main-ui-container {
     display: flex;
@@ -151,7 +158,7 @@ body {
 .log-type-welcome-message {}
 
 
-#mainHeaderStatusContainer {
+#mainHeaderStatusContainer { 
     display: flex;
     align-items: center;
     gap: 10px;
@@ -217,6 +224,7 @@ body {
     z-index: 1;
     position: absolute; 
     transition: transform 0.3s ease-out; 
+    /* Padding removed - handled by panning logic if desired */
 }
 
 #rainOverlay {
@@ -259,18 +267,18 @@ body {
 }
 
 #tickIndicator {
-    width: 12px; 
-    height: 12px; 
+    width: 14px; /* Increased size */
+    height: 14px; /* Increased size */
     background-color: #4a4e69; 
     border-radius: 50%;
-    margin-right: 10px; 
+    margin-right: 12px; /* Increased margin */
     display: inline-block;
-    transition: background-color 0.1s ease-out;
+    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; /* Added box-shadow transition */
     box-shadow: 0 0 3px #222; 
 }
 #tickIndicator.tick-flash {
     background-color: var(--highlight-green);
-    box-shadow: 0 0 8px var(--highlight-green); 
+    box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); /* Brighter glow */
 }
 
 
@@ -324,6 +332,8 @@ body {
     transform: translateY(1px);
 }
 
+/* Relocated Debug Menu is no longer absolutely positioned on main-ui-container */
+/* but part of the mainHeaderStatusContainer flow */
 
 @media (max-width: 800px) {
     .main-ui-container {
@@ -350,6 +360,6 @@ body {
         flex-wrap: wrap; 
         padding: 5px 10px;
     }
-    #debugMenu { padding: 5px;}
+    #debugMenu { padding: 5px;} /* No title, so no h4 specific styles */
     #mainHeaderStatus { font-size: 0.9em; }
 }

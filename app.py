@@ -5,6 +5,7 @@ import os
 import random
 from flask import Flask, render_template, request, Blueprint
 from flask_socketio import SocketIO, emit
+import time # For debugging game_state_update if needed
 
 app = Flask(__name__)
 app.config['SECURITY_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key')
@@ -25,7 +26,7 @@ def health_check():
 
 # Game Settings
 GRID_WIDTH = 27
-GRID_HEIGHT = 15
+GRID_HEIGHT = 17
 GAME_TICK_RATE = 0.75
 SHOUT_MANA_COST = 5
 
@@ -41,6 +42,7 @@ def game_loop():
     while True:
         try: 
             socketio.sleep(GAME_TICK_RATE)
+            # print(f"Game tick - Players: {len(players)}, Queued: {len(queuedActions)}") # Basic tick log
             for sid, actionData in list(queuedActions.items()):
                 if actionData and sid in players:
                     player = players[sid]
@@ -147,6 +149,7 @@ def game_loop():
                     queuedActions[sid] = None 
             
             current_player_states = list(players.values())
+            # print("Emitting game_state_update:", current_player_states) # Detailed log for server emit
             socketio.emit('game_state_update', current_player_states)
         except Exception as e:
             print(f"!!! ERROR IN GAME LOOP: {e} !!!") 
@@ -156,6 +159,7 @@ def game_loop():
 @socketio.on('connect')
 def handle_connect(auth=None):
     sid = request.sid 
+    print(f"Client connected: {sid}")
     newPlayer = {
         'id': sid,
         'name': get_player_name(sid),
@@ -188,6 +192,8 @@ def handle_connect(auth=None):
         'other_players': otherPlayersInScene,
         'tick_rate': GAME_TICK_RATE
     })
+    print(f"Sent initial_state to {sid}")
+
 
     try:
         socketio.server.emit('player_joined', { 'id': newPlayer['id'], 'name': newPlayer['name'], 'char': newPlayer['char'], 'x': newPlayer['x'], 'y': newPlayer['y'], 'scene_x': newPlayer['scene_x'], 'scene_y': newPlayer['scene_y'] }, skip_sid=sid, namespace='/') 
@@ -201,6 +207,7 @@ def handle_connect(auth=None):
 @socketio.on('disconnect')
 def handle_disconnect(reason=None):
     sid = request.sid 
+    print(f"Client disconnected: {sid} (Reason: {reason})")
     if sid in players:
         player_data = players[sid]
         del players[sid]
@@ -233,10 +240,12 @@ def handle_queue_command(data):
 def start_game_loop():
     global _game_loop_started
     if not _game_loop_started:
+        print("Starting game loop background task.")
         socketio.start_background_task(target=game_loop)
         _game_loop_started = True
 
 start_game_loop()
 
 if __name__ == '__main__':
+    print("Starting Flask-SocketIO server...")
     socketio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
