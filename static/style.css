@@ -112,11 +112,11 @@ body {
 }
 /* Chat message specific styling */
 .log-type-chat-say {
-    /* Usually ink styled */
+    /* Default 'ink' style is applied by JS via .log-style-ink */
 }
 .log-type-chat-shout {
     font-weight: bold; /* Shouts are bold */
-    /* Typically mana styled for magical projection */
+    /* Default 'mana' style is applied by JS via .log-style-mana */
 }
 
 
@@ -132,19 +132,12 @@ body {
     line-height: 1.4;
 }
 
-/* Container for game area - simplified as helix is gone */
-.game-area-flex-container {
-    display: flex; /* It will just hold gameCanvasContainer now */
-    flex-grow: 1;
-    min-height: 0; 
-    /* No gap needed if only one child */
-}
-
+/* Removed .game-area-flex-container CSS rule as the div was removed from HTML */
 
 #gameCanvasContainer {
     position: relative;
-    flex-grow: 1; 
-    min-height: 0; 
+    flex-grow: 1;  /* This is the direct child that grows in .right-panel */
+    min-height: 0; /* Crucial for proper flex sizing */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -158,7 +151,7 @@ body {
     font-family: var(--font-game);
     white-space: pre;
     line-height: 1.0;
-    font-size: 18px; /* Updated font size */
+    font-size: 18px; 
     color: var(--text-game);
     padding: 15px; 
     max-width: 100%;
@@ -264,6 +257,5 @@ body {
     }
     .left-panel { max-height: 35vh; }
     .right-panel { flex-grow: 1; }
-    /* .game-area-flex-container can remain as is, or if you had specific mobile layout for it */
-    #gameCanvas { font-size: 16px; /* Slightly smaller for very small screens */ }
+    #gameCanvas { font-size: 16px; }
 }

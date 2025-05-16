@@ -24,9 +24,9 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 40  # Updated
+GRID_WIDTH = 40
 GRID_HEIGHT = 20
-GAME_TICK_RATE = 1.0  # Updated
+GAME_TICK_RATE = 1.0
 SHOUT_MANA_COST = 5
 
 # Game State
@@ -35,7 +35,6 @@ queuedActions = {}
 _game_loop_started = False
 
 def get_player_name(sid):
-    # Simple name for now, could be expanded
     return f"Wizard-{sid[:4]}"
 
 def game_loop():
@@ -110,7 +109,6 @@ def game_loop():
                             'type': 'say',
                             'scene_coords': f"({player['scene_x']},{player['scene_y']})"
                         }
-                        # Broadcast to players in the same scene
                         for p_sid, p_data in players.items():
                             if p_data['scene_x'] == player['scene_x'] and p_data['scene_y'] == player['scene_y']:
                                 socketio.emit('chat_message', chat_data, room=p_sid)
@@ -126,14 +124,13 @@ def game_loop():
                                 'type': 'shout',
                                 'scene_coords': f"({player['scene_x']},{player['scene_y']})"
                             }
-                            # Broadcast to players in current and adjacent scenes
                             current_scene_x, current_scene_y = player['scene_x'], player['scene_y']
                             adjacent_scenes = [
-                                (current_scene_x, current_scene_y),       # Current
-                                (current_scene_x + 1, current_scene_y),   # East
-                                (current_scene_x - 1, current_scene_y),   # West
-                                (current_scene_x, current_scene_y + 1),   # South
-                                (current_scene_x, current_scene_y - 1)    # North
+                                (current_scene_x, current_scene_y),      
+                                (current_scene_x + 1, current_scene_y),  
+                                (current_scene_x - 1, current_scene_y),  
+                                (current_scene_x, current_scene_y + 1),  
+                                (current_scene_x, current_scene_y - 1)   
                             ]
                             targeted_sids = set()
                             for p_sid, p_data in players.items():
@@ -156,7 +153,7 @@ def handle_connect(auth=None):
     sid = request.sid 
     newPlayer = {
         'id': sid,
-        'name': get_player_name(sid), # Assign name on connect
+        'name': get_player_name(sid),
         'scene_x': 0,
         'scene_y': 0,
         'x': 0,
@@ -187,7 +184,6 @@ def handle_connect(auth=None):
     })
 
     try:
-        # Send richer player data for player_joined
         socketio.server.emit('player_joined', { 'id': newPlayer['id'], 'name': newPlayer['name'], 'char': newPlayer['char'], 'x': newPlayer['x'], 'y': newPlayer['y'], 'scene_x': newPlayer['scene_x'], 'scene_y': newPlayer['scene_y'] }, skip_sid=sid, namespace='/') 
     except Exception as e:
         print(f"ERROR emitting player_joined directly: {e}")
@@ -221,7 +217,7 @@ def handle_queue_command(data):
         actionType = data.get('type')
         if actionType in ['move', 'look', 'cast', 'drink_potion', 'say', 'shout']:
             queuedActions[sid] = data 
-            if actionType not in ['drink_potion', 'say', 'shout']: # These provide their own feedback
+            if actionType not in ['drink_potion', 'say', 'shout']: 
                 emit('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
         else:
             emit('action_failed', {'message': "Your old brain is wrought with confusion. (unknown command. Type '?' for help.)"})
