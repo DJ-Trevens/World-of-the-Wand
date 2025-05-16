@@ -178,19 +178,38 @@ body.is-dragging, body.is-dragging * {
     margin-right: 10px; 
 }
 #debugMenu label {
-    margin: 2px 0; 
-    font-size: 0.75em; 
+    margin: 1px 0; /* Reduced vertical margin */
+    font-size: 0.7em; /* Smaller label text */
     cursor: pointer;
     display: flex;
     align-items: center;
     white-space: nowrap;
 }
 #debugMenu input[type="checkbox"] {
-    margin-right: 4px;
+    margin-right: 3px; /* Reduced margin */
     vertical-align: middle;
-    transform: scale(0.9); 
+    transform: scale(0.8); 
 }
-/* Spawn Crazy button style removed */
+#debugMenu input[type="range"] {
+    width: 60px; /* Smaller slider */
+    height: 10px;
+    margin-left: 4px;
+}
+#debugMenu button { 
+    font-size: 0.65em; /* Smaller button text */
+    padding: 1px 4px; /* Smaller padding */
+    margin-top: 3px;
+    background-color: var(--border-color);
+    color: var(--text-primary);
+    border: 1px solid var(--text-primary);
+    border-radius: 3px;
+    cursor: pointer;
+}
+#debugMenu button:hover {
+    background-color: var(--highlight-blue);
+    color: var(--bg-primary);
+}
+
 
 #mainHeaderStatus {
     color: var(--text-primary);
@@ -257,7 +276,6 @@ body.is-dragging, body.is-dragging * {
     to { transform: translateY(calc(100vh + 60px)); }
 }
 
-/* "Crazies" styles and keyframes removed */
 
 #commandInputBox {
     padding: 15px;
