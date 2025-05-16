@@ -24,8 +24,8 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 20
-GRID_HEIGHT = 15
+GRID_WIDTH = 25
+GRID_HEIGHT = 20
 GAME_TICK_RATE = 2.0
 
 # Game State
@@ -85,6 +85,7 @@ def game_loop():
                     player['char'] = newChar
                     
                     if scene_changed:
+                        # TODO: Server should also send new scene data (e.g., map, InsideID)
                         socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
 
                 queuedActions[sid] = None 
@@ -102,6 +103,7 @@ def handle_connect(auth=None):
         'x': 0,
         'y': 0,
         'char': random.choice(['^', 'v', '<', '>'])
+        # TODO: Add InsideID from the current scene data for the new player
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
@@ -119,6 +121,7 @@ def handle_connect(auth=None):
         'grid_height': GRID_HEIGHT,
         'other_players': otherPlayersInScene,
         'tick_rate': GAME_TICK_RATE
+        # TODO: Server should send initial scene_data (including InsideID) and weather_data
     })
 
     try:
