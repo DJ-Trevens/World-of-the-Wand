@@ -33,6 +33,16 @@
                 </form>
             </div>
         </div>
+
+        <div id="debugMenu">
+            <h4>Debug Options</h4>
+            <label>
+                <input type="checkbox" id="debugInfoToggle" checked> Show Debug Info
+            </label>
+            <label>
+                <input type="checkbox" id="weatherToggle" checked> Enable Weather
+            </label>
+        </div>
     </div>
 
     <script>
@@ -43,6 +53,13 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
+
+        const debugInfoToggle = document.getElementById('debugInfoToggle');
+        const weatherToggle = document.getElementById('weatherToggle');
+
+        let showDebugInfo = true; 
+        let enableWeatherEffects = true;
+
 
         let selfPlayer = null;
         let otherPlayers = {};
@@ -116,19 +133,16 @@
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
-            
             let displayStyle = 'ink';
-
             switch (type) {
                 case 'event-bad':         
                 case 'chat-shout':       
                 case 'server-major-event': 
                 case 'player-trade':       
                 case 'player-damage':
-                case 'welcome-message': // Special type for the initial welcome
+                case 'welcome-message': 
                     displayStyle = 'mana';
                     break;
-                
                 case 'system':            
                 case 'event-good':        
                 case 'spell-cast':        
@@ -139,28 +153,24 @@
                     displayStyle = 'ink';
                     break;
             }
-
             logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
             logEntry.textContent = message;
             commandLog.appendChild(logEntry);
-            
-            requestAnimationFrame(() => {
-                 commandLog.scrollTop = commandLog.scrollHeight;
-            });
+            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
         }
 
-        function updateStatus(statusText) { // Renamed for clarity
-            if (statusText) { // If a specific status is passed, use it
+        function updateStatus(statusText) {
+            if (statusText) {
                 mainHeaderStatus.textContent = statusText;
-            } else if (selfPlayer) { // Otherwise, construct from player data
-                let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (Sector ${currentSceneData.InsideID})`;
-                let healthInfo = (typeof selfPlayer.current_health !== 'undefined') ? `${selfPlayer.current_health}/${selfPlayer.max_health} HP` : "HP ?";
-                let manaInfo = (typeof selfPlayer.current_mana !== 'undefined') ? `${selfPlayer.current_mana}/${selfPlayer.max_mana} MP` : "MP ?";
-                let potionsInfo = (typeof selfPlayer.potions !== 'undefined') ? `${selfPlayer.potions} Potions` : "Potions ?";
-                
-                mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x}, ${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}: (${selfPlayer.x}, ${selfPlayer.y}) | ${healthInfo} | ${manaInfo} | ${potionsInfo} | Wand: 100%`;
+            } else if (selfPlayer) {
+                let baseStatus = `HP: ${selfPlayer.current_health}/${selfPlayer.max_health} | MP: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Potions: ${selfPlayer.potions}`;
+                if (showDebugInfo) {
+                    let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
+                     baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) | ${baseStatus}`;
+                }
+                mainHeaderStatus.textContent = baseStatus;
             } else {
-                mainHeaderStatus.textContent = "Welcome to the World of the Wand!"; // Default before connect/initial_state
+                mainHeaderStatus.textContent = "Welcome to the World of the Wand!";
             }
         }
 
@@ -221,21 +231,35 @@
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
         }
+        
         function updateWeatherEffects() {
+            if (!enableWeatherEffects) { 
+                if (rainInterval) stopRainEffect();
+                return;
+            }
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval) { 
-                    startRainEffect(globalWeather.intensity);
-                }
+                if (!rainInterval) startRainEffect(globalWeather.intensity);
             } else {
-                if (rainInterval) { 
-                    stopRainEffect();
-                }
+                if (rainInterval) stopRainEffect();
             }
         }
 
-        socket.on('connect', () => { 
-            // Status is now set by initial_state or by default in updateStatus if selfPlayer is null
+        debugInfoToggle.addEventListener('change', (event) => {
+            showDebugInfo = event.target.checked;
+            updateStatus(); 
         });
+
+        weatherToggle.addEventListener('change', (event) => {
+            enableWeatherEffects = event.target.checked;
+            if (!enableWeatherEffects) { 
+                globalWeather.isRaining = false; 
+            }
+            updateWeatherEffects(); 
+            addLogMessage(`Tome notes (DEBUG): Weather effects ${enableWeatherEffects ? 'ENABLED' : 'DISABLED'}.`, 'system');
+        });
+
+
+        socket.on('connect', () => { /* Status updated by initial_state or default */ });
 
         socket.on('initial_state', (data) => {
             selfPlayer = data.player; 
@@ -246,14 +270,27 @@
             otherPlayers = data.other_players || {};
             prevSelfPlayerState = { ...selfPlayer };
 
+            // Load debug flag preferences from localStorage if available
+            const savedDebugInfo = localStorage.getItem('showDebugInfo');
+            if (savedDebugInfo !== null) {
+                showDebugInfo = JSON.parse(savedDebugInfo);
+                debugInfoToggle.checked = showDebugInfo;
+            }
+            const savedWeatherEffects = localStorage.getItem('enableWeatherEffects');
+             if (savedWeatherEffects !== null) {
+                enableWeatherEffects = JSON.parse(savedWeatherEffects);
+                weatherToggle.checked = enableWeatherEffects;
+            }
+
+
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
             if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
                 updateStatus(); 
                 drawGrid(); 
                 updateWeatherEffects(); 
-                addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore'); // Adjusted message
-                 if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
+                addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
+                 if (currentSceneData.InsideID === 0 && globalWeather.isRaining && enableWeatherEffects) {
                     addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                 }
             } else {
@@ -283,7 +320,7 @@
             const wasRaining = globalWeather.isRaining;
             globalWeather = weatherData;
             updateWeatherEffects();
-            if (currentSceneData.InsideID === 0) { 
+            if (currentSceneData.InsideID === 0 && enableWeatherEffects) { 
                 if (globalWeather.isRaining && !wasRaining) {
                     addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", 'system');
                 } else if (!globalWeather.isRaining && wasRaining) {
@@ -464,7 +501,7 @@
                 actionWord = "shout";
             }
 
-            addLogMessage(`> ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
+            addLogMessage(`Tome jots down: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
 
             const canonicalAction = parseAction(actionWord);
 
@@ -533,16 +570,20 @@
         });
         
         window.toggleRainDebug = function() { 
-            const wasRaining = globalWeather.isRaining; 
-            globalWeather.isRaining = !globalWeather.isRaining;
-             if (currentSceneData.InsideID === 0) { 
-                if (globalWeather.isRaining && !wasRaining) {
-                    addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
-                } else if (!globalWeather.isRaining && wasRaining) {
-                    addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
+            if (enableWeatherEffects) {
+                const wasRaining = globalWeather.isRaining; 
+                globalWeather.isRaining = !globalWeather.isRaining;
+                 if (currentSceneData.InsideID === 0) { 
+                    if (globalWeather.isRaining && !wasRaining) {
+                        addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
+                    } else if (!globalWeather.isRaining && wasRaining) {
+                        addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
+                    }
                 }
+                updateWeatherEffects();
+            } else {
+                addLogMessage("Tome notes (DEBUG): Weather effects are currently disabled via debug menu.", "system");
             }
-            updateWeatherEffects();
         };
          window.toggleInsideDebug = function() { 
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
@@ -555,9 +596,9 @@
         // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
-        updateStatus(); // Update status before any messages for a cleaner initial load
+        updateStatus(); 
         updateWeatherEffects();
-        addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message'); // Use 'welcome-message' type
+        addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
 
     </script>
 </body>

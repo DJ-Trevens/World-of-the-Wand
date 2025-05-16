@@ -24,8 +24,8 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 20  # Updated
-GRID_HEIGHT = 15 # Updated
+GRID_WIDTH = 20
+GRID_HEIGHT = 15
 GAME_TICK_RATE = 1.0
 SHOUT_MANA_COST = 5
 
@@ -39,7 +39,7 @@ def get_player_name(sid):
 
 def game_loop():
     while True:
-        try:
+        try: 
             socketio.sleep(GAME_TICK_RATE)
             for sid, actionData in list(queuedActions.items()):
                 if actionData and sid in players:
@@ -161,8 +161,8 @@ def handle_connect(auth=None):
         'name': get_player_name(sid),
         'scene_x': 0,
         'scene_y': 0,
-        'x': GRID_WIDTH // 2,  # Spawn in middle
-        'y': GRID_HEIGHT // 2, # Spawn in middle
+        'x': GRID_WIDTH // 2, 
+        'y': GRID_HEIGHT // 2,
         'char': random.choice(['^', 'v', '<', '>']),
         'max_health': 100,
         'current_health': 100,

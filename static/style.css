@@ -4,11 +4,11 @@
     --bg-primary: #232946; 
     --bg-secondary: #2f385b; 
     --bg-tome: #fff9e6; 
-    --bg-tome-cover: #5d4037;    /* Burnt, aged leather - dark sienna/brown */
+    --bg-tome-cover: #5d4037;    
     
-    --text-tome-ink: #2c1f1a;    /* Darker, almost black for primary ink */
-    --text-tome-mana: #6947a1;   /* Deeper, more regal purple for mana */
-    --glow-tome-mana: #c0a2f7;   /* Brighter, clearer violet for glow */
+    --text-tome-ink: #2c1f1a;    
+    --text-tome-mana: #6947a1;   
+    --glow-tome-mana: #c0a2f7;   
     
     --text-primary: #e0e0fc; 
     --text-game: #f0f0ff;        
@@ -48,6 +48,7 @@ body {
     padding: 15px;
     box-sizing: border-box;
     gap: 15px; 
+    position: relative;
 }
 
 .left-panel, .right-panel {
@@ -61,25 +62,24 @@ body {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.left-panel { /* This is the Tome's "cover" */
+.left-panel {
     flex-basis: 40%; 
     flex-shrink: 1;
     min-width: 300px; 
-    padding: 12px; /* Padding for the "cover" around the pages */
+    padding: 12px; 
     background-color: var(--bg-tome-cover); 
-    border: 3px solid #4a3b32; /* Darker, thicker border for cover */
-    border-radius: 10px 4px 4px 10px; /* Simulates book spine/edge */
-    position: relative; /* For pseudo-elements if needed for spine */
+    border: 3px solid #4a3b32; 
+    border-radius: 10px 4px 4px 10px; 
+    position: relative; 
 }
 
-/* Adding a pseudo-element for a subtle "spine" shadow or texture */
 .left-panel::before {
     content: '';
     position: absolute;
     left: 0;
     top: 0;
     bottom: 0;
-    width: 15px; /* Width of the spine effect */
+    width: 15px; 
     background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05));
     border-radius: 10px 0 0 10px;
 }
@@ -93,23 +93,23 @@ body {
     padding: 15px;
 }
 
-#commandLog { /* These are the "pages" - styled to be the right page */
+#commandLog { 
     background-color: var(--bg-tome);
     font-family: var(--font-tome);
-    font-size: 1.2em; /* Increased font size */
-    font-weight: 500; /* Make ink text slightly bolder */
+    font-size: 1.2em; 
+    font-weight: 500; 
     line-height: 1.65;
-    padding: 25px 30px 25px 20px; /* More padding, simulates margin of an open page */
-    border-radius: 3px 6px 6px 3px; /* Rounded corners for the page, more on right */
+    padding: 25px 30px 25px 20px; 
+    border-radius: 3px 6px 6px 3px; 
     overflow-y: auto;
     flex-grow: 1; 
     border: 1px solid #d1c7ac; 
-    box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); /* Shadow on left to imply spine */
-    position: relative; /* For page curl or gutter shadow */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none;  /* IE and Edge */
+    box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); 
+    position: relative; 
+    scrollbar-width: none; 
+    -ms-overflow-style: none;  
 }
-#commandLog::-webkit-scrollbar { /* WebKit browsers */
+#commandLog::-webkit-scrollbar { 
     display: none;
 }
 
@@ -127,11 +127,11 @@ body {
 
 .log-style-ink { 
     color: var(--text-tome-ink); 
-    font-weight: 500; /* Ensure ink is bold */
+    font-weight: 500; 
 }
 .log-style-mana {
     color: var(--text-tome-mana);
-    font-weight: 700; /* Make mana text bolder */
+    font-weight: 700; 
     text-shadow: 0 0 7px var(--glow-tome-mana), 
                  0 0 12px var(--glow-tome-mana),
                  0 0 18px rgba(192, 162, 247, 0.65); 
@@ -140,14 +140,15 @@ body {
 .log-type-lore {} 
 .log-type-system { font-style: italic; } 
 .log-type-event-good {}
-.log-type-event-bad { font-weight: bold; } /* Combined with ink/mana weight for emphasis */
+.log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
-    color: #605048; /* Adjusted for better contrast if needed */
-    font-weight: 400; /* User input can be normal weight */
+    color: #605048; 
+    font-weight: 400; 
 }
 .log-type-chat-say {}
 .log-type-chat-shout { font-weight: bold; }
+.log-type-welcome-message { /* Style applied by log-style-mana in JS */ }
 
 
 #mainHeaderStatus {
@@ -178,7 +179,7 @@ body {
 #gameCanvas {
     font-family: var(--font-game);
     white-space: pre;
-    line-height: 1.0;
+    line-height: 0.9; 
     font-size: 18px; 
     color: var(--text-game);
     padding: 15px; 
@@ -275,6 +276,39 @@ body {
     transform: translateY(1px);
 }
 
+#debugMenu {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: var(--bg-secondary);
+    padding: 10px 15px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    z-index: 1000;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+#debugMenu h4 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+#debugMenu label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+#debugMenu input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+
 @media (max-width: 800px) {
     .main-ui-container {
         flex-direction: column;
@@ -296,4 +330,9 @@ body {
     }
     .right-panel { flex-grow: 1; }
     #gameCanvas { font-size: 16px; }
+    #debugMenu {
+        top: 10px;
+        right: 10px;
+        padding: 8px;
+    }
 }
