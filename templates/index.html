@@ -26,13 +26,15 @@
                     <label>
                         <input type="checkbox" id="localCommandsToggle" checked> Local Commands
                     </label>
-                    <!-- Spawn Crazy Button Removed -->
+                    <label>
+                        Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05" value="0.35">
+                    </label>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
 
             <div id="gameCanvasContainer">
-                <div id="gameCanvas">Summoning World...</div>
+                <div id="gameCanvas">Initializing Realm...</div>
                 <div id="rainOverlay"></div>
             </div>
             
@@ -59,6 +61,7 @@
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const localCommandsToggle = document.getElementById('localCommandsToggle');
+        const rainIntensitySlider = document.getElementById('rainIntensitySlider');
 
         let showDebugInfo = false; 
         let useLocalCommands = true;
@@ -81,6 +84,7 @@
             intensity: 0.35 
         };
         let rainInterval = null;
+        const RAIN_INTERVAL_DELAY = 50; // Check to spawn a drop every 50ms
 
         let isDragging = false;
         let startDragX, startDragY;
@@ -190,7 +194,7 @@
         }
 
         function estimateCharacterSize() {
-            if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("The mists")) return;
+            if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists")) return;
             
             const tempSpan = document.createElement('span');
             tempSpan.style.fontFamily = getComputedStyle(gameCanvas).fontFamily;
@@ -213,8 +217,8 @@
                 charSizeEstimated = true;
                 console.log("Estimated char size (W x H):", charRenderWidth, "x", charRenderHeight);
             } else { 
-                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize) * 0.6; 
-                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize) * parseFloat(getComputedStyle(gameCanvas).lineHeight || 1);
+                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "16px") * 0.6; 
+                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "16px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
                  console.warn("Failed to estimate char size accurately, using fallback:", charRenderWidth, charRenderHeight);
             }
         }
@@ -226,7 +230,6 @@
                 gameCanvas.style.transform = `translate(0px, 0px)`; 
                 return;
             }
-            // Ensure transform is applied even if pan values are 0 for initial setup
             gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
 
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
@@ -256,30 +259,40 @@
             }
             gameCanvas.textContent = output.trimEnd();
         }
+        
         function startRainEffect(intensity) {
             if (rainInterval) clearInterval(rainInterval);
-            rainOverlay.innerHTML = ''; 
+            rainOverlay.innerHTML = ''; // Clear old raindrops if any
 
-            const dropsPerSecond = 5 + (intensity * 35);
+            // The number of raindrops to attempt to spawn per interval check.
+            // Higher intensity means more drops *per chance*.
+            const maxDropsPerTick = 1 + Math.floor(intensity * 5); // e.g., 1 to 6 drops
+
             rainInterval = setInterval(() => {
-                const drop = document.createElement('div');
-                drop.classList.add('raindrop');
-                drop.style.left = Math.random() * 100 + '%';
-                
-                const duration = 0.4 + Math.random() * 0.4; 
-                drop.style.animationDuration = duration + 's';
-                drop.style.animationDelay = Math.random() * 0.2 + 's'; 
-                
-                rainOverlay.appendChild(drop);
+                for (let i = 0; i < maxDropsPerTick; i++) {
+                    if (Math.random() < intensity) { // Chance to spawn each drop
+                        const drop = document.createElement('div');
+                        drop.classList.add('raindrop');
+                        drop.style.left = Math.random() * 100 + '%';
+                        
+                        const duration = 0.4 + Math.random() * 0.4; 
+                        drop.style.animationDuration = duration + 's';
+                        drop.style.animationDelay = Math.random() * 0.2 + 's'; 
+                        
+                        rainOverlay.appendChild(drop);
 
-                drop.addEventListener('animationend', () => {
-                    drop.remove();
-                });
-            }, 1000 / dropsPerSecond);
+                        drop.addEventListener('animationend', () => {
+                            drop.remove();
+                        });
+                    }
+                }
+            }, RAIN_INTERVAL_DELAY); // Check every 50ms
         }
+
         function stopRainEffect() {
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
+            // Raindrops remove themselves via animationend
         }
         
         function updateWeatherEffects() {
@@ -326,22 +339,28 @@
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
+            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 ) {
                  currentPanX = 0;
                  currentPanY = 0;
-                 if (gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+                 if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
             
+            // Player's character cell's visual center X and Y within the gameCanvas's own content flow
             const playerVisualCenterX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
             const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
-            targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
-            targetPanY = (gameCanvasContainer.clientHeight / 2) - playerVisualCenterY;
+            // Desired center of the gameCanvasContainer (the viewport for the gameCanvas)
+            const containerCenterX = gameCanvasContainer.clientWidth / 2;
+            const containerCenterY = gameCanvasContainer.clientHeight / 2;
+
+            // Calculate the pan needed to bring player's visual center to the container's center
+            targetPanX = containerCenterX - playerVisualCenterX;
+            targetPanY = containerCenterY - playerVisualCenterY;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
-            if (gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+            if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
 
@@ -354,7 +373,15 @@
             useLocalCommands = event.target.checked;
             localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
         });
-        // spawnCrazyButton listener removed
+        rainIntensitySlider.addEventListener('input', (event) => {
+            globalWeather.intensity = parseFloat(event.target.value);
+            localStorage.setItem('rainIntensity', globalWeather.intensity);
+            if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
+                // Restart rain with new intensity
+                startRainEffect(globalWeather.intensity);
+            }
+            addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
+        });
 
 
         socket.on('connect', () => {});
@@ -378,6 +405,12 @@
             else { useLocalCommands = true; } 
             localCommandsToggle.checked = useLocalCommands;
 
+            const savedRainIntensity = localStorage.getItem('rainIntensity');
+            if (savedRainIntensity !== null) { 
+                globalWeather.intensity = parseFloat(savedRainIntensity);
+            } // else use default 0.35
+            rainIntensitySlider.value = globalWeather.intensity;
+
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
@@ -394,6 +427,7 @@
                     }
                 });
             } else {
+                gameCanvas.textContent = "Error: Could not initialize player or world data."; 
                 addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
             }
         });
@@ -418,7 +452,8 @@
         });
         socket.on('weather_update', (weatherData) => {
             const wasRaining = globalWeather.isRaining;
-            globalWeather = weatherData;
+            globalWeather = weatherData; // Server could send full weather object
+            rainIntensitySlider.value = globalWeather.intensity; // Sync slider if server changes intensity
             updateWeatherEffects();
             if (currentSceneData.InsideID === 0) { 
                 if (globalWeather.isRaining && !wasRaining) {
@@ -508,6 +543,12 @@
             if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
             
             drawGrid(); 
+            if (!charSizeEstimated && selfPlayer && gameCanvas.textContent && !gameCanvas.textContent.startsWith("The mists") && !gameCanvas.textContent.startsWith("Initializing Realm...")) {
+                requestAnimationFrame(() => { 
+                    estimateCharacterSize();
+                    if(!isDragging) centerViewOnPlayer(); 
+                });
+            }
             updateWeatherEffects(); 
         });
 
@@ -726,9 +767,7 @@
             updateWeatherEffects();
         };
 
-        // "Crazies" functions and listeners removed.
-
-        drawGrid();
+        gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo');
@@ -740,6 +779,12 @@
         if (savedLocalCommandsOnLoad !== null) { useLocalCommands = JSON.parse(savedLocalCommandsOnLoad); }
         else { useLocalCommands = true; } 
         localCommandsToggle.checked = useLocalCommands;
+
+        const savedRainIntensity = localStorage.getItem('rainIntensity');
+        if (savedRainIntensity !== null) { 
+            globalWeather.intensity = parseFloat(savedRainIntensity);
+        }
+        rainIntensitySlider.value = globalWeather.intensity;
 
 
         updateStatus(); 
