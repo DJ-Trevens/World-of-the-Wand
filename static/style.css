@@ -1,18 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --bg-primary: #1a1f26; 
-    --bg-secondary: #2c333e; 
-    --bg-tome: #f3eadd; 
-    --text-tome-ink: #4a3b32;    
-    --text-tome-mana: #2a52be;   
-    --glow-tome-mana: #87cefa;   
-    --text-primary: #c8d1dc; 
-    --text-game: #e0e0e0; 
-    --border-color: #444c5a;
-    --highlight-blue: #61afef;
-    --highlight-green: #98c379;
-    --highlight-red: #e06c75;
+    --bg-primary: #232946;       /* Deep, muted Indigo/Purple */
+    --bg-secondary: #2f385b;     /* Slightly lighter, desaturated Indigo/Blue for panels */
+    --bg-tome: #fff9e6;          /* Warm, creamy Parchment */
+    
+    --text-tome-ink: #5c544b;    /* Dark, warm Sepia for ink */
+    --text-tome-mana: #7f5af0;   /* Mystic Purple/Violet for mana text */
+    --glow-tome-mana: #b69eff;   /* Lighter violet for glow */
+    
+    --text-primary: #e0e0fc;     /* Very light Lavender/Silver for UI text */
+    --text-game: #f0f0ff;        /* Even lighter Lavender/White for game grid */
+    
+    --border-color: #4a4e69;     /* Muted, darker purple-gray for borders */
+    
+    --highlight-blue: #7aa2f7;   /* Bright, slightly magical Blue for actions/buttons */
+    --highlight-green: #9ece6a;  /* Lush, magical Green for positive events */
+    --highlight-red: #f7768e;    /* Vibrant, slightly pinkish Red for negative events */
+    
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
@@ -79,14 +84,14 @@ body {
     border-radius: 6px;
     overflow-y: auto;
     flex-grow: 1; 
-    border: 1px solid #d3c8b4; 
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+    border: 1px solid #d1c7ac; /* Border matching parchment tones */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.15); /* Slightly deeper inset shadow */
 }
 
 .log-entry {
     margin-bottom: 8px; 
     padding-bottom: 4px;
-    border-bottom: 1px dashed rgba(0,0,0,0.08); 
+    border-bottom: 1px dashed rgba(80, 70, 60, 0.15); /* Softer, brownish dash */
     word-wrap: break-word;
     white-space: pre-wrap;
 }
@@ -97,27 +102,35 @@ body {
 .log-style-ink { color: var(--text-tome-ink); }
 .log-style-mana {
     color: var(--text-tome-mana);
-    text-shadow: 0 0 5px var(--glow-tome-mana), 
-                 0 0 8px var(--glow-tome-mana),
-                 0 0 10px rgba(var(--glow-tome-mana), 0.7); 
+    text-shadow: 0 0 6px var(--glow-tome-mana), 
+                 0 0 10px var(--glow-tome-mana),
+                 0 0 15px rgba(182, 158, 255, 0.6); /* Refined glow */
 }
 
 .log-type-lore {} 
 .log-type-system { font-style: italic; } 
-.log-type-event-good {}
-.log-type-event-bad { font-weight: bold; } 
+.log-type-event-good {
+    /* color: var(--highlight-green); /* Optionally color text if not mana-styled */
+}
+.log-type-event-bad { 
+    font-weight: bold;
+    /* color: var(--highlight-red); /* Optionally color text if not mana-styled */
+} 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
-    color: #7a6a5f; 
+    color: #7a6d60; /* Slightly adjusted user input ink */
 }
-.log-type-chat-say {}
-.log-type-chat-shout { font-weight: bold; }
+.log-type-chat-say { /* Default ink styling is applied via JS */ }
+.log-type-chat-shout { 
+    font-weight: bold; 
+    /* Default mana styling is applied via JS */
+}
 
 
 #mainHeaderStatus {
     color: var(--text-primary);
     padding: 10px 15px;
-    background-color: rgba(0,0,0,0.2); 
+    background-color: rgba(0,0,0,0.25); /* Slightly more opaque for contrast */
     border-radius: 6px;
     text-align: center;
     font-size: 1.0em;
@@ -133,7 +146,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #12151a; 
+    background-color: var(--bg-primary); /* Deep background for game view */
     border-radius: 6px;
     overflow: hidden; 
     border: 1px solid var(--border-color);
@@ -168,9 +181,10 @@ body {
     bottom: 100%;
     width: 1px; 
     height: 60px; 
-    background: linear-gradient(to bottom, rgba(170, 190, 220, 0), rgba(170, 190, 220, 0.3)); 
+    /* Rain color to fit the enchanted dusk theme - maybe slightly more purple/blue */
+    background: linear-gradient(to bottom, rgba(150, 160, 230, 0), rgba(150, 160, 230, 0.3)); 
     animation: fall linear infinite;
-    opacity: 0.7;
+    opacity: 0.6; /* Slightly softer rain */
 }
 
 @keyframes fall {
@@ -179,7 +193,7 @@ body {
 
 #commandInputBox {
     padding: 15px;
-    background-color: rgba(0,0,0,0.1);
+    background-color: transparent; /* Blends into panel */
     border-radius: 6px;
     flex-shrink: 0;
     border-top: 1px solid var(--border-color);
@@ -199,9 +213,9 @@ body {
 }
 
 #commandText {
-    background-color: rgba(0,0,0,0.2); 
+    background-color: var(--border-color); /* Using border color as base for input */
     color: var(--text-primary); 
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--border-color); /* Border blends in initially */
     padding: 10px 12px;
     border-radius: 4px;
     font-size: 1em;
@@ -212,13 +226,13 @@ body {
 #commandText:focus {
     outline: none;
     border-color: var(--highlight-blue);
-    background-color: rgba(0,0,0,0.3);
-    box-shadow: 0 0 0 2px rgba(var(--highlight-blue), 0.2);
+    background-color: #3c3f56; /* Slightly lighter on focus */
+    box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.3); /* Using highlight blue for focus shadow */
 }
 
 #commandForm button { 
     background-color: var(--highlight-blue);
-    color: var(--bg-primary);
+    color: var(--bg-tome); /* Parchment color text for contrast */
     border: none;
     padding: 10px 20px;
     margin-left: 10px;
@@ -232,8 +246,12 @@ body {
     transition: background-color 0.2s ease, transform 0.1s ease;
 }
 
-#commandForm button:hover { background-color: #7acaff; }
-#commandForm button:active { transform: translateY(1px); }
+#commandForm button:hover { 
+    background-color: #9bbff9; /* Lighter shade of highlight-blue */
+}
+#commandForm button:active { 
+    transform: translateY(1px);
+}
 
 @media (max-width: 800px) {
     .main-ui-container {
