@@ -27,7 +27,9 @@
             
             <div id="commandInputBox">
                 <form id="commandForm">
-                    <label for="commandText">Inscribe Thy Will:</label>
+                    <label for="commandText">
+                        <span id="tickIndicator">●</span>Inscribe Thy Will:
+                    </label>
                     <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
                     <button type="submit">Commit</button>
                 </form>
@@ -37,10 +39,7 @@
         <div id="debugMenu">
             <h4>Debug Options</h4>
             <label>
-                <input type="checkbox" id="debugInfoToggle" checked> Show Debug Info
-            </label>
-            <label>
-                <input type="checkbox" id="weatherToggle" checked> Enable Weather
+                <input type="checkbox" id="debugInfoToggle"> Show Debug Info
             </label>
         </div>
     </div>
@@ -53,20 +52,18 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
+        const tickIndicator = document.getElementById('tickIndicator');
 
         const debugInfoToggle = document.getElementById('debugInfoToggle');
-        const weatherToggle = document.getElementById('weatherToggle');
 
-        let showDebugInfo = true; 
-        let enableWeatherEffects = true;
-
-
+        let showDebugInfo = false; 
+        
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 20; 
+        let GRID_WIDTH = 27; 
         let GRID_HEIGHT = 15;
-        let GAME_TICK_RATE = 1.0;
+        let GAME_TICK_RATE = 0.75;
         let prevSelfPlayerState = null;
 
         let currentSceneData = {
@@ -74,7 +71,7 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: true,
+            isRaining: false,
             intensity: 0.45 
         };
         let rainInterval = null;
@@ -163,7 +160,7 @@
             if (statusText) {
                 mainHeaderStatus.textContent = statusText;
             } else if (selfPlayer) {
-                let baseStatus = `HP: ${selfPlayer.current_health}/${selfPlayer.max_health} | MP: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Potions: ${selfPlayer.potions}`;
+                let baseStatus = `HP: ${selfPlayer.current_health}/${selfPlayer.max_health} | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
                 if (showDebugInfo) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
                      baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) | ${baseStatus}`;
@@ -233,10 +230,6 @@
         }
         
         function updateWeatherEffects() {
-            if (!enableWeatherEffects) { 
-                if (rainInterval) stopRainEffect();
-                return;
-            }
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
                 if (!rainInterval) startRainEffect(globalWeather.intensity);
             } else {
@@ -246,18 +239,9 @@
 
         debugInfoToggle.addEventListener('change', (event) => {
             showDebugInfo = event.target.checked;
+            localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
             updateStatus(); 
         });
-
-        weatherToggle.addEventListener('change', (event) => {
-            enableWeatherEffects = event.target.checked;
-            if (!enableWeatherEffects) { 
-                globalWeather.isRaining = false; 
-            }
-            updateWeatherEffects(); 
-            addLogMessage(`Tome notes (DEBUG): Weather effects ${enableWeatherEffects ? 'ENABLED' : 'DISABLED'}.`, 'system');
-        });
-
 
         socket.on('connect', () => { /* Status updated by initial_state or default */ });
 
@@ -270,18 +254,13 @@
             otherPlayers = data.other_players || {};
             prevSelfPlayerState = { ...selfPlayer };
 
-            // Load debug flag preferences from localStorage if available
             const savedDebugInfo = localStorage.getItem('showDebugInfo');
             if (savedDebugInfo !== null) {
                 showDebugInfo = JSON.parse(savedDebugInfo);
-                debugInfoToggle.checked = showDebugInfo;
+            } else {
+                showDebugInfo = false; // Default to off if not saved
             }
-            const savedWeatherEffects = localStorage.getItem('enableWeatherEffects');
-             if (savedWeatherEffects !== null) {
-                enableWeatherEffects = JSON.parse(savedWeatherEffects);
-                weatherToggle.checked = enableWeatherEffects;
-            }
-
+            debugInfoToggle.checked = showDebugInfo; 
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
 
@@ -290,7 +269,7 @@
                 drawGrid(); 
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
-                 if (currentSceneData.InsideID === 0 && globalWeather.isRaining && enableWeatherEffects) {
+                 if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
                     addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                 }
             } else {
@@ -320,7 +299,7 @@
             const wasRaining = globalWeather.isRaining;
             globalWeather = weatherData;
             updateWeatherEffects();
-            if (currentSceneData.InsideID === 0 && enableWeatherEffects) { 
+            if (currentSceneData.InsideID === 0) { 
                 if (globalWeather.isRaining && !wasRaining) {
                     addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", 'system');
                 } else if (!globalWeather.isRaining && wasRaining) {
@@ -348,7 +327,16 @@
             addLogMessage(prefix + data.message, messageType);
         });
 
+        let tickFlashTimeout = null;
         socket.on('game_state_update', (allPlayers) => {
+            if(tickIndicator) {
+                tickIndicator.classList.add('tick-flash');
+                if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
+                tickFlashTimeout = setTimeout(() => {
+                    tickIndicator.classList.remove('tick-flash');
+                }, 150); 
+            }
+
             let foundSelf = false;
             const currentOtherPlayersInMyScene = {};
             
@@ -369,7 +357,6 @@
                  updateStatus(); 
             }
 
-
             if (selfPlayer && prevSelfPlayerState) {
                 const sceneCoordsChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
                 if (sceneCoordsChanged) {
@@ -379,6 +366,7 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
+                    // Server sends its own message for scene transition via 'lore_message'
                 } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
@@ -570,20 +558,17 @@
         });
         
         window.toggleRainDebug = function() { 
-            if (enableWeatherEffects) {
-                const wasRaining = globalWeather.isRaining; 
-                globalWeather.isRaining = !globalWeather.isRaining;
-                 if (currentSceneData.InsideID === 0) { 
-                    if (globalWeather.isRaining && !wasRaining) {
-                        addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
-                    } else if (!globalWeather.isRaining && wasRaining) {
-                        addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
-                    }
+            // This debug function now implicitly uses `enableWeatherEffects` which is always true
+            const wasRaining = globalWeather.isRaining; 
+            globalWeather.isRaining = !globalWeather.isRaining;
+             if (currentSceneData.InsideID === 0) { 
+                if (globalWeather.isRaining && !wasRaining) {
+                    addLogMessage("Tome shivers (DEBUG): The skies open and a steady rain begins to fall.", "system");
+                } else if (!globalWeather.isRaining && wasRaining) {
+                    addLogMessage("Tome brightens (DEBUG): The rain subsides, leaving the air fresh.", "system");
                 }
-                updateWeatherEffects();
-            } else {
-                addLogMessage("Tome notes (DEBUG): Weather effects are currently disabled via debug menu.", "system");
             }
+            updateWeatherEffects();
         };
          window.toggleInsideDebug = function() { 
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
@@ -596,6 +581,15 @@
         // Initial setup
         drawGrid();
         if (commandInput) { commandInput.focus(); }
+        
+        const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo');
+        if (savedDebugInfoOnLoad !== null) {
+            showDebugInfo = JSON.parse(savedDebugInfoOnLoad);
+        } else {
+            showDebugInfo = false; // Default to off
+        }
+        debugInfoToggle.checked = showDebugInfo;
+
         updateStatus(); 
         updateWeatherEffects();
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
