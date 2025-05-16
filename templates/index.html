@@ -61,7 +61,7 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let myPlayerID = null;
-        let GRID_WIDTH = 27; 
+        let GRID_WIDTH = 20; 
         let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
         let prevSelfPlayerState = null;
@@ -71,7 +71,7 @@
             name: "The Whispering Plains" 
         };
         let globalWeather = {
-            isRaining: false,
+            isRaining: true,
             intensity: 0.45 
         };
         let rainInterval = null;
@@ -117,14 +117,24 @@
         function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
             if (!observerChar) return false;
             let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
-            if (scry || manhattanDist <= AURA_VISION_RANGE) return true;
 
+            // Aura Vision
+            if (scry || manhattanDist <= AURA_VISION_RANGE) {
+                return true;
+            }
+            
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            const worldDX = targetX - observerX;
-            const worldDY = targetY - observerY;
 
-            if (manhattanDist === 2 && Math.abs(worldDX) === 1 && Math.abs(worldDY) === 1 && rx <= 0) return true;
-            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) return true;
+            // Observation Cone (Forward vision)
+            // ry < 0 means target is in front (relative Y is negative)
+            // Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH) defines the cone width
+            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH)) {
+                return true;
+            }
+
+            // Tiles at Manhattan distance 2 that are diagonal (abs(worldDX)==1 && abs(worldDY)==1)
+            // will only be visible if they fall into the cone above.
+            // The previous specific rule for some diagonals outside the cone has been removed.
             return false;
         }
 
@@ -258,7 +268,7 @@
             if (savedDebugInfo !== null) {
                 showDebugInfo = JSON.parse(savedDebugInfo);
             } else {
-                showDebugInfo = false; // Default to off if not saved
+                showDebugInfo = false; 
             }
             debugInfoToggle.checked = showDebugInfo; 
 
@@ -329,6 +339,7 @@
 
         let tickFlashTimeout = null;
         socket.on('game_state_update', (allPlayers) => {
+            console.log("Client received game_state_update:", allPlayers); // For debugging server connection
             if(tickIndicator) {
                 tickIndicator.classList.add('tick-flash');
                 if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
@@ -366,7 +377,6 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    // Server sends its own message for scene transition via 'lore_message'
                 } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
@@ -558,7 +568,6 @@
         });
         
         window.toggleRainDebug = function() { 
-            // This debug function now implicitly uses `enableWeatherEffects` which is always true
             const wasRaining = globalWeather.isRaining; 
             globalWeather.isRaining = !globalWeather.isRaining;
              if (currentSceneData.InsideID === 0) { 
@@ -586,7 +595,7 @@
         if (savedDebugInfoOnLoad !== null) {
             showDebugInfo = JSON.parse(savedDebugInfoOnLoad);
         } else {
-            showDebugInfo = false; // Default to off
+            showDebugInfo = false; 
         }
         debugInfoToggle.checked = showDebugInfo;
 

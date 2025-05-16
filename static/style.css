@@ -148,7 +148,7 @@ body {
 }
 .log-type-chat-say {}
 .log-type-chat-shout { font-weight: bold; }
-.log-type-welcome-message { /* Style applied by log-style-mana in JS */ }
+.log-type-welcome-message {}
 
 
 #mainHeaderStatus {
@@ -228,11 +228,29 @@ body {
     width: 100%;
 }
 
+#tickIndicator {
+    width: 12px; /* Made bigger */
+    height: 12px; /* Made bigger */
+    background-color: #4a4e69; 
+    border-radius: 50%;
+    margin-right: 10px; /* Increased margin */
+    display: inline-block;
+    transition: background-color 0.1s ease-out;
+    box-shadow: 0 0 3px #222; /* Subtle shadow */
+}
+#tickIndicator.tick-flash {
+    background-color: var(--highlight-green);
+    box-shadow: 0 0 8px var(--highlight-green); /* Glow effect */
+}
+
+
 #commandForm label {
     color: var(--text-primary);
-    margin-right: 12px;
+    margin-right: 5px; 
     font-size: 0.9em;
     font-weight: 500;
+    display: flex; 
+    align-items: center;
 }
 
 #commandText {
@@ -279,8 +297,9 @@ body {
 #debugMenu {
     position: absolute;
     top: 20px;
-    right: 20px;
-    background-color: var(--bg-secondary);
+    left: 20px; /* Moved to left */
+    background-color: rgba(44, 51, 62, 0.85); /* Slightly transparent */
+    backdrop-filter: blur(3px); /* Frosted glass effect */
     padding: 10px 15px;
     border-radius: 6px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.4);
@@ -332,7 +351,7 @@ body {
     #gameCanvas { font-size: 16px; }
     #debugMenu {
         top: 10px;
-        right: 10px;
+        left: 10px; 
         padding: 8px;
     }
 }

@@ -24,9 +24,9 @@ def health_check():
     return "OK", 200
 
 # Game Settings
-GRID_WIDTH = 27
+GRID_WIDTH = 20
 GRID_HEIGHT = 15
-GAME_TICK_RATE = 1.0
+GAME_TICK_RATE = 0.75
 SHOUT_MANA_COST = 5
 
 # Game State
@@ -169,6 +169,7 @@ def handle_connect(auth=None):
         'max_mana': 175, 
         'current_mana': 175,
         'potions': 7,
+        'gold': 0
     }
     players[sid] = newPlayer
     queuedActions[sid] = None 
