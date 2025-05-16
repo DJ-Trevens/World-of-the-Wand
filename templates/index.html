@@ -116,26 +116,35 @@
 
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
-            let displayStyle = 'ink'; 
+            
+            let displayStyle = 'ink'; // Default to ink
+
+            // Determine display style based on semantic type
             switch (type) {
-                case 'system':
-                case 'event-good':
-                case 'event-bad':
-                case 'spell-cast': 
-                case 'chat-shout':
+                case 'event-bad':      // Negative events (damage, critical failures)
+                case 'chat-shout':     // Player shouts
+                case 'server-event':   // Major server-driven events like disasters (you'll define this type on server)
+                case 'player-interaction': // PVP damage, trade notifications etc. (you'll define this type)
                     displayStyle = 'mana';
                     break;
-                case 'lore':
-                case 'user-input':
-                case 'chat-say': 
+                case 'system':         // General system messages, confirmations
+                case 'event-good':     // Positive minor events (potion drinking, minor buffs)
+                case 'spell-cast':     // Notification of spell casting
+                case 'lore':           // Default world descriptions
+                case 'user-input':     // Player's own typed commands
+                case 'chat-say':       // Regular player chat
                 default:
                     displayStyle = 'ink';
                     break;
             }
+
             logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
             logEntry.textContent = message;
             commandLog.appendChild(logEntry);
-            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
+            
+            requestAnimationFrame(() => {
+                 commandLog.scrollTop = commandLog.scrollHeight;
+            });
         }
 
         function updateStatus(status) {
@@ -241,7 +250,7 @@
                 updateWeatherEffects(); 
                 addLogMessage(`Tome: You have materialized in ${currentSceneData.name} at scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}). The world awaits!`, 'lore');
                  if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
-                    addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", "system");
+                    addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                 }
             } else {
                 addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
@@ -264,6 +273,7 @@
             }
         });
         socket.on('lore_message', (data) => {
+            // Type comes from server, addLogMessage will decide ink/mana
             addLogMessage(data.message, data.type || 'lore');
         });
         socket.on('weather_update', (weatherData) => {
@@ -272,9 +282,9 @@
             updateWeatherEffects();
             if (currentSceneData.InsideID === 0) { 
                 if (globalWeather.isRaining && !wasRaining) {
-                    addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", "system");
+                    addLogMessage("Tome scribes: The heavens open, and rain begins to pour.", 'system');
                 } else if (!globalWeather.isRaining && wasRaining) {
-                    addLogMessage("Tome notes: The rain lessens and finally stops.", "system");
+                    addLogMessage("Tome notes: The rain lessens and finally stops.", 'system');
                 }
             }
         });
@@ -290,9 +300,10 @@
             let messageType = 'chat-say'; 
             if (data.type === 'shout') {
                 prefix = `[SHOUT from ${data.sender_name || 'A distant voice'} at ${data.scene_coords || '(unknown location)'}]: `;
-                messageType = 'chat-shout';
+                messageType = 'chat-shout'; // This will be styled with mana
             } else { 
                 prefix = `[${data.sender_name || 'Someone nearby'} says]: `;
+                messageType = 'chat-say'; // This will be styled with ink
             }
             addLogMessage(prefix + data.message, messageType);
         });
@@ -325,8 +336,7 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    // The server sends a 'lore_message' for the scene transition.
-                    // If scene specific data (like InsideID) changes, server should send 'scene_data_update'.
+                    // addLogMessage(`Tome notes: You are now in scene (${selfPlayer.scene_x}, ${selfPlayer.scene_y}).`, 'system'); // Server sends its own scene transition message
                 } else { 
                     const movedLocal = selfPlayer.x !== prevSelfPlayerState.x || selfPlayer.y !== prevSelfPlayerState.y;
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
@@ -468,10 +478,11 @@
                 if (dirResult.isValid) {
                     commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
                     shouldEmit = true;
-                    if (messageContent && (messageContent.toLowerCase().includes("potion") || messageContent.toLowerCase().includes("flask"))) {}
-                    else if (messageContent && !(DIRECTION_ALIASES[effectiveTargetWord.toLowerCase()] || Object.values(DIRECTION_ALIASES).find(d => d.aliases.includes(effectiveTargetWord.toLowerCase())))) {
-                         // This check isn't perfect for complex multi-word directions but aims to catch obvious non-directions
-                    }
+                     if (messageContent && (messageContent.toLowerCase().includes("potion") || messageContent.toLowerCase().includes("flask"))) {}
+                     else if (messageContent && !(Object.values(DIRECTION_ALIASES).some(d => d.aliases.includes(effectiveTargetWord.toLowerCase())))) {
+                         // This condition is trying to catch if messageContent is not a recognized direction
+                         // For now, the original simple check if dirResult.isValid is sufficient.
+                     }
                 } else { 
                     addLogMessage(`Tome frowns: You ponder moving towards "${effectiveTargetWord}", but the way is unclear.`, 'event-bad');
                 }

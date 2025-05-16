@@ -110,14 +110,8 @@ body {
     opacity: 0.85;
     color: #7a6a5f; 
 }
-/* Chat message specific styling */
-.log-type-chat-say {
-    /* Default 'ink' style is applied by JS via .log-style-ink */
-}
-.log-type-chat-shout {
-    font-weight: bold; /* Shouts are bold */
-    /* Default 'mana' style is applied by JS via .log-style-mana */
-}
+.log-type-chat-say {}
+.log-type-chat-shout { font-weight: bold; }
 
 
 #mainHeaderStatus {
@@ -132,12 +126,10 @@ body {
     line-height: 1.4;
 }
 
-/* Removed .game-area-flex-container CSS rule as the div was removed from HTML */
-
 #gameCanvasContainer {
     position: relative;
-    flex-grow: 1;  /* This is the direct child that grows in .right-panel */
-    min-height: 0; /* Crucial for proper flex sizing */
+    flex-grow: 1;
+    min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;

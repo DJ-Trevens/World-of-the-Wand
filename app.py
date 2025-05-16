@@ -89,6 +89,8 @@ def game_loop():
                     player['char'] = newChar
                     
                     if scene_changed:
+                        # This 'system' message for scene transition might become ink or mana based on your preference.
+                        # For now, keeping it as 'system' type. The client will decide its ink/mana style.
                         socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
                 
                 elif actionType == 'drink_potion':
@@ -106,7 +108,7 @@ def game_loop():
                         chat_data = {
                             'sender_name': get_player_name(sid),
                             'message': message_text,
-                            'type': 'say',
+                            'type': 'say', # This type will be used by client to style
                             'scene_coords': f"({player['scene_x']},{player['scene_y']})"
                         }
                         for p_sid, p_data in players.items():
@@ -121,7 +123,7 @@ def game_loop():
                             chat_data = {
                                 'sender_name': get_player_name(sid),
                                 'message': message_text,
-                                'type': 'shout',
+                                'type': 'shout', # This type will be used by client to style
                                 'scene_coords': f"({player['scene_x']},{player['scene_y']})"
                             }
                             current_scene_x, current_scene_y = player['scene_x'], player['scene_y']
@@ -139,7 +141,7 @@ def game_loop():
                             
                             for target_sid in targeted_sids:
                                 socketio.emit('chat_message', chat_data, room=target_sid)
-                            socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid)
+                            socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid) # System message about mana cost
                         else:
                             socketio.emit('lore_message', {'message': f"Tome warns: You lack the {SHOUT_MANA_COST} mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
 
