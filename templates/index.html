@@ -26,18 +26,17 @@
                     <label>
                         <input type="checkbox" id="localCommandsToggle" checked> Local Commands
                     </label>
-                    <label>
-                        Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05" value="0.35">
-                    </label>
-                     <label>
-                        <input type="checkbox" id="themeToggle"> Mystic Night Theme
-                    </label>
+                    <div id="rainIntensityControl"> {/* Wrapper for conditional display */}
+                        <label>
+                            Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
+                        </label>
+                    </div>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
 
             <div id="gameCanvasContainer">
-                <div id="gameCanvas">Summoning World...</div>
+                <div id="gameCanvas">Initializing Realm...</div>
                 <div id="rainOverlay"></div>
             </div>
             
@@ -65,7 +64,8 @@
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const localCommandsToggle = document.getElementById('localCommandsToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
-        const themeToggle = document.getElementById('themeToggle');
+        const rainIntensityControl = document.getElementById('rainIntensityControl');
+
 
         let showDebugInfo = false; 
         let useLocalCommands = true;
@@ -85,7 +85,7 @@
         };
         let globalWeather = {
             isRaining: true, 
-            intensity: 0.35 
+            intensity: 0.1 // Default intensity
         };
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50; 
@@ -198,7 +198,15 @@
         }
 
         function estimateCharacterSize() {
-            if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists")) return;
+            if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists")) {
+                 if (!charSizeEstimated) { // If still not estimated, use fallbacks
+                    charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * 0.6; 
+                    charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
+                    console.warn("Using fallback char size for initial centering:", charRenderWidth, charRenderHeight);
+                    charSizeEstimated = true; // Mark as estimated even with fallback to prevent loops
+                 }
+                return;
+            }
             
             const tempSpan = document.createElement('span');
             tempSpan.style.fontFamily = getComputedStyle(gameCanvas).fontFamily;
@@ -295,8 +303,6 @@
         
         function updateWeatherEffects() {
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                // Check if rain is already running with the correct intensity
-                // This prevents restarting if intensity hasn't changed
                 if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
                     globalWeather.intensity = rainIntensitySlider.valueAsNumber;
                     startRainEffect(globalWeather.intensity);
@@ -360,15 +366,11 @@
             if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
-        function toggleTheme() {
-            document.body.classList.toggle('theme-mystic-night');
-            localStorage.setItem('theme', document.body.classList.contains('theme-mystic-night') ? 'mystic-night' : 'default');
-        }
-
 
         debugInfoToggle.addEventListener('change', (event) => {
             showDebugInfo = event.target.checked;
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
+            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
             updateStatus(); 
         });
         localCommandsToggle.addEventListener('change', (event) => {
@@ -386,7 +388,6 @@
                 if(showDebugInfo) addLogMessage(`Tome (DEBUG): Rain intensity set to ${globalWeather.intensity.toFixed(2)}.`, 'system');
             }
         });
-        themeToggle.addEventListener('change', toggleTheme);
 
 
         socket.on('connect', () => {});
@@ -404,6 +405,8 @@
             if (savedDebugInfo !== null) { showDebugInfo = JSON.parse(savedDebugInfo); } 
             else { showDebugInfo = false; }
             debugInfoToggle.checked = showDebugInfo; 
+            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+
 
             const savedLocalCommands = localStorage.getItem('useLocalCommands');
             if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); }
@@ -414,18 +417,9 @@
             if (savedRainIntensity !== null) { 
                 globalWeather.intensity = parseFloat(savedRainIntensity);
             } else {
-                globalWeather.intensity = 0.35; 
+                globalWeather.intensity = 0.1; 
             }
             rainIntensitySlider.value = globalWeather.intensity;
-            
-            const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'mystic-night') {
-                document.body.classList.add('theme-mystic-night');
-                themeToggle.checked = true;
-            } else {
-                document.body.classList.remove('theme-mystic-night');
-                themeToggle.checked = false;
-            }
 
 
             if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
@@ -783,6 +777,7 @@
             updateWeatherEffects();
         };
 
+        // Initial setup
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         
@@ -790,6 +785,8 @@
         if (savedDebugInfoOnLoad !== null) { showDebugInfo = JSON.parse(savedDebugInfoOnLoad); } 
         else { showDebugInfo = false; }
         debugInfoToggle.checked = showDebugInfo;
+        rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+
 
         const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
         if (savedLocalCommandsOnLoad !== null) { useLocalCommands = JSON.parse(savedLocalCommandsOnLoad); }
@@ -799,17 +796,10 @@
         const savedRainIntensity = localStorage.getItem('rainIntensity');
         if (savedRainIntensity !== null) { 
             globalWeather.intensity = parseFloat(savedRainIntensity);
+        } else {
+             globalWeather.intensity = 0.1; // Default to 0.1
         }
         rainIntensitySlider.value = globalWeather.intensity;
-
-        const savedTheme = localStorage.getItem('theme');
-            if (savedTheme === 'mystic-night') {
-                document.body.classList.add('theme-mystic-night');
-                themeToggle.checked = true;
-            } else {
-                document.body.classList.remove('theme-mystic-night');
-                themeToggle.checked = false;
-        }
 
 
         updateStatus(); 

@@ -24,11 +24,13 @@ socketio = SocketIO(app, async_mode="eventlet", path=f"{GAME_PATH_PREFIX}/socket
 def health_check():
     return "OK", 200
 
+# Game Settings
 GRID_WIDTH = 20
 GRID_HEIGHT = 15
 GAME_TICK_RATE = 0.75
 SHOUT_MANA_COST = 5
 
+# Game State
 players = {}
 queuedActions = {}
 _game_loop_started = False
