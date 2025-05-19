@@ -605,13 +605,20 @@ def handle_queue_player_action(data):
     emit_ctx('action_feedback', {'success': True, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_QUEUED'})
 
 def start_game_loop_for_worker():
-    global _game_loop_started_in_this_process; my_pid = os.getpid()
+    global _game_loop_started_in_this_process
+    my_pid = os.getpid()
     if not _game_loop_started_in_this_process:
         print(f"[{my_pid}] Worker: Attempting to start game_loop task...")
-        try: sio.start_background_task(target=game_loop); _game_loop_started_in_this_process = True; sio.sleep(0.01)
+        try:
+            sio.start_background_task(target=game_loop)
+            _game_loop_started_in_this_process = True
+            sio.sleep(0.01) # Yield control briefly
             print(f"[{my_pid}] Worker: Game loop task started successfully via sio.start_background_task.")
-        except Exception as e: print(f"!!! [{my_pid}] Worker: FAILED TO START GAME LOOP: {e} !!!"); traceback.print_exc()
-    else: print(f"[{my_pid}] Worker: Game loop already marked as started in this process.")
+        except Exception as e:
+            print(f"!!! [{my_pid}] Worker: FAILED TO START GAME LOOP: {e} !!!")
+            traceback.print_exc()
+    else: 
+        print(f"[{my_pid}] Worker: Game loop already marked as started in this process.")
 
 if __name__ == '__main__':
     print(f"[{os.getpid()}] Starting Flask-SocketIO server for LOCAL DEVELOPMENT...")
