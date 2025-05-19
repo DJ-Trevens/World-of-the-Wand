@@ -137,11 +137,14 @@ class Player:
         if nx < 0: self.scene_x -= 1; self.x = GRID_WIDTH - 1; scene_changed_flag = True; transition_key = 'LORE.SCENE_TRANSITION_WEST'
         elif nx >= GRID_WIDTH: self.scene_x += 1; self.x = 0; scene_changed_flag = True; transition_key = 'LORE.SCENE_TRANSITION_EAST'
         else: self.x = nx
-        if ny < 0: self.scene_y -= 1; self.y = GRID_HEIGHT - 1; scene_changed_flag = True;
-            if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_NORTH'
-        elif ny >= GRID_HEIGHT: self.scene_y += 1; self.y = 0; scene_changed_flag = True;
+        if ny < 0: 
+            self.scene_y -= 1; self.y = GRID_HEIGHT - 1; scene_changed_flag = True;
+            if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_NORTH' 
+        elif ny >= GRID_HEIGHT: 
+            self.scene_y += 1; self.y = 0; scene_changed_flag = True;
             if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
-        else: self.y = ny
+        else:
+            self.y = ny
         self.char = new_char
         if scene_changed_flag:
             game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
