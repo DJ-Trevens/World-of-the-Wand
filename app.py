@@ -538,16 +538,20 @@ def game_loop():
             elapsed_time = time.time() - loop_start_time
             sleep_duration = GAME_HEARTBEAT_RATE - elapsed_time
             
+            print(f"[{my_pid}] Heartbeat {loop_count}: Elapsed {elapsed_time:.4f}s. Target sleep: {sleep_duration:.4f}s.")
+
             if sleep_duration < -0.1: 
-                print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Heartbeat {loop_count} took {elapsed_time:.4f}s. Yielding minimally.")
+                print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Heartbeat {loop_count} took {elapsed_time:.4f}s. Yielding minimally (0.0001s).")
                 sio.sleep(0.0001) 
             elif sleep_duration < 0: 
+                print(f"[{my_pid}] Heartbeat {loop_count}: Slight overrun or on time. Yielding minimally (0.0001s). Took {elapsed_time:.4f}s.")
                 sio.sleep(0.0001) 
             else: 
+                # print(f"[{my_pid}] Heartbeat {loop_count}: Attempting to sio.sleep({sleep_duration:.4f}s)")
                 sio.sleep(sleep_duration) 
             
-            # print(f"[{my_pid}] Heartbeat {loop_count}: Returned from sleep/yield.") 
-            # print(f"====== [{my_pid}] BOTTOM OF GAME HEARTBEAT {loop_count} ======\n") 
+            print(f"[{my_pid}] Heartbeat {loop_count}: Returned from sleep/yield.") 
+            print(f"====== [{my_pid}] BOTTOM OF GAME HEARTBEAT {loop_count} ======\n") 
     except Exception as e_loop_main: 
         print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
         if hasattr(game_manager, 'loop_is_actually_running_flag'): game_manager.loop_is_actually_running_flag = False 
