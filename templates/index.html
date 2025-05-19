@@ -29,7 +29,7 @@
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
                     </div>
-                    <button id="themeToggle" title="Switch to Light Mode">☀️</button>
+                    <button id="themeToggle" title="Switch to Light Mode">☀️</button> {/* Default set assuming dark theme */}
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -45,7 +45,7 @@
                         <span id="tickIndicator">●</span>Inscribe Thy Will:
                     </label>
                     <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
-                    <button type="submit">Commit</button>
+                    <button type="submit">Enact</button> {/* Changed from Commit */}
                 </form>
             </div>
         </div>
@@ -99,19 +99,20 @@
         const FLOOR_CHAR = '·'; 
         const AURA_VISION_RANGE = 1;
 
-        const GAME_ZOOM_FACTOR = 1.4;
+        const GAME_ZOOM_FACTOR = 1.4; // Defined in JS now
         document.documentElement.style.setProperty('--game-zoom', GAME_ZOOM_FACTOR);
+
 
         function applyTheme(theme) {
             if (theme === 'light') {
                 document.body.classList.add('light-theme');
                 document.body.classList.remove('dark-theme');
-                themeToggleButton.textContent = MOON_EMOJI; 
+                themeToggleButton.textContent = MOON_EMOJI; // If light, button shows MOON (to switch to dark)
                 themeToggleButton.title = "Switch to Dark Mode";
             } else { 
                 document.body.classList.add('dark-theme'); 
                 document.body.classList.remove('light-theme');
-                themeToggleButton.textContent = SUN_EMOJI; 
+                themeToggleButton.textContent = SUN_EMOJI; // If dark, button shows SUN (to switch to light)
                 themeToggleButton.title = "Switch to Light Mode";
             }
             localStorage.setItem('worldOfTheWandTheme', theme);
@@ -178,7 +179,7 @@
             requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
         }
         function logRandomizedEvent(mainKey, subKey, placeholders = {}, messageType = 'lore') {
-            const message = getRandomGameText(mainKey, subKey, placeholders);
+            const message = getRandomGameText(mainKey, subKey, placeholders); // Assumes getRandomGameText is in game_texts.js
             addLogMessage(message, messageType);
         }
         function updateStatus(statusText) {
@@ -333,17 +334,16 @@
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
             const currentZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1");
-
             console.log(`[centerViewOnPlayer context: ${context}] Called. Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Zoom: ${currentZoom}, charSizeEst: ${charSizeEstimatedAtLeastOnce}`);
             if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0) {
                  console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Aborting centering.`);
                  gameCanvas.style.setProperty('--pan-x', `0px`); gameCanvas.style.setProperty('--pan-y', `0px`);
                 return; 
             }
-            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) { 
-                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions. Forcing re-estimation.`);
+            if (charRenderWidth <= 0 || charRenderHeight <= 0 || (charRenderHeight * currentZoom) > (containerHeight * 0.8) /*char too tall for container*/ ) { 
+                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable/too large char dimensions (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)} scaledH:${(charRenderHeight*currentZoom).toFixed(2)} vs ContainerH ${containerHeight}). Forcing re-estimation.`);
                 estimateCharacterSize(`centerView_emergency_reestimate_from_${context}`);
-                if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) {
+                if (charRenderWidth <= 0 || charRenderHeight <= 0 || (charRenderHeight * currentZoom) > (containerHeight * 0.8)) {
                     console.error(`[centerViewOnPlayer context: ${context}] Emergency re-estimation FAILED. Using hardcoded default dimensions.`);
                     charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
                 }
@@ -425,7 +425,7 @@
             document.fonts.ready.then(() => {
                 console.log("Fonts ready. Initial data processed.");
                 if (selfPlayer) {
-                    estimateCharacterSize("initial_data_fonts_ready"); 
+                    charSizeEstimatedAtLeastOnce = false; estimateCharacterSize("initial_data_fonts_ready");
                     drawGrid(); updateStatus(); 
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
                         console.log("Container has height post-draw. Ensuring centering & UI setup.");
@@ -467,7 +467,7 @@
                 console.error("Font loading error:", err);
                 logRandomizedEvent('LORE', 'FONT_SORCERY_FAILED', {}, 'event-bad');
                  if (selfPlayer) { 
-                    estimateCharacterSize("fonts_catch_fallback"); 
+                    charSizeEstimatedAtLeastOnce = false; estimateCharacterSize("fonts_catch_fallback"); 
                     drawGrid(); updateStatus(); 
                      setTimeout(() => {
                         if (!initialCenteringDone && gameCanvasContainer.clientHeight > 0) {
@@ -496,31 +496,27 @@
         socket.on('lore_message', (data) => {
             let mainKeyToUse = 'GENERIC';
             let subKeyToUse = (data.type || 'lore').toUpperCase();
-            let placeholdersToUse = { message: data.message || "An unknown lore event occurred." };
+            let placeholdersToUse = { message: data.message || "An unknown lore event occurred." }; // Default placeholder with message
 
             if (data.messageKey) {
                 const keys = data.messageKey.split('.');
-                if (GAME_TEXTS[keys[0]]) { // Check if the main key (e.g., 'LORE') exists
+                if (GAME_TEXTS[keys[0]]) { 
                     mainKeyToUse = keys[0];
                     if (keys.length > 1) {
                         const potentialSubKey = keys.slice(1).join('.');
-                        if (GAME_TEXTS[mainKeyToUse][potentialSubKey]) { // Check if subkey exists
+                        if (GAME_TEXTS[mainKeyToUse] && GAME_TEXTS[mainKeyToUse][potentialSubKey]) {
                             subKeyToUse = potentialSubKey;
-                        } else { // Main key exists, but subkey doesn't. Use main key as subkey for GENERIC.
-                            subKeyToUse = mainKeyToUse.toUpperCase(); // For GENERIC.LORE, GENERIC.SYSTEM etc.
-                            mainKeyToUse = 'GENERIC'; // Fallback to generic category
+                        } else { 
+                            subKeyToUse = mainKeyToUse.toUpperCase(); 
+                            mainKeyToUse = 'GENERIC'; 
                             placeholdersToUse = { message: data.message || `Content for ${data.messageKey} missing.`};
                         }
-                    } else { // Only a main key was provided e.g. "WELCOME_INITIAL"
-                        subKeyToUse = null; // Let getRandomGameText handle if mainKey is array or object
+                    } else { 
+                        subKeyToUse = null; 
                     }
-                    // If specific key found, override placeholders if server sent them
-                    if(data.placeholders) placeholdersToUse = data.placeholders;
-                     // Ensure original message is still available for generic templates
-                    if(data.message && !placeholdersToUse.message) placeholdersToUse.message = data.message;
-
-                } else { // messageKey itself is not a known main category
-                     placeholdersToUse = { message: data.message || `Unknown event: ${data.messageKey}` };
+                    if(data.placeholders) placeholdersToUse = {...placeholdersToUse, ...data.placeholders}; // Merge, server placeholders take precedence
+                } else { 
+                     placeholdersToUse = { message: data.message || `Unknown event key: ${data.messageKey}` };
                 }
             }
             logRandomizedEvent(mainKeyToUse, subKeyToUse, placeholdersToUse, data.type || 'lore');
@@ -548,12 +544,12 @@
             const sceneChanged = selfPlayer.scene_x !== oldSceneX || selfPlayer.scene_y !== oldSceneY;
             const positionChanged = selfPlayer.x !== oldX || selfPlayer.y !== oldY;
             const facingChanged = selfPlayer.char !== oldChar;
-            if (sceneChanged) { /* Server lore_message should handle this by sending a keyed message */ }
+            if (sceneChanged) { /* Server lore_message with specific key handles this */ }
             else if (positionChanged) logRandomizedEvent('PLAYER_MOVE', null, {x: selfPlayer.x, y: selfPlayer.y, direction: getDirectionWord(selfPlayer.char)}, 'lore');
             else if (facingChanged) logRandomizedEvent('PLAYER_TURN', null, {direction: getDirectionWord(selfPlayer.char), x: selfPlayer.x, y: selfPlayer.y}, 'lore');
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
-                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1") > 100 ){
+                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * GAME_ZOOM_FACTOR > 100 ){
                         estimateCharacterSize("game_update_pre_recenter_estimate");
                     }
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0); 
@@ -579,7 +575,6 @@
             const messageType = data.success ? 'system' : 'event-bad';
             let textToLog = getRandomGameText('ACTION_SENT_FEEDBACK', messageKey, placeholders);
             if (textToLog.startsWith("Missing text for:") || textToLog.startsWith("No text variants for:") || textToLog.includes("{message}")) { 
-                // If {message} is still present, it means the specific key didn't have it, or generic was used without message in placeholders
                 if (data.message && data.message.trim() !== "") {
                     textToLog = (data.success ? "Tome nods: " : "Tome objects: ") + data.message;
                 } else {
@@ -609,9 +604,9 @@
             "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
         };
         function parseAction(actionWord) {
-            console.log("[parseAction] Input actionWord:", `'${actionWord}'`); actionWord = actionWord.toLowerCase();
-            for (const canonicalAction in ACTION_ALIASES) if (ACTION_ALIASES[canonicalAction].includes(actionWord)) { console.log("[parseAction] Found canonical:", canonicalAction); return canonicalAction; }
-            console.log("[parseAction] No canonical action found for:", actionWord); return null;
+            actionWord = actionWord.toLowerCase();
+            for (const canonicalAction in ACTION_ALIASES) if (ACTION_ALIASES[canonicalAction].includes(actionWord)) return canonicalAction;
+            return null;
         }
         function parseDirection(directionStr, curFacing) {
             directionStr = directionStr.toLowerCase(); let result = {char: curFacing, dx: 0, dy: 0, isValid: false}; 
@@ -683,6 +678,7 @@
             if(showDebugInfo) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus(); updateWeatherEffects();
         };
+        
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
