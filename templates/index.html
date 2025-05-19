@@ -23,7 +23,6 @@
                     <label>
                         <input type="checkbox" id="debugInfoToggle"> Debug Info
                     </label>
-                    {-- Local Commands Toggle Removed --}
                     <div id="rainIntensityControl">
                         <label>
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
@@ -61,7 +60,6 @@
         const commandInput = document.getElementById('commandText');
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
-        // const localCommandsToggle = document.getElementById('localCommandsToggle'); // REMOVED
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
         const themeToggleButton = document.getElementById('themeToggle');
@@ -227,7 +225,7 @@
             const computedStyle = getComputedStyle(gameCanvas);
             const usesPlaceholderText = !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists");
 
-            if (usesPlaceholderText || computedStyle.fontSize === "0px" || !computedStyle.fontFamily) {
+            if (usesPlaceholderText || computedStyle.fontSize === "0px" || !computedStyle.fontFamily || parseFloat(computedStyle.fontSize) < 5) { // Added check for very small/invalid font size
                 charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
                 charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
                 console.warn(`[estimateCharacterSize context: ${context}] Using PREDEFINED FALLBACK (placeholder or invalid style): W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
@@ -251,11 +249,16 @@
             const fs = parseFloat(computedStyle.fontSize);
             let lhNumeric = parseFloat(computedStyle.lineHeight); 
 
-            if (computedStyle.lineHeight === "normal") measuredHeight = fs * 1.2; 
-            else if (!isNaN(lhNumeric) && computedStyle.lineHeight.includes('px')) measuredHeight = lhNumeric; 
-            else if (!isNaN(lhNumeric)) measuredHeight = fs * lhNumeric;
-            else measuredHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
-            
+            if (computedStyle.lineHeight === "normal") {
+                measuredHeight = fs * 1.2; 
+            } else if (!isNaN(lhNumeric) && computedStyle.lineHeight.includes('px')) {
+                measuredHeight = lhNumeric; 
+            } else if (!isNaN(lhNumeric) && lhNumeric > 0.1) { // Check if lhNumeric is a reasonable multiplier
+                measuredHeight = fs * lhNumeric;
+            } else { // Fallback if lhNumeric is 0, NaN, or too small to be a valid multiplier
+                measuredHeight = fs * DEFAULT_LINE_HEIGHT_MULTIPLIER; 
+                console.warn(`[estimateCharacterSize context: ${context}] Parsed lineHeight '${computedStyle.lineHeight}' was invalid or too small. Using fs * ${DEFAULT_LINE_HEIGHT_MULTIPLIER}.`);
+            }
             document.body.removeChild(tempSpan);
 
             if (measuredWidth > 0 && measuredHeight > 0) {
@@ -275,6 +278,7 @@
                 gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
                 return;
             }
+            // Only apply pan if explicitly set or dragging
             if (targetPanX !== 0 || targetPanY !== 0 || currentPanX !== 0 || currentPanY !== 0 || isDragging) {
                  gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
             }
@@ -383,10 +387,12 @@
                 return; 
             }
             
+            // Ensure char dimensions are sane; if not, try to re-estimate or use hard defaults.
             if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) { 
-                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions. Forcing re-estimation.`);
+                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}). Forcing re-estimation.`);
                 charSizeEstimated = false; 
                 estimateCharacterSize(`centerView_emergency_reestimate_from_${context}`);
+                
                 if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) {
                     console.error(`[centerViewOnPlayer context: ${context}] Emergency re-estimation FAILED. Using hardcoded default dimensions.`);
                     addLogMessage("Tome's script sputters: Visual calibration failed! Using fallback dimensions.", 'event-bad');
@@ -421,19 +427,33 @@
             }
         });
         
+        let initialUIDone = false; // Flag to control one-time UI setups
         const resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
                 if (entry.target === gameCanvasContainer) {
                     const newHeight = entry.contentRect.height;
-                    console.log(`[ResizeObserver] gameCanvasContainer new height: ${newHeight}`);
-                    if (newHeight > 0 && selfPlayer && !initialCenteringDone) {
-                        console.log(`[ResizeObserver] Container has valid height. Attempting initial centering.`);
+                    const newWidth = entry.contentRect.width;
+                    console.log(`[ResizeObserver] gameCanvasContainer new dimensions: W=${newWidth}, H=${newHeight}`);
+                    
+                    if (newHeight > 0 && newWidth > 0 && selfPlayer && !initialCenteringDone) {
+                        console.log(`[ResizeObserver] Container has valid dimensions. Attempting initial setup & centering.`);
+                        
                         if (!charSizeEstimated || charRenderWidth <=0 || charRenderHeight <=0 ) {
                            charSizeEstimated = false; 
                            estimateCharacterSize("ResizeObserver_triggered_estimate");
                         }
                         centerViewOnPlayer("ResizeObserver_initial_center");
                         initialCenteringDone = true; 
+                        
+                        if (!initialUIDone) {
+                            updateStatus(); 
+                            updateWeatherEffects(); 
+                            addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
+                            if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
+                                addLogMessage("Tome notes: A chilling rain falls...", 'system');
+                            }
+                            initialUIDone = true;
+                        }
                     }
                 }
             }
@@ -477,33 +497,52 @@
             debugInfoToggle.checked = showDebugInfo; 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
 
-            // Removed localCommandsToggle related loading
-            // const savedLocalCommands = localStorage.getItem('useLocalCommands');
-            // if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); } else { useLocalCommands = true; } 
-            // localCommandsToggle.checked = useLocalCommands;
-
-
             const savedRainIntensity = localStorage.getItem('rainIntensity');
             if (savedRainIntensity !== null) { globalWeather.intensity = parseFloat(savedRainIntensity); } else { globalWeather.intensity = 0.1; }
             rainIntensitySlider.value = globalWeather.intensity;
 
-
             document.fonts.ready.then(() => {
-                console.log("Fonts ready. Initial UI setup after 'initial_game_data'.");
+                console.log("Fonts ready. Initial data processed. Deferring full UI setup to ResizeObserver or fallback.");
                 if (selfPlayer) {
                     charSizeEstimated = false; estimateCharacterSize("initial_data_fonts_ready");
-                    drawGrid();
-                    updateStatus();
-                    updateWeatherEffects(); 
-                    addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
-                    if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
-                    
+                    drawGrid(); 
+                    updateStatus(); 
+
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
                         console.log("Container has height post-draw in initial_game_data. Ensuring centering.");
-                        centerViewOnPlayer("initial_data_fallback_center");
+                        centerViewOnPlayer("initial_data_direct_center");
                         initialCenteringDone = true;
-                    } else if (gameCanvasContainer.clientHeight <= 0) {
-                        console.warn("Container height still 0 after draw in initial_game_data. ResizeObserver should handle centering.");
+                        if(!initialUIDone){
+                             updateWeatherEffects(); 
+                             addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
+                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
+                             initialUIDone = true;
+                        }
+                    } else if (gameCanvasContainer.clientHeight <= 0 && !initialCenteringDone) {
+                        console.warn("Container height 0 after draw. ResizeObserver should handle centering. Setting fallback timeout.");
+                        setTimeout(() => {
+                            if (!initialCenteringDone && gameCanvasContainer.clientHeight > 0) {
+                                console.log("Fallback timeout: Container has height now. Centering.");
+                                if (!charSizeEstimated) estimateCharacterSize("initial_data_timeout_fallback_estimate");
+                                centerViewOnPlayer("initial_data_timeout_fallback_center");
+                                initialCenteringDone = true;
+                                if (!initialUIDone) { 
+                                    updateWeatherEffects(); 
+                                    addLogMessage(`Tome: You have materialized (fallback). (ID: ${myPlayerID})`, 'welcome-message');
+                                    if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
+                                    initialUIDone = true;
+                                }
+                            } else if (!initialCenteringDone) {
+                                console.error("Container height still 0 after fallback timeout. Centering failed.");
+                                addLogMessage("Tome struggles: The world's perspective is lost! (Centering Error)", 'event-bad');
+                            }
+                        }, 250); 
+                    } else if (initialCenteringDone && !initialUIDone) {
+                        // If ResizeObserver centered but UI updates didn't run
+                        updateWeatherEffects(); 
+                        addLogMessage(`Tome: You have materialized (observer centered). (ID: ${myPlayerID})`, 'welcome-message');
+                        if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
+                        initialUIDone = true;
                     }
                 } else {
                     gameCanvas.textContent = "Error: Player data missing after fonts ready.";
@@ -514,13 +553,16 @@
                 addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
                  if (selfPlayer) { 
                     charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback"); 
-                    drawGrid(); 
-                    updateStatus(); 
-                    if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
-                        centerViewOnPlayer("fonts_catch_centering");
-                        initialCenteringDone = true;
-                    }
-                    updateWeatherEffects();
+                    drawGrid(); updateStatus(); 
+                     setTimeout(() => {
+                        if (!initialCenteringDone && gameCanvasContainer.clientHeight > 0) {
+                           centerViewOnPlayer("fonts_catch_centering");
+                           initialCenteringDone = true;
+                        } else if(!initialCenteringDone) {
+                            console.error("Container height still 0 after font catch. Centering failed.");
+                        }
+                        if (!initialUIDone) { updateWeatherEffects(); initialUIDone = true; }
+                     }, 250);
                     addLogMessage("Attempting to render world despite font issues...", 'system');
                  } else { 
                     gameCanvas.textContent = "Error: Font and Player data error.";
@@ -609,6 +651,12 @@
 
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
+                    // Ensure char dimensions are reliable before recentering after a game update
+                    if(!charSizeEstimated || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50){
+                        console.warn("[game_update] Re-estimating char size before recentering as it seems unreliable.");
+                        charSizeEstimated = false;
+                        estimateCharacterSize("game_update_pre_recenter_estimate");
+                    }
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0);
                 }
             }
@@ -758,9 +806,7 @@
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmitToServer = true; 
-            // const currentUseLocalCommands = false; // Server is authoritative
-
-            // Logic for different actions - no local execution, all prepare for server
+            
             if (canonicalAction === "move") { 
                 const effectiveTargetWord = messageContent || "forward"; 
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
@@ -843,11 +889,6 @@
         showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false;
         debugInfoToggle.checked = showDebugInfo;
         rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-
-        // Removed localCommandsToggle related loading
-        // const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
-        // useLocalCommands = savedLocalCommandsOnLoad !== null ? JSON.parse(savedLocalCommandsOnLoad) : true; 
-        // localCommandsToggle.checked = useLocalCommands;
 
         const savedRainIntensityOnLoad = localStorage.getItem('rainIntensity');
         globalWeather.intensity = savedRainIntensityOnLoad !== null ? parseFloat(savedRainIntensityOnLoad) : 0.1;
