@@ -23,9 +23,7 @@
                     <label>
                         <input type="checkbox" id="debugInfoToggle"> Debug Info
                     </label>
-                    <label>
-                        <input type="checkbox" id="localCommandsToggle" checked> Local Commands
-                    </label>
+                    {-- Local Commands Toggle Removed --}
                     <div id="rainIntensityControl">
                         <label>
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
@@ -63,7 +61,7 @@
         const commandInput = document.getElementById('commandText');
         const tickIndicator = document.getElementById('tickIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
-        const localCommandsToggle = document.getElementById('localCommandsToggle');
+        // const localCommandsToggle = document.getElementById('localCommandsToggle'); // REMOVED
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
         const themeToggleButton = document.getElementById('themeToggle');
@@ -72,7 +70,6 @@
         const SUN_EMOJI = '☀️'; 
 
         let showDebugInfo = false; 
-        let useLocalCommands = true; 
         
         let selfPlayer = null;
         let otherPlayers = {}; 
@@ -101,7 +98,7 @@
         let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
         let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
         let charSizeEstimated = false;
-        let initialCenteringDone = false; // Flag for ResizeObserver
+        let initialCenteringDone = false;
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
@@ -412,10 +409,7 @@
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
             updateStatus(); 
         });
-        localCommandsToggle.addEventListener('change', (event) => {
-            useLocalCommands = event.target.checked;
-            localStorage.setItem('useLocalCommands', JSON.stringify(useLocalCommands));
-        });
+
         rainIntensitySlider.addEventListener('input', (event) => {
             const newIntensity = parseFloat(event.target.value);
             if (globalWeather.intensity !== newIntensity) {
@@ -427,7 +421,6 @@
             }
         });
         
-        // --- ResizeObserver for robust initial centering ---
         const resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
                 if (entry.target === gameCanvasContainer) {
@@ -441,8 +434,6 @@
                         }
                         centerViewOnPlayer("ResizeObserver_initial_center");
                         initialCenteringDone = true; 
-                        // Optional: Can unobserve now if only needed for initial center
-                        // resizeObserver.unobserve(gameCanvasContainer); 
                     }
                 }
             }
@@ -450,8 +441,6 @@
         if (gameCanvasContainer) {
             resizeObserver.observe(gameCanvasContainer);
         }
-        // --- End ResizeObserver ---
-
 
         socket.on('connect', () => {
             console.log("Socket.IO connected successfully! SID (client-side):", socket.id);
@@ -488,9 +477,11 @@
             debugInfoToggle.checked = showDebugInfo; 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
 
-            const savedLocalCommands = localStorage.getItem('useLocalCommands');
-            if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); } else { useLocalCommands = true; } 
-            localCommandsToggle.checked = useLocalCommands;
+            // Removed localCommandsToggle related loading
+            // const savedLocalCommands = localStorage.getItem('useLocalCommands');
+            // if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); } else { useLocalCommands = true; } 
+            // localCommandsToggle.checked = useLocalCommands;
+
 
             const savedRainIntensity = localStorage.getItem('rainIntensity');
             if (savedRainIntensity !== null) { globalWeather.intensity = parseFloat(savedRainIntensity); } else { globalWeather.intensity = 0.1; }
@@ -507,7 +498,6 @@
                     addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
                     if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
                     
-                    // Check if ResizeObserver already centered it or if height is now valid for immediate centering
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
                         console.log("Container has height post-draw in initial_game_data. Ensuring centering.");
                         centerViewOnPlayer("initial_data_fallback_center");
@@ -575,7 +565,11 @@
         
         let tickFlashTimeout = null;
         socket.on('game_update', (data) => {
-            if (!selfPlayer || !myPlayerID) { return; }
+            if (!selfPlayer || !myPlayerID) { 
+                console.warn("Received 'game_update' but selfPlayer/myPlayerID not set. Ignoring.");
+                return; 
+            }
+            console.log("Client received 'game_update'. Self player data from server:", data.self_player_data);
             
             if(tickIndicator) {
                 tickIndicator.classList.add('tick-flash');
@@ -594,24 +588,34 @@
             selfPlayer = data.self_player_data;
             otherPlayers = {}; 
             if(data.visible_other_players && Array.isArray(data.visible_other_players)) {
-                data.visible_other_players.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
+                data.visible_other_players.forEach(p => { 
+                    if (p.id !== myPlayerID) otherPlayers[p.id] = p; 
+                });
             }
+            
             updateStatus(); 
 
             const sceneChanged = selfPlayer.scene_x !== oldSceneX || selfPlayer.scene_y !== oldSceneY;
             const positionChanged = selfPlayer.x !== oldX || selfPlayer.y !== oldY;
             const facingChanged = selfPlayer.char !== oldChar;
 
+            if (sceneChanged) {
+                 addLogMessage(`Tome updates: You have arrived in a new area (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'system');
+            } else if (positionChanged) {
+                addLogMessage(`Tome traces your path: You move to (${selfPlayer.x}, ${selfPlayer.y}), facing ${getDirectionWord(selfPlayer.char)}.`, 'lore');
+            } else if (facingChanged) {
+                 addLogMessage(`Tome observes: You turn to face ${getDirectionWord(selfPlayer.char)}.`, 'lore');
+            }
+
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
-                    // Use ResizeObserver for re-centering on move/turn as well,
-                    // or fall back to a slight delay if not using it actively for this.
-                    // For now, simple timeout.
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0);
                 }
             }
             prevSelfPlayerState = { ...selfPlayer }; 
+            
             drawGrid(); 
+            
             if (!charSizeEstimated && gameCanvas.textContent && !gameCanvas.textContent.startsWith("The mists") && !gameCanvas.textContent.startsWith("Initializing Realm...")) {
                  charSizeEstimated = false;
                  estimateCharacterSize("game_update_reestimate");
@@ -726,7 +730,6 @@
             }
             const inputText = commandInput.textContent.trim();
             commandInput.innerHTML = ''; 
-
             if (!inputText) return;
             
             const parts = inputText.split(/\s+/);
@@ -755,31 +758,10 @@
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmitToServer = true; 
-            const currentUseLocalCommands = false; 
+            // const currentUseLocalCommands = false; // Server is authoritative
 
-            if (currentUseLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
-                shouldEmitToServer = false; 
-                const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char); 
-                console.log(`[Submit - Local] canonicalAction: ${canonicalAction}, effectiveTargetWord: ${effectiveTargetWord}`);
-                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
-                console.log(`[Submit - Local] dirResult:`, dirResult);
-
-                if (dirResult.isValid) {
-                    let newX = selfPlayer.x; let newY = selfPlayer.y;
-                    if (canonicalAction === "move") {
-                        newX += dirResult.dx; newY += dirResult.dy;
-                        newX = Math.max(0, Math.min(GRID_WIDTH - 1, newX));
-                        newY = Math.max(0, Math.min(GRID_HEIGHT - 1, newY));
-                    }
-                    selfPlayer.x = newX; selfPlayer.y = newY; selfPlayer.char = dirResult.char; 
-                    addLogMessage(`Tome (Local): You ${canonicalAction} ${getDirectionWord(dirResult.char)}.`, 'system');
-                    drawGrid();
-                    if (!isDragging) setTimeout(() => centerViewOnPlayer("local_command_submit_centering"), 0);
-                    updateStatus();
-                } else {
-                    addLogMessage(`Tome frowns (Local): Your path to "${effectiveTargetWord}" is unclear.`, 'event-bad');
-                }
-            } else if (canonicalAction === "move") { 
+            // Logic for different actions - no local execution, all prepare for server
+            if (canonicalAction === "move") { 
                 const effectiveTargetWord = messageContent || "forward"; 
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
@@ -862,9 +844,10 @@
         debugInfoToggle.checked = showDebugInfo;
         rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
 
-        const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
-        useLocalCommands = savedLocalCommandsOnLoad !== null ? JSON.parse(savedLocalCommandsOnLoad) : true;
-        localCommandsToggle.checked = useLocalCommands;
+        // Removed localCommandsToggle related loading
+        // const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
+        // useLocalCommands = savedLocalCommandsOnLoad !== null ? JSON.parse(savedLocalCommandsOnLoad) : true; 
+        // localCommandsToggle.checked = useLocalCommands;
 
         const savedRainIntensityOnLoad = localStorage.getItem('rainIntensity');
         globalWeather.intensity = savedRainIntensityOnLoad !== null ? parseFloat(savedRainIntensityOnLoad) : 0.1;
