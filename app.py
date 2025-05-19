@@ -68,131 +68,126 @@ def game_loop():
         loop_start_time = time.time()
         loop_count += 1
         
-        # Make a copy of actions to process for this tick
-        actions_this_tick = dict(queued_actions)
-        queued_actions.clear() # Clear the global queue for the next tick's actions
+        current_process_players = dict(players) # Take a snapshot of players for this tick
+        current_process_actions = dict(queued_actions)
+        queued_actions.clear()
 
-        if loop_count % 10 == 0 or actions_this_tick or len(players) > 0 : # Log periodically or if activity
-            print(f"[{my_pid}] Tick {loop_count}: Processing {len(actions_this_tick)} actions for {len(players)} players.")
+        if not current_process_players:
+            if loop_count % 60 == 0: # Log only occasionally if no players
+                print(f"[{my_pid}] Tick {loop_count}: Game loop running, but 'players' dictionary is currently empty in this process.")
+        else:
+            print(f"[{my_pid}] Tick {loop_count}: Loop start. Players in this process ({len(current_process_players)}): {list(current_process_players.keys())}")
 
         # 1. Process Queued Actions
-        for sid, action_data in actions_this_tick.items():
-            if sid not in players: # Player might have disconnected
+        for sid, action_data in current_process_actions.items():
+            if sid not in current_process_players:
+                print(f"[{my_pid}] Tick {loop_count}: Action for {sid} but player not in current_process_players snapshot.")
                 continue
             
-            player = players[sid] # Get a reference to the player's data
+            player = current_process_players[sid] # Use the snapshot for reading
+            # IMPORTANT: To modify the actual player data, you need to access the global `players` dict
+            # For example: players[sid]['x'] += 1
+            # The `player` variable here is a copy if current_process_players was a deep copy.
+            # If it's a shallow copy (like dict(players)), `player` is a reference to the inner dict, so modifications will reflect.
+            # Let's assume shallow copy behavior for now, which is default for dict().
+
             action_type = action_data.get('type')
             details = action_data.get('details', {})
-            
-            # print(f"[{my_pid}] Tick {loop_count}: Player {player['name']} action: {action_type}")
+            print(f"[{my_pid}] Tick {loop_count}: Player {player['name']} ({sid}) action: {action_type}, Details: {details}")
 
-            # --- Action Logic ---
             if action_type == 'move' or action_type == 'look':
-                original_scene_x, original_scene_y = player['scene_x'], player['scene_y']
-                dx = details.get('dx', 0)
-                dy = details.get('dy', 0)
-                player['char'] = details.get('newChar', player['char'])
-                
+                # ... (rest of action logic - ensure it modifies `players[sid]`, not just the local `player` copy if it were a deep copy) ...
+                # Example:
+                players[sid]['char'] = details.get('newChar', players[sid]['char'])
                 if action_type == 'move':
-                    new_x_local = player['x'] + dx
-                    new_y_local = player['y'] + dy
-                    scene_changed = False
-                    transition_message = ""
-
-                    if new_x_local < 0:
-                        player['scene_x'] -= 1; player['x'] = GRID_WIDTH - 1; scene_changed = True
-                        transition_message = f"Tome scribbles: You emerge on the western edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    elif new_x_local >= GRID_WIDTH:
-                        player['scene_x'] += 1; player['x'] = 0; scene_changed = True
-                        transition_message = f"Tome scribbles: You emerge on the eastern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    else:
-                        player['x'] = new_x_local
-
-                    if new_y_local < 0:
-                        player['scene_y'] -= 1; player['y'] = GRID_HEIGHT - 1; scene_changed = True
-                        if not transition_message: transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    elif new_y_local >= GRID_HEIGHT:
-                        player['scene_y'] += 1; player['y'] = 0; scene_changed = True
-                        if not transition_message: transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({player['scene_x']},{player['scene_y']})."
-                    else:
-                        if not (new_x_local < 0 or new_x_local >= GRID_WIDTH): player['y'] = new_y_local
+                    # ... calculations for new_x_local, new_y_local ...
+                    # Update the main players dictionary
+                    # players[sid]['x'] = new_x_local 
+                    # players[sid]['y'] = new_y_local
+                    # players[sid]['scene_x'] = new_scene_x 
+                    # ... etc. ...
+                    # (Your existing move logic should be fine here as it modifies player directly)
+                    original_scene_x, original_scene_y = players[sid]['scene_x'], players[sid]['scene_y']
+                    dx = details.get('dx', 0)
+                    dy = details.get('dy', 0)
+                    players[sid]['char'] = details.get('newChar', players[sid]['char']) # Update global
                     
-                    if scene_changed:
-                        socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
-                        # Scene change notifications for other players are handled by them seeing player in new scene context
-                # No specific message for 'look' from server, client handles local feedback
+                    if action_type == 'move':
+                        new_x_local = players[sid]['x'] + dx
+                        new_y_local = players[sid]['y'] + dy
+                        scene_changed = False
+                        transition_message = ""
 
-            elif action_type == 'drink_potion':
-                if player['potions'] > 0:
-                    player['potions'] -= 1
-                    player['current_health'] = min(player['max_health'], player['current_health'] + 15)
+                        if new_x_local < 0:
+                            players[sid]['scene_x'] -= 1; players[sid]['x'] = GRID_WIDTH - 1; scene_changed = True
+                            transition_message = f"Tome scribbles: You emerge on the western edge of a new area ({players[sid]['scene_x']},{players[sid]['scene_y']})."
+                        elif new_x_local >= GRID_WIDTH:
+                            players[sid]['scene_x'] += 1; players[sid]['x'] = 0; scene_changed = True
+                            transition_message = f"Tome scribbles: You emerge on the eastern edge of a new area ({players[sid]['scene_x']},{players[sid]['scene_y']})."
+                        else:
+                            players[sid]['x'] = new_x_local
+
+                        if new_y_local < 0:
+                            players[sid]['scene_y'] -= 1; players[sid]['y'] = GRID_HEIGHT - 1; scene_changed = True
+                            if not transition_message: transition_message = f"Tome scribbles: You emerge on the northern edge of a new area ({players[sid]['scene_x']},{players[sid]['scene_y']})."
+                        elif new_y_local >= GRID_HEIGHT:
+                            players[sid]['scene_y'] += 1; players[sid]['y'] = 0; scene_changed = True
+                            if not transition_message: transition_message = f"Tome scribbles: You emerge on the southern edge of a new area ({players[sid]['scene_x']},{players[sid]['scene_y']})."
+                        else:
+                            if not (new_x_local < 0 or new_x_local >= GRID_WIDTH): players[sid]['y'] = new_y_local
+                        
+                        if scene_changed:
+                            socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
+                        print(f"[{my_pid}] Tick {loop_count}: Player {players[sid]['name']} new state after move: {players[sid]}")
+
+            elif action_type == 'drink_potion': # Ensure this modifies players[sid]
+                if players[sid]['potions'] > 0:
+                    players[sid]['potions'] -= 1
+                    players[sid]['current_health'] = min(players[sid]['max_health'], players[sid]['current_health'] + 15)
                     socketio.emit('lore_message', {'message': "Tome notes: You drink a potion, feeling invigorated!", 'type': 'event-good'}, room=sid)
                 else:
                     socketio.emit('lore_message', {'message': "Tome sighs: Your satchel is empty of potions.", 'type': 'event-bad'}, room=sid)
-            
-            elif action_type == 'say':
-                message_text = details.get('message', '')
-                if message_text:
-                    chat_data = { 'sender_id': sid, 'sender_name': player['name'], 'message': message_text, 'type': 'say', 
-                                  'scene_coords': f"({player['scene_x']},{player['scene_y']})" }
-                    for p_sid_target, p_data_target in list(players.items()):
-                        if p_data_target['scene_x'] == player['scene_x'] and p_data_target['scene_y'] == player['scene_y']:
-                            socketio.emit('chat_message', chat_data, room=p_sid_target)
-
-            elif action_type == 'shout':
-                message_text = details.get('message', '')
-                if message_text:
-                    if player['current_mana'] >= SHOUT_MANA_COST:
-                        player['current_mana'] -= SHOUT_MANA_COST
-                        chat_data = { 'sender_id': sid, 'sender_name': player['name'], 'message': message_text, 'type': 'shout', 
-                                      'scene_coords': f"({player['scene_x']},{player['scene_y']})" }
-                        for p_sid_target, p_data_target in list(players.items()):
-                            if abs(p_data_target['scene_x'] - player['scene_x']) <= 1 and \
-                               abs(p_data_target['scene_y'] - player['scene_y']) <= 1: # Current and adjacent scenes
-                                socketio.emit('chat_message', chat_data, room=p_sid_target)
-                        socketio.emit('lore_message', {'message': f"Tome notes: Your voice booms, costing {SHOUT_MANA_COST} mana!", 'type': 'system'}, room=sid)
-                    else:
-                        socketio.emit('lore_message', {'message': f"Tome warns: You lack the mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
-            
-            # players[sid] is already updated as 'player' is a reference to the dict item
+            # ... (other actions, ensure they modify players[sid] if needed) ...
 
         # 2. Broadcast Tailored State Updates
-        if players: # Only if there are players to update
-            all_players_snapshot = list(players.values()) # Use a snapshot for consistent visibility checks
+        if current_process_players: # Check the snapshot taken at the start of the tick
+            updated_all_players_snapshot = list(players.values()) # Get the latest state after actions
 
-            for recipient_sid, recipient_player_data in list(players.items()): # Iterate copy
-                if recipient_sid not in players: continue # Player might have disconnected during this tick
+            num_updates_sent = 0
+            for recipient_sid, _ in current_process_players.items(): # Iterate based on who was present at tick start
+                if recipient_sid not in players: # Player might have disconnected during action processing
+                    print(f"[{my_pid}] Tick {loop_count}: Player {recipient_sid} disconnected before game_update could be sent.")
+                    continue
 
+                recipient_player_data_for_visibility_check = players[recipient_sid] # Use current data for visibility
                 visible_other_players_list = []
-                for other_player in all_players_snapshot:
-                    if other_player['id'] == recipient_sid: # Don't send self as "other"
+                for other_player_data in updated_all_players_snapshot:
+                    if other_player_data['id'] == recipient_sid: 
                         continue
-                    if is_visible_server(recipient_player_data, other_player):
+                    if is_visible_server(recipient_player_data_for_visibility_check, other_player_data):
                         visible_other_players_list.append({
-                            'id': other_player['id'], 'name': other_player['name'],
-                            'x': other_player['x'], 'y': other_player['y'], 'char': other_player['char'],
-                            'scene_x': other_player['scene_x'], 'scene_y': other_player['scene_y']
+                            'id': other_player_data['id'], 'name': other_player_data['name'],
+                            'x': other_player_data['x'], 'y': other_player_data['y'], 'char': other_player_data['char'],
+                            'scene_x': other_player_data['scene_x'], 'scene_y': other_player_data['scene_y']
                         })
                 
-                # Ensure the recipient_player_data is the most up-to-date version
-                # (it would have been updated in the action processing phase if they acted)
                 payload_for_client = {
-                    'self_player_data': players[recipient_sid], # Send the current state of the recipient
+                    'self_player_data': players[recipient_sid], # Send the LATEST state of the recipient
                     'visible_other_players': visible_other_players_list,
-                    # Future: current_scene_details, items_on_ground_in_view, etc.
                 }
+                # print(f"[{my_pid}] Tick {loop_count}: Preparing to send game_update to {recipient_sid}. Self: {payload_for_client['self_player_data']['x']},{payload_for_client['self_player_data']['y']}. Others: {len(visible_other_players_list)}")
                 socketio.emit('game_update', payload_for_client, room=recipient_sid)
+                num_updates_sent += 1
             
-            if loop_count % 5 == 0 : # Log less frequently
-                 print(f"[{my_pid}] Tick {loop_count}: Sent 'game_update' to {len(players)} connected players.")
-
-        # Maintain tick rate
+            if num_updates_sent > 0 : 
+                 print(f"[{my_pid}] Tick {loop_count}: Sent 'game_update' to {num_updates_sent} players.")
+        
         elapsed_time = time.time() - loop_start_time
         sleep_duration = GAME_TICK_RATE - elapsed_time
         if sleep_duration > 0:
             socketio.sleep(sleep_duration)
-        elif sleep_duration < -0.1: 
-            print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.3f}s. Budget was {GAME_TICK_RATE}s. Over by {abs(sleep_duration):.3f}s. !!!")
+        elif sleep_duration < -0.05: # Allow small overrun
+            print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s. Budget was {GAME_TICK_RATE}s. Over by {abs(sleep_duration):.4f}s. !!!")
 
 # --- Socket.IO Event Handlers ---
 @socketio.on('connect')
