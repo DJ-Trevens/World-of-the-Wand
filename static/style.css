@@ -26,11 +26,14 @@
     --command-button-border-dark: #4A5568; 
     --raindrop-base-dark: 160, 174, 192; 
 
+    --canvas-bg-dark-mode: #FFFFFF; 
     --text-game-floor-dark: #5A616A; 
-    --text-game-wall-dark:  #A0AEC0; 
-    --text-game-fog-dark:   #3a4150; 
-    --text-game-self-dark:  #68D391; 
-    --text-game-other-dark: #F6E05E; 
+    --text-game-wall-dark:  #3c3c3c; 
+    --text-game-water-dark: #60a5fa; 
+    --text-game-fog-dark:   #D1D5DB; 
+    --text-game-self-dark:  #10B981; 
+    --text-game-other-dark: #F59E0B; 
+    --text-game-wet-tint-dark: rgba(59, 130, 246, 0.3);
 
 
     /* --- Light Theme --- */
@@ -56,11 +59,15 @@
     --command-button-border-light: #A0AEC0; 
     --raindrop-base-light: 100, 116, 139; 
 
-    --text-game-floor-light: #B8C2CC; 
-    --text-game-wall-light:  #4A5568; 
-    --text-game-fog-light:   #CBD5E0; 
-    --text-game-self-light:  #2F855A; 
-    --text-game-other-light: #D69E2E; 
+    --canvas-bg-light-mode: #1f2937; 
+    --text-game-floor-light: #9CA3AF; 
+    --text-game-wall-light:  #E5E7EB; 
+    --text-game-water-light: #3b82f6; 
+    --text-game-fog-light:   #4B5563; 
+    --text-game-self-light:  #34D399; 
+    --text-game-other-light: #FBBF24; 
+    --text-game-wet-tint-light: rgba(37, 99, 235, 0.3);
+
 
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
@@ -85,11 +92,14 @@
     --command-button-border: var(--command-button-border-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
 
+    --canvas-bg: var(--canvas-bg-dark-mode); 
     --text-game-floor: var(--text-game-floor-dark);
     --text-game-wall: var(--text-game-wall-dark);
+    --text-game-water: var(--text-game-water-dark);
     --text-game-fog: var(--text-game-fog-dark);
     --text-game-self: var(--text-game-self-dark);
     --text-game-other: var(--text-game-other-dark);
+    --text-game-wet-tint: var(--text-game-wet-tint-dark);
 }
 
 body.light-theme {
@@ -111,11 +121,14 @@ body.light-theme {
     --command-button-border: var(--command-button-border-light);
     --raindrop-base-rgb: var(--raindrop-base-light);
 
+    --canvas-bg: var(--canvas-bg-light-mode);
     --text-game-floor: var(--text-game-floor-light);
     --text-game-wall: var(--text-game-wall-light);
+    --text-game-water: var(--text-game-water-light);
     --text-game-fog: var(--text-game-fog-light);
     --text-game-self: var(--text-game-self-light);
     --text-game-other: var(--text-game-other-light);
+    --text-game-wet-tint: var(--text-game-wet-tint-light);
 }
 
 html { height: 100%; overflow: hidden; }
@@ -156,7 +169,15 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 #rainIntensityControl { display: none; }
 #debugMenu input[type="range"] { width: 60px; height: 10px; margin-left: 4px; }
 #mainHeaderStatus { color: var(--text-primary); padding: 10px 0; text-align: center; font-size: 0.95em; line-height: 1.4; flex-grow: 1; transition: color 0.3s ease; }
-#gameCanvasContainer { position: relative; flex-grow: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; background-color: var(--bg-primary); border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color); cursor: grab; padding: 0; transition: background-color 0.3s ease, border-color 0.3s ease; }
+#gameCanvasContainer { 
+    position: relative; flex-grow: 1; min-height: 150px; 
+    display: flex; align-items: center; justify-content: center; 
+    background-color: var(--canvas-bg); 
+    border-radius: 6px; overflow: hidden; 
+    border: 1px solid var(--border-color); 
+    cursor: grab; padding: 0; 
+    transition: background-color 0.3s ease, border-color 0.3s ease; 
+}
 #gameCanvasContainer:active { cursor: grabbing; }
 
 #gameCanvas {

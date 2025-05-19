@@ -128,6 +128,21 @@ const GAME_TEXTS = {
         DESTROY_SUCCESS: [
             "Tome exclaims: The wall crumbles to dust! You reclaim its essence. ({walls} wall items, {manaCost} mana spent)",
             "With a surge of power, the barrier is unmade. ({walls} items, {manaCost} mana)"
+        ],
+        BECAME_WET_WATER: [
+            "Tome ripples: You step into the water, a chilling splash against your robes!",
+            "A shiver runs down your spine as you tread through the water.",
+            "The water soaks your boots and hem."
+        ],
+        BECAME_WET_RAIN: [
+            "Tome dampens: The persistent rain has soaked you to the bone.",
+            "You feel the cold seep in as the rain continues its downpour.",
+            "Drenched by the rain, you long for shelter."
+        ],
+        BECAME_DRY: [
+            "Tome feels lighter: You finally feel dry again.",
+            "The moisture evaporates from your robes, a welcome relief.",
+            "Warmth returns as the dampness leaves you."
         ]
     },
     GENERIC: { 
