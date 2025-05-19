@@ -14,22 +14,15 @@
 </head>
 <body> 
     <div class="main-ui-container">
-        <div class="left-panel">
+        <div class="left-panel"> {/* This is the Journal */}
             <div id="commandLog"></div>
-            <div id="commandInputBox">
-                <form id="commandForm">
-                    <label for="commandText">
-                        <span id="wizardHeartIndicator"></span> Inscribe Your Will:
-                    </label>
-                    <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
-                    <button type="submit">Enact</button>
-                </form>
-            </div>
+            {/* Input box is now in the right panel */}
         </div>
 
         <div class="right-panel">
             <div id="mainHeaderStatusContainer">
                 <div id="mainHeaderStatus">World of the Wand</div>
+                {/* Debug Info Toggle moved to the new debug panel section */}
             </div>
 
             <div id="gameCanvasContainer">
@@ -37,14 +30,18 @@
                 <div id="rainOverlay"></div>
             </div>
             
-            <div id="bottomRightPanel" class="info-panel">
+            {/* This entire panel will be toggled by the "Debug Info" checkbox */}
+            <div id="debugAndAuxiliaryPanel" class="info-panel" style="display:none;"> 
+                <div class="debug-master-toggle">
+                     <label>
+                        <input type="checkbox" id="debugInfoToggle"> Show Debug Panel
+                    </label>
+                </div>
+                <hr class="debug-hr">
                 <div class="debug-panel-container"> 
                     <div class="debug-info-side">
-                        <label class="debug-control-item standalone-checkbox">
-                            <input type="checkbox" id="debugInfoToggle"> Debug Info
-                        </label>
-                        <div id="clientDebugInfo" style="display:none;">
-                            <h4>Debug Stats:</h4> {/* Title Changed */}
+                        <h4>Debug Stats:</h4> 
+                        <div id="clientDebugInfo"> {/* This div is always part of debug-info-side */}
                             <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
                             <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
                             <div>NPCs: <span id="dbgNpcsCount">0</span></div>
@@ -63,7 +60,7 @@
                                 Rain: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                             </label>
                         </div>
-                        <div id="simulateHeartbeatControl" class="debug-control-item" style="display: none;">
+                        <div id="simulateHeartbeatControl" class="debug-control-item">
                              <label>
                                 <input type="checkbox" id="simulateHeartbeatToggle"> Simulate Client Heartbeat 
                             </label>
@@ -73,6 +70,18 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Input box moved here, to the bottom of the right panel */}
+            <div id="commandInputBox">
+                <form id="commandForm">
+                    <label for="commandText">
+                        {/* Wizard's Heart for server updates will be displayed in the debug panel now */}
+                         Inscribe Your Will:
+                    </label>
+                    <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
+                    <button type="submit">Enact</button>
+                </form>
             </div>
         </div>
     </div>
@@ -86,16 +95,20 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
-        const wizardHeartIndicator = document.getElementById('wizardHeartIndicator'); 
-        const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator'); // New ID for clarity
+        
+        // Heartbeat indicators are now within the debug panel, but JS still needs to find them
+        const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator'); 
         const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
+        
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
         const themeToggleButton = document.getElementById('themeToggle');
         const simulateHeartbeatToggle = document.getElementById('simulateHeartbeatToggle'); 
         const simulateHeartbeatControl = document.getElementById('simulateHeartbeatControl'); 
-        const clientDebugInfo = document.getElementById('clientDebugInfo');
+        const clientDebugInfo = document.getElementById('clientDebugInfo'); // This is the sub-div for stats
+        const debugAndAuxiliaryPanel = document.getElementById('debugAndAuxiliaryPanel'); // The main toggleable panel
+
         const dbgSelfPlayer = document.getElementById('dbgSelfPlayer');
         const dbgOtherPlayersCount = document.getElementById('dbgOtherPlayersCount');
         const dbgNpcsCount = document.getElementById('dbgNpcsCount');
@@ -105,7 +118,7 @@
         const MOON_EMOJI = '🌙'; 
         const SUN_EMOJI = '☀️'; 
 
-        let showDebugInfo = true; 
+        let showDebugInfoState = true; // Keep track of the state for the whole panel
         let selfPlayer = null;
         let otherPlayers = {}; 
         let visibleNPCs = [];
@@ -148,9 +161,8 @@
 
         let simulateServerHeartbeatEnabled = false; 
         let simulatedHeartbeatInterval = null;     
-        let serverHeartbeatFlashTimeout = null; // Renamed
+        let serverHeartbeatFlashTimeout = null; 
         let simulatedHeartbeatFlashTimeout = null; 
-
 
         function updateGameZoomCSS() {
             document.documentElement.style.setProperty('--game-zoom', currentGameZoomFactor);
@@ -249,23 +261,24 @@
             } else if (selfPlayer) {
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
                 let baseStatus = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana`;
-                if (showDebugInfo) { 
+                if (showDebugInfoState) { // Use the state variable
                      baseStatus += `/${selfPlayer.max_mana}`;
                 }
                 baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
                 
-                if (showDebugInfo) {
+                // The Scene/Char info is only shown if the main debug panel is visible
+                if (showDebugInfoState) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; 
-                     baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | ${baseStatus}`;
+                    mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | ${baseStatus}`;
+                } else {
+                    mainHeaderStatus.textContent = baseStatus;
                 }
-                mainHeaderStatus.textContent = baseStatus;
             } else {
                 mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
             }
         }
         
         function estimateCharacterSize(context = "unknown") { 
-            console.log(`[estimateCharacterSize context: ${context}] Start. charSizeEstimatedAtLeastOnce: ${charSizeEstimatedAtLeastOnce}`);
             const testChar = 'M'; 
             const computedStyle = getComputedStyle(document.documentElement);
             const fontFamily = computedStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
@@ -289,16 +302,11 @@
             } else {
                 charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
                 charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
-                console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions. Reverting to PREDEFINED FALLBACK.`);
             }
-            console.log(`[estimateCharacterSize context: ${context}] Char size (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)} based on '${testChar}' (X-stretch applied)`);
             
             if (GRID_WIDTH > 0 && GRID_HEIGHT > 0 && charRenderWidth > 0 && charRenderHeight > 0) {
                 gameCanvas.width = GRID_WIDTH * charRenderWidth;
                 gameCanvas.height = GRID_HEIGHT * charRenderHeight;
-                console.log(`[estimateCharacterSize context: ${context}] Canvas element ATTR resized to: ${gameCanvas.width}x${gameCanvas.height}px`);
-            } else {
-                console.warn(`[estimateCharacterSize context: ${context}] Could not resize canvas, invalid grid/char dimensions.`);
             }
             charSizeEstimatedAtLeastOnce = true; 
         }
@@ -321,7 +329,6 @@
                 ctx.fillText("The mists obscure your vision...", canvasWidth / 2, canvasHeight / 2 - 10);
                 ctx.fillText("(Awaiting server data or font readiness)", canvasWidth / 2, canvasHeight / 2 + 10);
                 if (!charSizeEstimatedAtLeastOnce) { 
-                    console.warn("[drawGrid] charSize not estimated, attempting now.");
                     estimateCharacterSize("drawGrid_fallback_estimate");
                 }
                 return;
@@ -549,12 +556,16 @@
         });
 
         debugInfoToggle.addEventListener('change', (event) => { 
-            showDebugInfo = event.target.checked;
-            localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
-            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-            simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
-            clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none'; 
-            if (!showDebugInfo) { 
+            showDebugInfoState = event.target.checked; // Use the state variable
+            localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfoState)); 
+            
+            // Toggle visibility of the entire debug panel and its specific controls
+            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'flex' : 'none'; // Use flex if it's a flex container
+            rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none'; // These are inside, their visibility depends on parent
+            simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
+            clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none'; 
+
+            if (!showDebugInfoState) { 
                 simulateHeartbeatToggle.checked = false;
                 simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
             }
@@ -583,7 +594,7 @@
                         simulatedHeartbeatFlashTimeout = setTimeout(() => { if(simulatedHeartbeatIndicator) simulatedHeartbeatIndicator.classList.remove('heartbeat-flash'); }, 150);
                     }
                     if (selfPlayer) { drawGrid(); }
-                    if(showDebugInfo && dbgSimulating) {
+                    if(showDebugInfoState && dbgSimulating) {
                         dbgSimulating.textContent = `${simulateServerHeartbeatEnabled} (Last: ${new Date().toLocaleTimeString()})`;
                     }
                 }, GAME_HEARTBEAT_RATE * 1000); 
@@ -607,7 +618,7 @@
                         if (!initialUIDone) {
                             updateStatus(); updateWeatherEffects(); 
                              logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-                             if(showDebugInfo) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
+                             if(showDebugInfoState) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
                             initialUIDone = true;
                         }
@@ -658,16 +669,18 @@
             prevSelfPlayerState = { ...selfPlayer };
             
             const savedDebugInfo = localStorage.getItem('showDebugInfo'); 
-            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : true; 
-            debugInfoToggle.checked = showDebugInfo; 
-            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-            simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
-            clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none';
+            showDebugInfoState = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : true; 
+            debugInfoToggle.checked = showDebugInfoState; 
+            
+            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'flex' : 'none';
+            rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none'; // These are inside debugAndAuxiliaryPanel now
+            simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
+            clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none';
             
             const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
-            if (showDebugInfo && savedSimulateHeartbeat !== null) { 
+            if (showDebugInfoState && savedSimulateHeartbeat !== null) { 
                 simulateHeartbeatToggle.checked = JSON.parse(savedSimulateHeartbeat);
-            } else if (showDebugInfo) { 
+            } else if (showDebugInfoState) { 
                  simulateHeartbeatToggle.checked = false; 
             }
             simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
@@ -690,7 +703,7 @@
                         if(!initialUIDone){
                              updateWeatherEffects(); 
                              logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-                             if(showDebugInfo) {
+                             if(showDebugInfoState) {
                                 logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                              }
                              if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
@@ -704,13 +717,13 @@
                                 if (!charSizeEstimatedAtLeastOnce) estimateCharacterSize("initial_data_timeout_fallback_estimate");
                                 centerViewOnPlayer("initial_data_timeout_fallback_center");
                                 initialCenteringDone = true;
-                                if (!initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message'); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
+                                if (!initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message'); if(showDebugInfoState){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
                             } else if (!initialCenteringDone) { console.error("CLIENT: Container height still 0 after fallback timeout. Centering failed."); logRandomizedEvent('LORE', 'CENTERING_ERROR', {}, 'event-bad'); }
                         }, 300); 
                     } else if (initialCenteringDone && !initialUIDone) {
                          updateWeatherEffects(); 
                          logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-                         if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} 
+                         if(showDebugInfoState){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} 
                          if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); 
                          initialUIDone = true;
                          console.log("CLIENT: Initial centering was done, setting up remaining UI.");
@@ -794,7 +807,7 @@
             }
             if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
 
-            if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) { // Use serverHeartbeatIndicator
+            if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) { 
                 serverHeartbeatIndicator.classList.add('heartbeat-flash'); 
                 if(serverHeartbeatFlashTimeout) clearTimeout(serverHeartbeatFlashTimeout); 
                 serverHeartbeatFlashTimeout = setTimeout(() => { if(serverHeartbeatIndicator) serverHeartbeatIndicator.classList.remove('heartbeat-flash'); }, 150); 
@@ -810,7 +823,7 @@
             visibleNPCs = data.visible_npcs || []; 
 
             updateStatus(); 
-            if(showDebugInfo && dbgSelfPlayer) { 
+            if(showDebugInfoState && dbgSelfPlayer) { 
                 dbgSelfPlayer.textContent = `(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.char} Wet: ${selfPlayer.is_wet}`;
                 dbgOtherPlayersCount.textContent = Object.keys(otherPlayers).length;
                 dbgNpcsCount.textContent = visibleNPCs.length;
@@ -961,7 +974,7 @@
                             for(const npc of visibleNPCs) {
                                 if (isVisible(selfPlayer.x, selfPlayer.y, charToUseForVisibilityCheck, npc.x, npc.y)) {
                                     if(npc.char === PIXIE_CHAR_CLIENT) { 
-                                         logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: showDebugInfo ? npc.name : "a Mana Pixie"}, 'sensory-sight');
+                                         logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: showDebugInfoState ? npc.name : "a Mana Pixie"}, 'sensory-sight');
                                          foundSomethingVisible = true;
                                     }
                                 }
@@ -1026,30 +1039,32 @@
         window.toggleRainDebug = function() { 
             const wasRaining = globalWeather.isRaining; globalWeather.isRaining = !globalWeather.isRaining;
              if (currentSceneData.InsideID === 0) { 
-                if (globalWeather.isRaining && !wasRaining) { if(showDebugInfo) addLogMessage("Tome shivers (DEBUG): The skies open...", "system"); }
-                else if (!globalWeather.isRaining && wasRaining) { if(showDebugInfo) addLogMessage("Tome brightens (DEBUG): The rain subsides...", "system"); }
+                if (globalWeather.isRaining && !wasRaining) { if(showDebugInfoState) addLogMessage("Tome shivers (DEBUG): The skies open...", "system"); }
+                else if (!globalWeather.isRaining && wasRaining) { if(showDebugInfoState) addLogMessage("Tome brightens (DEBUG): The rain subsides...", "system"); }
             } updateWeatherEffects();
         };
         window.toggleInsideDebug = function() { 
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
             currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld (Debug)" : "A Cozy Hut (Debug)"; 
-            if(showDebugInfo) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
+            if(showDebugInfoState) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus(); updateWeatherEffects();
         };
         
         // Initial setup
         initializeTheme(); 
+        updateGameZoomCSS(); // Apply initial zoom to CSS
         estimateCharacterSize("initial_page_load"); 
         
-        debugInfoToggle.checked = showDebugInfo; // Set based on default 'showDebugInfo = true'
-        rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-        simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
-        clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none';
+        debugInfoToggle.checked = showDebugInfoState; 
+        debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'flex' : 'none'; // Use flex if using flex for layout
+        rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none';
+        simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
+        clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none';
         
         const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
-        if (showDebugInfo && savedSimulateHeartbeat !== null) { 
+        if (showDebugInfoState && savedSimulateHeartbeat !== null) { 
             simulateHeartbeatToggle.checked = JSON.parse(savedSimulateHeartbeat);
-        } else if (showDebugInfo) { 
+        } else if (showDebugInfoState) { 
              simulateHeartbeatToggle.checked = false; 
         }
         simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
