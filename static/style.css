@@ -1,56 +1,61 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --game-zoom: 1.4; /* This is a CSS variable, JS will update it */
+    --game-zoom: 1.4; 
 
     /* --- UI Dark Theme (for elements OUTSIDE canvas) --- */
     --bg-primary-dark: #1E1F22;   
     --bg-secondary-dark: #2C2F33; 
-    --bg-tome-dark: #F0E6D2; /* Aged Parchment */    
-    --bg-tome-cover-dark: #4A3B32; /* Dark Leather */
+    --bg-tome-dark: #F0E6D2;    
+    --bg-tome-cover-dark: #4A3B32; 
     
-    --text-tome-ink-dark: #3A2A1A; /* Dark Sepia Ink */  
-    --text-tome-mana-dark: #8B5CF6; /* Vibrant Purple */   
-    --glow-tome-mana-dark: #A78BFA; /* Lighter Purple Glow */   
+    --text-tome-ink-dark: #3A2A1A;  
+    --text-tome-mana-dark: #8B5CF6;   
+    --glow-tome-mana-dark: #A78BFA;   
     
-    --text-primary-dark: #D1D5DB; /* Light Gray */
+    --text-primary-dark: #D1D5DB; 
     --border-color-dark: #40434B;     
     
     --highlight-blue-dark: var(--glow-tome-mana-dark);
-    --highlight-green-dark: #34D399;  /* Emerald Green */
-    --highlight-red-dark: #F87171;    /* Soft Red */
+    --highlight-green-dark: #34D399;  
+    --highlight-red-dark: #F87171;    
 
-    --tick-inactive-dark: #4B5563; 
-    --tick-shadow-dark: #111827;  
+    --tick-inactive-dark: #4B5563; /* Renamed to --heart-inactive-dark */
+    --tick-shadow-dark: #111827;  /* Renamed to --heart-shadow-dark */
+    --heart-inactive-dark: #4B5563;
+    --heart-shadow-dark: #111827;
+
     --command-text-focus-bg-dark: #374151; 
     --command-button-border-dark: #4B5563; 
-    --raindrop-base-dark: 156, 163, 175; /* Grey raindrop */
+    --raindrop-base-dark: 156, 163, 175; 
 
     /* --- UI Light Theme (for elements OUTSIDE canvas) --- */
-    --bg-primary-light: #FBF5E9;   /* Light Parchment/Cream */
+    --bg-primary-light: #FBF5E9;   
     --bg-secondary-light: #FFFFFF; 
-    --bg-tome-light: #FFF9EF;      /* Very Light Parchment */
-    --bg-tome-cover-light: #A0522D; /* Sienna Brown Leather */
+    --bg-tome-light: #FFF9EF;      
+    --bg-tome-cover-light: #A0522D; 
     
-    --text-tome-ink-light: #5D4037; /* Dark Brown Ink */       
-    --text-tome-mana-light: #7C3AED; /* Deep Purple */   
-    --glow-tome-mana-light: #9333EA; /* Brighter Deep Purple Glow */   
+    --text-tome-ink-light: #5D4037;       
+    --text-tome-mana-light: #7C3AED;   
+    --glow-tome-mana-light: #9333EA;   
     
-    --text-primary-light: #374151; /* Dark Slate Gray */
-    --border-color-light: #D1C7AC; /* Desaturated Brown/Beige */     
+    --text-primary-light: #374151; 
+    --border-color-light: #D1C7AC;     
     
     --highlight-blue-light: var(--glow-tome-mana-light);
-    --highlight-green-light: #10B981;  /* Brighter Emerald */
-    --highlight-red-light: #EF4444;    /* Clearer Red */
+    --highlight-green-light: #10B981;  
+    --highlight-red-light: #EF4444;    
 
-    --tick-inactive-light: #9CA3AF;
-    --tick-shadow-light: #E5E7EB;   
+    --tick-inactive-light: #9CA3AF; /* Renamed to --heart-inactive-light */
+    --tick-shadow-light: #E5E7EB;   /* Renamed to --heart-shadow-light */
+    --heart-inactive-light: #9CA3AF;
+    --heart-shadow-light: #E5E7EB;
+
     --command-text-focus-bg-light: #E5E7EB; 
     --command-button-border-light: #9CA3AF; 
-    --raindrop-base-light: 107, 114, 128; /* Darker grey raindrop for light bg */
+    --raindrop-base-light: 107, 114, 128; 
 
     /* --- CONSISTENT Canvas Grid Colors (Dark Background, Light Chars) --- */
-    /* Used by JS for canvas drawing, regardless of body theme */
     --canvas-bg-consistent: #202225; 
     --text-game-floor-consistent: #4F545C; 
     --text-game-wall-consistent:  #7289DA; 
@@ -58,7 +63,7 @@
     --text-game-fog-consistent:   #2C2F33; 
     --text-game-self-consistent:  #FEE75C; 
     --text-game-other-consistent: #7FFFD4; 
-    --text-game-npc-pixie-consistent: #DB2777; /* Distinct Pink/Magenta for Pixies */
+    --text-game-npc-pixie-consistent: #DB2777; 
     --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25); 
 
 
@@ -79,13 +84,12 @@
     --highlight-blue: var(--highlight-blue-dark);
     --highlight-green: var(--highlight-green-dark);
     --highlight-red: var(--highlight-red-dark);
-    --tick-inactive: var(--tick-inactive-dark);
-    --tick-shadow: var(--tick-shadow-dark);
+    --heart-inactive: var(--heart-inactive-dark); /* Renamed */
+    --heart-shadow: var(--heart-shadow-dark);     /* Renamed */
     --command-text-focus-bg: var(--command-text-focus-bg-dark);
     --command-button-border: var(--command-button-border-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
 
-    /* Canvas container will use the consistent dark background */
     --canvas-bg: var(--canvas-bg-consistent); 
 }
 
@@ -103,8 +107,8 @@ body.light-theme {
     --highlight-blue: var(--highlight-blue-light);
     --highlight-green: var(--highlight-green-light);
     --highlight-red: var(--highlight-red-light);
-    --tick-inactive: var(--tick-inactive-light);
-    --tick-shadow: var(--tick-shadow-light);
+    --heart-inactive: var(--heart-inactive-light); /* Renamed */
+    --heart-shadow: var(--heart-shadow-light);     /* Renamed */
     --command-text-focus-bg: var(--command-text-focus-bg-light);
     --command-button-border: var(--command-button-border-light);
     --raindrop-base-rgb: var(--raindrop-base-light);
@@ -122,18 +126,43 @@ body {
 }
 body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
 .main-ui-container { display: flex; flex-grow: 1; width: 100%; height: 100%; padding: 15px; box-sizing: border-box; gap: 15px; position: relative; }
-.left-panel, .right-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; box-sizing: border-box; background-color: var(--bg-secondary); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: background-color 0.3s ease; }
-.left-panel { flex-basis: 40%; flex-shrink: 1; min-width: 300px; padding: 12px; background-color: var(--bg-tome-cover); border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 70%, black); border-radius: 10px 4px 4px 10px; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
 
+.left-panel { 
+    display: flex; /* Added */
+    flex-direction: column; /* Added */
+    flex-basis: 40%; flex-shrink: 1; min-width: 300px; 
+    /* padding: 12px; No padding here, commandLog and inputBox will handle it */
+    background-color: var(--bg-tome-cover); 
+    border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 70%, black); 
+    border-radius: 10px 4px 4px 10px; position: relative; 
+    transition: background-color 0.3s ease, border-color 0.3s ease; 
+    overflow: hidden; /* Ensure children don't overflow rounded corners */
+}
 .left-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 15px; background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05)); border-radius: 10px 0 0 10px; }
 
 .right-panel { 
     flex-basis: 60%; flex-shrink: 1; min-width: 350px; 
-    gap: 10px; /* Reduced gap slightly */
-    padding: 10px; /* Reduced padding slightly */
+    /* gap: 10px; Let children define margins if needed */
+    padding: 10px; 
     display: flex; flex-direction: column; 
+    background-color: var(--bg-secondary); 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+    transition: background-color 0.3s ease;
 }
-#commandLog { background-color: var(--bg-tome); font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; padding: 25px 30px 25px 20px; border-radius: 3px 6px 6px 3px; overflow-y: auto; flex-grow: 1; border: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black); box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); position: relative; scrollbar-width: none; -ms-overflow-style: none;  transition: background-color 0.3s ease, border-color 0.3s ease; }
+#commandLog { 
+    background-color: var(--bg-tome); 
+    font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; 
+    padding: 20px 30px 20px 20px; /* Adjusted padding slightly */
+    border-radius: 3px 0 0 0; /* Top-left, top-right (if no ::before), bottom-right, bottom-left */
+    overflow-y: auto; 
+    flex-grow: 1; /* Takes up available space above input box */
+    border: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black); 
+    border-bottom: none; /* No bottom border as input box is below */
+    box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); 
+    position: relative; scrollbar-width: none; -ms-overflow-style: none;  
+    transition: background-color 0.3s ease, border-color 0.3s ease; 
+}
 
 #commandLog::-webkit-scrollbar { display: none; }
 .log-entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed color-mix(in srgb, var(--text-tome-ink) 30%, transparent); word-wrap: break-word; white-space: pre-wrap; }
@@ -150,7 +179,6 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .log-type-lore {} .log-type-system { font-style: italic; } .log-type-event-good {} .log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input { opacity: 0.85; color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); font-weight: 400; }
 .log-type-chat-say {} .log-type-chat-shout { font-weight: bold; } .log-type-welcome-message {}
-/* Sensory log message styling */
 .log-type-sensory-sight { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-blue) 20%); }
 .log-type-sensory-sound { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%); }
 .log-type-sensory-smell { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-red) 20%);}
@@ -160,21 +188,21 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 #debugMenu { display: flex; flex-direction: column; align-items: flex-start; padding: 5px 0; color: var(--text-primary); flex-shrink: 0; margin-right: 10px; transition: color 0.3s ease; }
 #debugMenu label { margin: 1px 0; font-size: 0.75em; cursor: pointer; display: flex; align-items: center; white-space: nowrap; }
 #debugMenu input[type="checkbox"], #themeToggle { margin-right: 4px; vertical-align: middle; transform: scale(0.9); }
-#rainIntensityControl, #simulateTickControl { display: none; margin-top: 2px; } /* Grouped for initial hiding */
+#rainIntensityControl, #simulateHeartbeatControl { display: none; margin-top: 2px; } 
 #debugMenu input[type="range"] { width: 60px; height: 10px; margin-left: 4px; }
 #mainHeaderStatus { color: var(--text-primary); padding: 10px 0; text-align: center; font-size: 0.9em; line-height: 1.3; flex-grow: 1; transition: color 0.3s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 
-/* #gameCanvasContainer now takes up more space as commandInputBox is at bottom of .right-panel */
 #gameCanvasContainer { 
     position: relative; 
-    flex-grow: 1; /* Allows it to take available space */
-    min-height: 200px; /* Ensure it has some minimum height */
+    flex-grow: 1; 
+    min-height: 200px; 
     display: flex; align-items: center; justify-content: center; 
     background-color: var(--canvas-bg); 
     border-radius: 6px; overflow: hidden; 
     border: 1px solid var(--border-color); 
     cursor: grab; padding: 0; 
     transition: background-color 0.3s ease, border-color 0.3s ease; 
+    margin-bottom: 10px; /* Space between canvas and bottom panel */
 }
 #gameCanvasContainer:active { cursor: grabbing; }
 
@@ -188,40 +216,50 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
-/* #commandInputBox styling: it's now at the bottom of .right-panel */
+/* Input box now in left panel */
 #commandInputBox { 
-    padding: 10px; 
-    background-color: transparent; /* Or var(--bg-secondary) if preferred */
-    border-radius: 6px; 
-    flex-shrink: 0; /* Prevent it from shrinking */
-    border-top: 1px solid var(--border-color); 
-    transition: border-color 0.3s ease; 
-    margin-top: 10px; /* Add some space above it if .right-panel has gap:0 */
+    padding: 10px 15px 10px 20px; /* Match commandLog padding more closely */
+    background-color: var(--bg-tome); 
+    border-top: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black);
+    border-radius: 0 0 0 3px; /* Bottom-left, bottom-right radius */
+    flex-shrink: 0; 
 }
 #commandForm { display: flex; align-items: center; width: 100%; }
-#tickIndicator { 
-    width: 14px; /* Or your preferred size */
-    height: 14px; /* Or your preferred size */
-    background-color: var(--tick-inactive); 
+#wizardHeartIndicator { /* Renamed from tickIndicator */
+    width: 12px; 
+    height: 12px; 
+    background-color: var(--heart-inactive); 
     border-radius: 50%; 
-    margin-right: 12px; 
-    display: inline-block; /* Important */
-    vertical-align: middle; /* Aligns it nicely with text */
+    margin-right: 10px; 
+    display: inline-block; 
+    vertical-align: middle; 
     transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
-    box-shadow: 0 0 3px var(--tick-shadow); 
+    box-shadow: 0 0 3px var(--heart-shadow); 
 }
-#tickIndicator.tick-flash { background-color: var(--highlight-green); box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); }
-#commandForm label { color: var(--text-primary); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
-#commandText { background-color: var(--border-color); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 12px; border-radius: 4px; font-size: 1em; flex-grow: 1; font-family: var(--font-game); transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
+#wizardHeartIndicator.heartbeat-flash { /* Renamed class */
+    background-color: var(--highlight-red); /* Red for heart */
+    box-shadow: 0 0 8px var(--highlight-red), 0 0 12px var(--highlight-red); 
+}
+#commandForm label { color: var(--text-tome-ink); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
+#commandText { 
+    background-color: color-mix(in srgb, var(--bg-tome) 90%, #000000 10%); 
+    color: var(--text-tome-ink); 
+    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent); 
+    padding: 8px 10px; 
+    border-radius: 3px; 
+    font-size: 1em; flex-grow: 1; font-family: var(--font-game); 
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; 
+}
 #commandText:focus { 
-    outline: none; border-color: var(--highlight-blue); 
-    background-color: var(--command-text-focus-bg); 
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent);
+    outline: none; border-color: var(--text-tome-mana); 
+    background-color: var(--bg-tome); 
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-tome-mana) 40%, transparent);
 }
 #commandForm button { 
-    background-color: var(--border-color); color: var(--text-primary);
-    border: 1px solid var(--command-button-border); 
-    padding: 10px 20px; margin-left: 10px; cursor: pointer; border-radius: 4px;
+    background-color: color-mix(in srgb, var(--bg-tome-cover) 80%, white 20%); 
+    color: var(--bg-tome);
+    border: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, black); 
+    padding: 8px 15px; margin-left: 10px; cursor: pointer; border-radius: 3px;
     font-weight: 500; font-family: var(--font-ui); text-transform: uppercase;
     letter-spacing: 0.5px; font-size: 0.9em;
     transition: background-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
@@ -237,16 +275,45 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     transform: translateY(1px);
     background-color: color-mix(in srgb, var(--text-tome-mana) 80%, black); 
 }
+
+/* New Bottom Right Panel */
+#bottomRightPanel {
+    flex-shrink: 0; /* Prevent shrinking */
+    /* height: 120px; /* Example fixed height, or use flex-basis/min-height */
+    min-height: 80px; /* Minimum space */
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    color: var(--text-primary);
+}
+#clientDebugInfo {
+    font-size: 0.8em;
+    line-height: 1.4;
+}
+#clientDebugInfo div {
+    margin-bottom: 2px;
+}
+
+
 @media (max-width: 800px) { 
     .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } 
-    .left-panel, .right-panel { flex-basis: auto; width: 100%; min-width: unset; padding: 10px; } 
-    .left-panel { max-height: 35vh; padding: 5px; } 
-    #commandLog { padding: 15px; } 
-    .right-panel { flex-grow: 1; } 
+    .left-panel { 
+        flex-basis: auto; /* Allow height to adjust */
+        width: 100%; 
+        min-width: unset; 
+        /* max-height: 45vh; /* Increased max height slightly */
+        /* padding: 0; Combined commandLog and inputBox will have padding */
+    } 
+    #commandLog { padding: 15px; flex-grow:1; /* Allow log to take most space */ }
+    #commandInputBox { padding: 8px 15px; flex-shrink: 0; /* Ensure input doesn't shrink away */}
+
+    .right-panel { flex-grow: 1; width:100%;} 
     #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: flex-start; } 
     #debugMenu { order: -1; margin-right: auto; } 
     #mainHeaderStatus { font-size: 0.9em; text-align: right; } 
-    #commandInputBox { margin-top: 5px; padding: 8px;}
+    #bottomRightPanel { min-height: 60px; }
 }
 #themeToggle { padding: 3px 6px; font-size: 1.2em; line-height: 1; cursor: pointer; border: 1px solid var(--border-color); background-color: var(--bg-secondary); color: var(--text-primary); border-radius: 3px; margin-top: 4px; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
 #themeToggle:hover { background-color: var(--border-color); }

@@ -16,6 +16,15 @@
     <div class="main-ui-container">
         <div class="left-panel">
             <div id="commandLog"></div>
+            <div id="commandInputBox">
+                <form id="commandForm">
+                    <label for="commandText">
+                        <span id="wizardHeartIndicator"></span> Inscribe Thy Will:
+                    </label>
+                    <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
+                    <button type="submit">Enact</button>
+                </form>
+            </div>
         </div>
 
         <div class="right-panel">
@@ -29,10 +38,9 @@
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
                     </div>
-                    <!-- New Debug Checkbox -->
-                    <div id="simulateTickControl" style="display: none;">
+                    <div id="simulateHeartbeatControl" style="display: none;">
                          <label>
-                            <input type="checkbox" id="simulateTickToggle"> Simulate Server Tick
+                            <input type="checkbox" id="simulateHeartbeatToggle"> Simulate Server Heartbeat
                         </label>
                     </div>
                     <button id="themeToggle" title="Switch to Light Mode">☀️</button>
@@ -45,14 +53,16 @@
                 <div id="rainOverlay"></div>
             </div>
             
-            <div id="commandInputBox">
-                <form id="commandForm">
-                    <label for="commandText">
-                        <span id="tickIndicator"></span>Inscribe Thy Will:
-                    </label>
-                    <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
-                    <button type="submit">Enact</button>
-                </form>
+            <div id="bottomRightPanel" class="info-panel">
+                <!-- Client-side debug info will go here -->
+                <div id="clientDebugInfo" style="display:none; font-size: 0.8em; padding: 5px;">
+                    <h4>Client Debug:</h4>
+                    <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
+                    <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
+                    <div>NPCs: <span id="dbgNpcsCount">0</span></div>
+                    <div>Last Update: <span id="dbgLastUpdate">Never</span></div>
+                    <div>Simulating Heartbeat: <span id="dbgSimulating">false</span></div>
+                </div>
             </div>
         </div>
     </div>
@@ -66,13 +76,20 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
-        const tickIndicator = document.getElementById('tickIndicator');
+        const wizardHeartIndicator = document.getElementById('wizardHeartIndicator'); 
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
         const themeToggleButton = document.getElementById('themeToggle');
-        const simulateTickToggle = document.getElementById('simulateTickToggle'); // New
-        const simulateTickControl = document.getElementById('simulateTickControl'); // New
+        const simulateHeartbeatToggle = document.getElementById('simulateHeartbeatToggle'); 
+        const simulateHeartbeatControl = document.getElementById('simulateHeartbeatControl'); 
+        const clientDebugInfo = document.getElementById('clientDebugInfo');
+        const dbgSelfPlayer = document.getElementById('dbgSelfPlayer');
+        const dbgOtherPlayersCount = document.getElementById('dbgOtherPlayersCount');
+        const dbgNpcsCount = document.getElementById('dbgNpcsCount');
+        const dbgLastUpdate = document.getElementById('dbgLastUpdate');
+        const dbgSimulating = document.getElementById('dbgSimulating');
+
 
         const MOON_EMOJI = '🌙'; 
         const SUN_EMOJI = '☀️'; 
@@ -85,7 +102,7 @@
         let myPlayerID = null; 
         let GRID_WIDTH = 20; 
         let GRID_HEIGHT = 15;
-        let GAME_TICK_RATE = 0.75;
+        let GAME_HEARTBEAT_RATE = 0.75; 
         let prevSelfPlayerState = null;
         let currentSceneData = { InsideID: 0, name: "The Whispering Plains" }; 
         let globalWeather = { isRaining: true, intensity: 0.25 }; 
@@ -118,8 +135,10 @@
         const MAX_ZOOM = 3.0;
         const ZOOM_INCREMENT = 0.1;
 
-        let simulateServerTickEnabled = false; // New
-        let simulatedTickInterval = null;     // New
+        let simulateServerHeartbeatEnabled = false; 
+        let simulatedHeartbeatInterval = null;     
+        let heartbeatFlashTimeout = null; 
+
 
         function updateGameZoomCSS() {
             document.documentElement.style.setProperty('--game-zoom', currentGameZoomFactor);
@@ -519,17 +538,15 @@
             }
         });
 
-
         debugInfoToggle.addEventListener('change', (event) => { 
             showDebugInfo = event.target.checked;
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-            simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Show/hide simulate tick
-            if (!showDebugInfo) { // If debug info is turned off, also turn off simulation
-                simulateTickToggle.checked = false;
-                simulateServerTickEnabled = false;
-                if (simulatedTickInterval) clearInterval(simulatedTickInterval);
-                simulatedTickInterval = null;
+            simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
+            clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none'; 
+            if (!showDebugInfo) { 
+                simulateHeartbeatToggle.checked = false;
+                simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
             }
             updateStatus(); 
         });
@@ -542,24 +559,28 @@
             }
         });
 
-        simulateTickToggle.addEventListener('change', (event) => {
-            simulateServerTickEnabled = event.target.checked;
-            if (simulateServerTickEnabled) {
-                if (simulatedTickInterval) clearInterval(simulatedTickInterval); // Clear any old one
-                simulatedTickInterval = setInterval(() => {
-                    if (tickIndicator) {
-                        tickIndicator.classList.add('tick-flash');
-                        if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
-                        tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150);
+        simulateHeartbeatToggle.addEventListener('change', (event) => { 
+            simulateServerHeartbeatEnabled = event.target.checked; 
+            localStorage.setItem('simulateServerHeartbeat', simulateServerHeartbeatEnabled); 
+            if(dbgSimulating) dbgSimulating.textContent = simulateServerHeartbeatEnabled;
+
+            if (simulateServerHeartbeatEnabled) {
+                if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval); 
+                simulatedHeartbeatInterval = setInterval(() => {
+                    if (wizardHeartIndicator) { 
+                        wizardHeartIndicator.classList.add('heartbeat-flash'); 
+                        if(heartbeatFlashTimeout) clearTimeout(heartbeatFlashTimeout);
+                        heartbeatFlashTimeout = setTimeout(() => { if(wizardHeartIndicator) wizardHeartIndicator.classList.remove('heartbeat-flash'); }, 150);
                     }
-                    if (selfPlayer) { // Only draw if player data exists
-                        drawGrid();
-                        // updateStatus(); // updateStatus is called by game_update, less critical for purely visual tick
+                    if (selfPlayer) { drawGrid(); }
+                     // Optionally update other client-side debug info here too
+                    if(showDebugInfo && dbgSimulating) {
+                        dbgSimulating.textContent = `${simulateServerHeartbeatEnabled} (Last: ${new Date().toLocaleTimeString()})`;
                     }
-                }, GAME_TICK_RATE * 1000);
+                }, GAME_HEARTBEAT_RATE * 1000); 
             } else {
-                if (simulatedTickInterval) clearInterval(simulatedTickInterval);
-                simulatedTickInterval = null;
+                if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval);
+                simulatedHeartbeatInterval = null;
             }
         });
 
@@ -570,7 +591,6 @@
                     const newHeight = entry.contentRect.height; const newWidth = entry.contentRect.width;
                     console.log(`[ResizeObserver] gameCanvasContainer new dimensions: W=${newWidth}, H=${newHeight}`);
                     if (newHeight > 0 && newWidth > 0 && selfPlayer && !initialCenteringDone) {
-                        console.log(`[ResizeObserver] Container has valid dimensions. Attempting initial setup & centering.`);
                         if (!charSizeEstimatedAtLeastOnce || charRenderWidth <=0 || charRenderHeight <=0 ) {
                            estimateCharacterSize("ResizeObserver_triggered_estimate");
                         }
@@ -583,7 +603,6 @@
                             initialUIDone = true;
                         }
                     } else if (newHeight > 0 && newWidth > 0 && selfPlayer && initialCenteringDone && !isDragging) {
-                        console.log("[ResizeObserver] Window/container resized. Re-centering player.");
                         centerViewOnPlayer("ResizeObserver_recenter");
                     }
                 }
@@ -608,7 +627,9 @@
                 drawGrid(); return;
             }
             selfPlayer = data.player_data; myPlayerID = selfPlayer.id; 
-            GRID_WIDTH = data.grid_width; GRID_HEIGHT = data.grid_height; GAME_TICK_RATE = data.tick_rate;
+            GRID_WIDTH = data.grid_width; GRID_HEIGHT = data.grid_height; 
+            GAME_HEARTBEAT_RATE = data.tick_rate || 0.75; 
+            
             otherPlayers = {}; 
             visibleTerrain = { walls: [], water: [] }; 
             visibleNPCs = data.visible_npcs || []; 
@@ -621,7 +642,14 @@
             showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; 
             debugInfoToggle.checked = showDebugInfo; 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-            simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Show/hide on load based on debug info
+            simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
+            clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none';
+            
+            const savedSimulateTick = localStorage.getItem('simulateServerHeartbeat'); 
+            if (showDebugInfo && savedSimulateTick !== null) { 
+                simulateHeartbeatToggle.checked = JSON.parse(savedSimulateTick);
+                simulateHeartbeatToggle.dispatchEvent(new Event('change')); // Trigger change to start interval if needed
+            }
             
             if (!charSizeEstimatedAtLeastOnce) { 
                 estimateCharacterSize("initial_data_pre_font_ready");
@@ -637,6 +665,7 @@
                         initialCenteringDone = true;
                         if(!initialUIDone){
                              updateWeatherEffects(); 
+                             logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
                              if(showDebugInfo) {
                                 logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                              }
@@ -650,10 +679,10 @@
                                 if (!charSizeEstimatedAtLeastOnce) estimateCharacterSize("initial_data_timeout_fallback_estimate");
                                 centerViewOnPlayer("initial_data_timeout_fallback_center");
                                 initialCenteringDone = true;
-                                if (!initialUIDone) { updateWeatherEffects(); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
+                                if (!initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message'); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
                             } else if (!initialCenteringDone) { console.error("Container height still 0 after fallback timeout. Centering failed."); logRandomizedEvent('LORE', 'CENTERING_ERROR', {}, 'event-bad'); }
                         }, 300); 
-                    } else if (initialCenteringDone && !initialUIDone) { updateWeatherEffects(); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
+                    } else if (initialCenteringDone && !initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message'); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
                 } else { logRandomizedEvent('LORE', 'MANIFESTATION_FAILED_NO_PLAYER_DATA', {}, 'event-bad'); }
             }).catch(err => { 
                 console.error("Font loading error:", err);
@@ -723,14 +752,19 @@
             }
         });
         
-        let tickFlashTimeout = null;
         socket.on('game_update', (data) => { 
-             if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
-             // Only flash if not simulating, to avoid double flashing
-            if(tickIndicator && !simulateServerTickEnabled) {
-                tickIndicator.classList.add('tick-flash'); 
-                if(tickFlashTimeout) clearTimeout(tickFlashTimeout); 
-                tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); 
+             if (!selfPlayer || !myPlayerID || !data.self_player_data) { 
+                console.warn("game_update received without selfPlayer or data.self_player_data");
+                return; 
+            }
+            // console.log("Client received 'game_update'. Self player data from server:", data.self_player_data.x, data.self_player_data.y); 
+            if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
+
+
+            if(wizardHeartIndicator && !simulateServerHeartbeatEnabled) { 
+                wizardHeartIndicator.classList.add('heartbeat-flash'); 
+                if(heartbeatFlashTimeout) clearTimeout(heartbeatFlashTimeout); 
+                heartbeatFlashTimeout = setTimeout(() => { if(wizardHeartIndicator) wizardHeartIndicator.classList.remove('heartbeat-flash'); }, 150); 
             }
             
             const oldSceneX = selfPlayer.scene_x; const oldSceneY = selfPlayer.scene_y;
@@ -743,6 +777,11 @@
             visibleNPCs = data.visible_npcs || []; 
 
             updateStatus(); 
+            if(showDebugInfo && dbgSelfPlayer) { 
+                dbgSelfPlayer.textContent = `(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.char} Wet: ${selfPlayer.is_wet}`;
+                dbgOtherPlayersCount.textContent = Object.keys(otherPlayers).length;
+                dbgNpcsCount.textContent = visibleNPCs.length;
+            }
             
             const sceneChanged = selfPlayer.scene_x !== oldSceneX || selfPlayer.scene_y !== oldSceneY;
             const positionChanged = selfPlayer.x !== oldX || selfPlayer.y !== oldY;
@@ -873,25 +912,21 @@
                 if (dR.isValid) commandToSend.details = { dx: dR.dx, dy: dR.dy, newChar: dR.char };
                 else { addLogMessage(`Tome frowns: Cannot move towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
             } else if (canonicalAction === "look") {
-                const lookDirectionStr = messageContent || get_direction_str_from_dx_dy(...get_dx_dy_from_direction_str(selfPlayer.char)); // Default to current facing
+                const lookDirectionStr = messageContent || get_direction_str_from_dx_dy(...get_dx_dy_from_direction_str(selfPlayer.char)); 
                 const dR = parseDirection(lookDirectionStr, selfPlayer.char);
 
                 if (dR.isValid) {
-                    // If just "look" with no args, or looking in current direction, don't send to server.
-                    // Only send if they specified a NEW direction to look.
                     const currentFacingDxDy = get_dx_dy_from_direction_str(selfPlayer.char);
-                    if (messageContent && (dR.dx !== currentFacingDxDy[0] || dR.dy !== currentFacingDxDy[1])) {
+                    if (messageContent && (dR.char !== selfPlayer.char) ) { 
                         commandToSend.details = { dx: 0, dy: 0, newChar: dR.char };
-                    } else { // Client-side only look
+                    } else { 
                         shouldEmitToServer = false; 
-                        // Log what is seen client-side immediately for "look" in current direction
-                        // or if server isn't being interacted with for this specific look.
                         let foundSomethingVisible = false;
-                        const facingCharForLook = messageContent ? dR.char : selfPlayer.char;
+                        const charToUseForVisibilityCheck = selfPlayer.char; // Always current facing for client-only "look"
 
                         if (visibleNPCs) {
                             for(const npc of visibleNPCs) {
-                                if (isVisible(selfPlayer.x, selfPlayer.y, facingCharForLook, npc.x, npc.y)) {
+                                if (isVisible(selfPlayer.x, selfPlayer.y, charToUseForVisibilityCheck, npc.x, npc.y)) {
                                     if(npc.char === PIXIE_CHAR_CLIENT) { 
                                          logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: showDebugInfo ? npc.name : "a Mana Pixie"}, 'sensory-sight');
                                          foundSomethingVisible = true;
@@ -901,25 +936,24 @@
                         }
                         for(const id in otherPlayers) {
                             const otherP = otherPlayers[id];
-                             if (isVisible(selfPlayer.x, selfPlayer.y, facingCharForLook, otherP.x, otherP.y)) {
+                             if (isVisible(selfPlayer.x, selfPlayer.y, charToUseForVisibilityCheck, otherP.x, otherP.y)) {
                                 logRandomizedEvent('LORE', 'PLAYER_ARRIVES', {playerName: otherP.name}, 'system'); 
                                 foundSomethingVisible = true;
                             }
                         }
                         if (!foundSomethingVisible) {
-                            if (messageContent) { 
-                                logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
-                            } else { 
-                                logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
-                            }
+                            logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
                         }
+                        // Server will still send non-visual sensory cues if "look" command was sent and processed, even if player didn't change facing
+                        // If we want to trigger server-side sensory for a client-only look, we'd still need to emit something minimal.
+                        // For now, client-only look only describes visually what's already known to client.
                     }
                 } else { 
                     addLogMessage(`Tome squints: Cannot look towards "${lookDirectionStr}".`, 'event-bad'); 
                     shouldEmitToServer = false; 
                 }
             } else if (canonicalAction === "help") { 
-                 addLogMessage("Tome patiently explains:\nMOVE: 'move [direction]' (n,s,e,w,fwd,back)\nLOOK: 'look [direction]'\nBUILD: 'build [direction]' or 'build' (in front)\nDESTROY: 'destroy [direction]' or 'destroy' (in front)\nCAST: 'cast [spell] [direction]'\nDRINK: 'drink potion'\nSAY: 'say [message]' or '[message]\nSHOUT: 'shout [message]' or ![message]", 'system'); 
+                 addLogMessage("Tome patiently explains:\nMOVE [direction]\nLOOK [direction]\nBUILD [direction]\nDESTROY [direction]\nCAST [spell] [target?]\nDRINK potion\nSAY [message] or '[message]\nSHOUT [message] or ![message]", 'system'); 
                  shouldEmitToServer = false; 
             }
             else if (canonicalAction === "build") {
@@ -982,18 +1016,13 @@
         showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; 
         debugInfoToggle.checked = showDebugInfo; 
         rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-        simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Initial state based on debugInfo
+        simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
+        clientDebugInfo.style.display = showDebugInfo ? 'block' : 'none';
         
-        const savedSimulateTick = localStorage.getItem('simulateServerTick');
-        if (showDebugInfo && savedSimulateTick !== null) { // Only load if debug info is also on
-            simulateTickToggle.checked = JSON.parse(savedSimulateTick);
-            simulateServerTickEnabled = simulateTickToggle.checked;
-            if (simulateServerTickEnabled && !simulatedTickInterval) {
-                 simulatedTickInterval = setInterval(() => {
-                    if (tickIndicator) { tickIndicator.classList.add('tick-flash'); if(tickFlashTimeout) clearTimeout(tickFlashTimeout); tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); }
-                    if (selfPlayer) { drawGrid(); }
-                }, GAME_TICK_RATE * 1000);
-            }
+        const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
+        if (showDebugInfo && savedSimulateHeartbeat !== null) { 
+            simulateHeartbeatToggle.checked = JSON.parse(savedSimulateHeartbeat);
+            simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
         }
 
 
