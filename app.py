@@ -602,44 +602,47 @@ def game_loop():
             
             # Section 6: Sleep
             print(f"[{my_pid}] Tick {loop_count}: Preparing for sleep. loop_start_time = {loop_start_time}")
-            elapsed_time = -1.0 # Initialize to an obviously wrong value
-            sleep_duration = -1.0 # Initialize
+            elapsed_time = -1.0 
+            sleep_duration = -1.0 
 
             try:
                 current_time_before_elapsed = time.time()
-                print(f"[{my_pid}] Tick {loop_count}: Current time before elapsed calc: {current_time_before_elapsed}")
+                # print(f"[{my_pid}] Tick {loop_count}: Current time before elapsed calc: {current_time_before_elapsed}")
                 elapsed_time = current_time_before_elapsed - loop_start_time
-                print(f"[{my_pid}] Tick {loop_count}: Calculated elapsed_time: {elapsed_time:.4f}s")
+                # print(f"[{my_pid}] Tick {loop_count}: Calculated elapsed_time: {elapsed_time:.4f}s")
                 
                 sleep_duration = GAME_TICK_RATE - elapsed_time
                 print(f"[{my_pid}] Tick {loop_count}: Calculated sleep_duration: {sleep_duration:.4f}s")
 
                 if sleep_duration > 0: 
-                    print(f"[{my_pid}] Tick {loop_count}: Attempting to sio.sleep({sleep_duration:.4f}s)")
-                    sio.sleep(sleep_duration)
-                    print(f"[{my_pid}] Tick {loop_count}: Successfully returned from sio.sleep()")
-                elif sleep_duration < -0.1: 
-                    print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Tick {loop_count} took {elapsed_time:.4f}s.")
-                else:
-                    print(f"[{my_pid}] Tick {loop_count}: Sleep duration is not positive ({sleep_duration:.4f}s), skipping sio.sleep().")
+                    print(f"[{my_pid}] Tick {loop_count}: >>> Attempting to sio.sleep({sleep_duration:.4f}s)")
+                    try:
+                        sio.sleep(sleep_duration) # This is eventlet.sleep.greenlet.sleep()
+                        print(f"[{my_pid}] Tick {loop_count}: <<< Successfully returned from sio.sleep()")
+                    except Exception as e_sio_sleep:
+                        print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION DURING sio.sleep itself: {e_sio_sleep} !!!!!!")
+                        traceback.print_exc()
+                        # If sleep fails, as a fallback, do a small, standard time.sleep to prevent a tight busy loop
+                        # This might impact eventlet's performance if it happens often, but helps debug if sio.sleep is the issue
+                        print(f"[{my_pid}] Tick {loop_count}: FALLBACK: Attempting time.sleep({max(0.001, sleep_duration)})")
+                        time.sleep(max(0.001, sleep_duration)) # ensure positive, non-zero sleep
+                        print(f"[{my_pid}] Tick {loop_count}: FALLBACK: Returned from time.sleep()")
+
+                elif sleep_duration < -0.1: # Allow for minor overrun without spamming logs
+                    print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Tick {loop_count} took {elapsed_time:.4f}s. No sleep.")
+                else: # sleep_duration is between -0.1 and 0.0
+                    print(f"[{my_pid}] Tick {loop_count}: Sleep duration is very small or zero ({sleep_duration:.4f}s), minimal/no sleep.")
+                    sio.sleep(0.001) # Still yield control very briefly
 
             except TypeError as e_sleep_type:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic: {e_sleep_type} !!!!!!")
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic (outside sio.sleep call): {e_sleep_type} !!!!!!")
                 print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}")
                 traceback.print_exc()
             except Exception as e_sleep_generic:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic: {e_sleep_generic} !!!!!!")
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic (outside sio.sleep call): {e_sleep_generic} !!!!!!")
                 traceback.print_exc()
 
-            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n")
-
-    except Exception as e_loop_main: 
-        print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
-        game_manager.loop_is_actually_running_flag = False # Clear flag on fatal error
-        traceback.print_exc()
-    finally:
-        game_manager.loop_is_actually_running_flag = False # Ensure flag is cleared if loop exits for any reason
-        print(f"!!!!!!!! [{my_pid}] GAME LOOP THREAD EXITED UNEXPECTEDLY !!!!!!!!!")
+            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Ensure this prints
 
 # --- SocketIO Event Handlers ---
 @sio.on('connect')
