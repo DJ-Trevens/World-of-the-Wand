@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --game-zoom: 1.4;
+    --game-zoom: 1.4; /* This is a CSS variable, JS will update it */
 
     /* --- UI Dark Theme (for elements OUTSIDE canvas) --- */
     --bg-primary-dark: #1E1F22;   
@@ -51,14 +51,15 @@
 
     /* --- CONSISTENT Canvas Grid Colors (Dark Background, Light Chars) --- */
     /* Used by JS for canvas drawing, regardless of body theme */
-    --canvas-bg-consistent: #202225; /* Very Dark Desaturated Indigo/Charcoal */
-    --text-game-floor-consistent: #4F545C; /* Darker, subtle grey for floor dots */
-    --text-game-wall-consistent:  #7289DA; /* Magical Stone Purple/Blue */
-    --text-game-water-consistent: #4DD0E1; /* Tealish Blue */
-    --text-game-fog-consistent:   #2C2F33; /* Slightly Lighter Dark Grey for fog chars */
-    --text-game-self-consistent:  #FEE75C; /* Golden Yellow */
-    --text-game-other-consistent: #7FFFD4; /* Aquamarine/Teal */
-    --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25); /* Subtle Tealish tint */
+    --canvas-bg-consistent: #202225; 
+    --text-game-floor-consistent: #4F545C; 
+    --text-game-wall-consistent:  #7289DA; 
+    --text-game-water-consistent: #4DD0E1; 
+    --text-game-fog-consistent:   #2C2F33; 
+    --text-game-self-consistent:  #FEE75C; 
+    --text-game-other-consistent: #7FFFD4; 
+    --text-game-npc-pixie-consistent: #DB2777; /* Distinct Pink/Magenta for Pixies */
+    --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25); 
 
 
     --font-tome: 'EB Garamond', serif;
@@ -125,7 +126,13 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .left-panel { flex-basis: 40%; flex-shrink: 1; min-width: 300px; padding: 12px; background-color: var(--bg-tome-cover); border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 70%, black); border-radius: 10px 4px 4px 10px; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
 
 .left-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 15px; background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05)); border-radius: 10px 0 0 10px; }
-.right-panel { flex-basis: 60%; flex-shrink: 1; min-width: 350px; gap: 15px; padding: 15px; display: flex; flex-direction: column; }
+
+.right-panel { 
+    flex-basis: 60%; flex-shrink: 1; min-width: 350px; 
+    gap: 10px; /* Reduced gap slightly */
+    padding: 10px; /* Reduced padding slightly */
+    display: flex; flex-direction: column; 
+}
 #commandLog { background-color: var(--bg-tome); font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; padding: 25px 30px 25px 20px; border-radius: 3px 6px 6px 3px; overflow-y: auto; flex-grow: 1; border: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black); box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); position: relative; scrollbar-width: none; -ms-overflow-style: none;  transition: background-color 0.3s ease, border-color 0.3s ease; }
 
 #commandLog::-webkit-scrollbar { display: none; }
@@ -143,15 +150,25 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .log-type-lore {} .log-type-system { font-style: italic; } .log-type-event-good {} .log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input { opacity: 0.85; color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); font-weight: 400; }
 .log-type-chat-say {} .log-type-chat-shout { font-weight: bold; } .log-type-welcome-message {}
+/* Sensory log message styling */
+.log-type-sensory-sight { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-blue) 20%); }
+.log-type-sensory-sound { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%); }
+.log-type-sensory-smell { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-red) 20%);}
+
+
 #mainHeaderStatusContainer { display: flex; align-items: center; gap: 10px; background-color: rgba(0,0,0,0.25); border-radius: 6px; padding: 0 10px; flex-shrink: 0; border-bottom: 1px solid var(--border-color); transition: border-color 0.3s ease; }
 #debugMenu { display: flex; flex-direction: column; align-items: flex-start; padding: 5px 0; color: var(--text-primary); flex-shrink: 0; margin-right: 10px; transition: color 0.3s ease; }
 #debugMenu label { margin: 1px 0; font-size: 0.75em; cursor: pointer; display: flex; align-items: center; white-space: nowrap; }
 #debugMenu input[type="checkbox"], #themeToggle { margin-right: 4px; vertical-align: middle; transform: scale(0.9); }
-#rainIntensityControl { display: none; }
+#rainIntensityControl, #simulateTickControl { display: none; margin-top: 2px; } /* Grouped for initial hiding */
 #debugMenu input[type="range"] { width: 60px; height: 10px; margin-left: 4px; }
-#mainHeaderStatus { color: var(--text-primary); padding: 10px 0; text-align: center; font-size: 0.95em; line-height: 1.4; flex-grow: 1; transition: color 0.3s ease; }
+#mainHeaderStatus { color: var(--text-primary); padding: 10px 0; text-align: center; font-size: 0.9em; line-height: 1.3; flex-grow: 1; transition: color 0.3s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+
+/* #gameCanvasContainer now takes up more space as commandInputBox is at bottom of .right-panel */
 #gameCanvasContainer { 
-    position: relative; flex-grow: 1; min-height: 150px; 
+    position: relative; 
+    flex-grow: 1; /* Allows it to take available space */
+    min-height: 200px; /* Ensure it has some minimum height */
     display: flex; align-items: center; justify-content: center; 
     background-color: var(--canvas-bg); 
     border-radius: 6px; overflow: hidden; 
@@ -170,7 +187,17 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 #rainOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 2; }
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
-#commandInputBox { padding: 15px; background-color: transparent; border-radius: 6px; flex-shrink: 0; border-top: 1px solid var(--border-color); transition: border-color 0.3s ease; }
+
+/* #commandInputBox styling: it's now at the bottom of .right-panel */
+#commandInputBox { 
+    padding: 10px; 
+    background-color: transparent; /* Or var(--bg-secondary) if preferred */
+    border-radius: 6px; 
+    flex-shrink: 0; /* Prevent it from shrinking */
+    border-top: 1px solid var(--border-color); 
+    transition: border-color 0.3s ease; 
+    margin-top: 10px; /* Add some space above it if .right-panel has gap:0 */
+}
 #commandForm { display: flex; align-items: center; width: 100%; }
 #tickIndicator { width: 14px; height: 14px; background-color: var(--tick-inactive); border-radius: 50%; margin-right: 12px; display: inline-block; transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; box-shadow: 0 0 3px var(--tick-shadow); }
 #tickIndicator.tick-flash { background-color: var(--highlight-green); box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); }
@@ -200,6 +227,16 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     transform: translateY(1px);
     background-color: color-mix(in srgb, var(--text-tome-mana) 80%, black); 
 }
-@media (max-width: 800px) { .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } .left-panel, .right-panel { flex-basis: auto; width: 100%; min-width: unset; padding: 10px; } .left-panel { max-height: 35vh; padding: 5px; } #commandLog { padding: 15px; } .right-panel { flex-grow: 1; } #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: flex-start; } #debugMenu { order: -1; margin-right: auto; } #mainHeaderStatus { font-size: 0.9em; text-align: right; } }
+@media (max-width: 800px) { 
+    .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } 
+    .left-panel, .right-panel { flex-basis: auto; width: 100%; min-width: unset; padding: 10px; } 
+    .left-panel { max-height: 35vh; padding: 5px; } 
+    #commandLog { padding: 15px; } 
+    .right-panel { flex-grow: 1; } 
+    #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: flex-start; } 
+    #debugMenu { order: -1; margin-right: auto; } 
+    #mainHeaderStatus { font-size: 0.9em; text-align: right; } 
+    #commandInputBox { margin-top: 5px; padding: 8px;}
+}
 #themeToggle { padding: 3px 6px; font-size: 1.2em; line-height: 1; cursor: pointer; border: 1px solid var(--border-color); background-color: var(--bg-secondary); color: var(--text-primary); border-radius: 3px; margin-top: 4px; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
 #themeToggle:hover { background-color: var(--border-color); }

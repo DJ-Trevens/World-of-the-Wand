@@ -29,6 +29,12 @@
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
                     </div>
+                    <!-- New Debug Checkbox -->
+                    <div id="simulateTickControl" style="display: none;">
+                         <label>
+                            <input type="checkbox" id="simulateTickToggle"> Simulate Server Tick
+                        </label>
+                    </div>
                     <button id="themeToggle" title="Switch to Light Mode">☀️</button>
                 </div>
                 <div id="mainHeaderStatus">World of the Wand</div>
@@ -65,6 +71,8 @@
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
         const themeToggleButton = document.getElementById('themeToggle');
+        const simulateTickToggle = document.getElementById('simulateTickToggle'); // New
+        const simulateTickControl = document.getElementById('simulateTickControl'); // New
 
         const MOON_EMOJI = '🌙'; 
         const SUN_EMOJI = '☀️'; 
@@ -109,6 +117,9 @@
         const MIN_ZOOM = 0.5;
         const MAX_ZOOM = 3.0;
         const ZOOM_INCREMENT = 0.1;
+
+        let simulateServerTickEnabled = false; // New
+        let simulatedTickInterval = null;     // New
 
         function updateGameZoomCSS() {
             document.documentElement.style.setProperty('--game-zoom', currentGameZoomFactor);
@@ -473,12 +484,12 @@
 
         gameCanvasContainer.addEventListener('touchstart', function(event) {
             if (event.touches.length === 2) {
-                event.preventDefault(); // Prevent page scroll/zoom on pinch
+                event.preventDefault(); 
                 initialPinchDistance = Math.hypot(
                     event.touches[0].clientX - event.touches[1].clientX,
                     event.touches[0].clientY - event.touches[1].clientY
                 );
-                lastZoomFactorOnPinchStart = currentGameZoomFactor; // Store zoom factor at pinch start
+                lastZoomFactorOnPinchStart = currentGameZoomFactor; 
             }
         }, { passive: false });
 
@@ -489,7 +500,7 @@
                     event.touches[0].clientX - event.touches[1].clientX,
                     event.touches[0].clientY - event.touches[1].clientY
                 );
-                if (initialPinchDistance > 0) { // Avoid division by zero
+                if (initialPinchDistance > 0) { 
                     const zoomRatio = currentPinchDistance / initialPinchDistance;
                     let newZoom = lastZoomFactorOnPinchStart * zoomRatio;
                     newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
@@ -513,6 +524,13 @@
             showDebugInfo = event.target.checked;
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+            simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Show/hide simulate tick
+            if (!showDebugInfo) { // If debug info is turned off, also turn off simulation
+                simulateTickToggle.checked = false;
+                simulateServerTickEnabled = false;
+                if (simulatedTickInterval) clearInterval(simulatedTickInterval);
+                simulatedTickInterval = null;
+            }
             updateStatus(); 
         });
         rainIntensitySlider.addEventListener('input', (event) => { 
@@ -523,6 +541,29 @@
                 if (globalWeather.isRaining && currentSceneData.InsideID === 0) startRainEffect(globalWeather.intensity); 
             }
         });
+
+        simulateTickToggle.addEventListener('change', (event) => {
+            simulateServerTickEnabled = event.target.checked;
+            if (simulateServerTickEnabled) {
+                if (simulatedTickInterval) clearInterval(simulatedTickInterval); // Clear any old one
+                simulatedTickInterval = setInterval(() => {
+                    if (tickIndicator) {
+                        tickIndicator.classList.add('tick-flash');
+                        if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
+                        tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150);
+                    }
+                    if (selfPlayer) { // Only draw if player data exists
+                        drawGrid();
+                        // updateStatus(); // updateStatus is called by game_update, less critical for purely visual tick
+                    }
+                }, GAME_TICK_RATE * 1000);
+            } else {
+                if (simulatedTickInterval) clearInterval(simulatedTickInterval);
+                simulatedTickInterval = null;
+            }
+        });
+
+
         const resizeObserver = new ResizeObserver(entries => { 
             for (let entry of entries) {
                 if (entry.target === gameCanvasContainer) {
@@ -576,7 +617,11 @@
 
             if (data.other_players_in_scene) data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
             prevSelfPlayerState = { ...selfPlayer };
-            const savedDebugInfo = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+            const savedDebugInfo = localStorage.getItem('showDebugInfo'); 
+            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; 
+            debugInfoToggle.checked = showDebugInfo; 
+            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+            simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Show/hide on load based on debug info
             
             if (!charSizeEstimatedAtLeastOnce) { 
                 estimateCharacterSize("initial_data_pre_font_ready");
@@ -681,7 +726,12 @@
         let tickFlashTimeout = null;
         socket.on('game_update', (data) => { 
              if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
-            if(tickIndicator) {tickIndicator.classList.add('tick-flash'); if(tickFlashTimeout) clearTimeout(tickFlashTimeout); tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); }
+             // Only flash if not simulating, to avoid double flashing
+            if(tickIndicator && !simulateServerTickEnabled) {
+                tickIndicator.classList.add('tick-flash'); 
+                if(tickFlashTimeout) clearTimeout(tickFlashTimeout); 
+                tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); 
+            }
             
             const oldSceneX = selfPlayer.scene_x; const oldSceneY = selfPlayer.scene_y;
             const oldX = selfPlayer.x; const oldY = selfPlayer.y; const oldChar = selfPlayer.char;
@@ -823,41 +873,51 @@
                 if (dR.isValid) commandToSend.details = { dx: dR.dx, dy: dR.dy, newChar: dR.char };
                 else { addLogMessage(`Tome frowns: Cannot move towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
             } else if (canonicalAction === "look") {
-                const eTW = messageContent || selfPlayer.char; 
-                const dR = parseDirection(eTW, selfPlayer.char);
-                if (dR.isValid) commandToSend.details = { dx: 0, dy: 0, newChar: dR.char }; 
-                else { addLogMessage(`Tome squints: Cannot look towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
+                const lookDirectionStr = messageContent || get_direction_str_from_dx_dy(...get_dx_dy_from_direction_str(selfPlayer.char)); // Default to current facing
+                const dR = parseDirection(lookDirectionStr, selfPlayer.char);
 
-                if (shouldEmitToServer) { 
-                    let foundSomethingVisible = false;
-                    if (visibleNPCs) {
-                        for(const npc of visibleNPCs) {
-                            if (isVisible(selfPlayer.x, selfPlayer.y, dR.char, npc.x, npc.y)) {
-                                if(npc.char === PIXIE_CHAR_CLIENT) { 
-                                     logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: npc.name || "a pixie"}, 'sensory-sight');
-                                     foundSomethingVisible = true;
+                if (dR.isValid) {
+                    // If just "look" with no args, or looking in current direction, don't send to server.
+                    // Only send if they specified a NEW direction to look.
+                    const currentFacingDxDy = get_dx_dy_from_direction_str(selfPlayer.char);
+                    if (messageContent && (dR.dx !== currentFacingDxDy[0] || dR.dy !== currentFacingDxDy[1])) {
+                        commandToSend.details = { dx: 0, dy: 0, newChar: dR.char };
+                    } else { // Client-side only look
+                        shouldEmitToServer = false; 
+                        // Log what is seen client-side immediately for "look" in current direction
+                        // or if server isn't being interacted with for this specific look.
+                        let foundSomethingVisible = false;
+                        const facingCharForLook = messageContent ? dR.char : selfPlayer.char;
+
+                        if (visibleNPCs) {
+                            for(const npc of visibleNPCs) {
+                                if (isVisible(selfPlayer.x, selfPlayer.y, facingCharForLook, npc.x, npc.y)) {
+                                    if(npc.char === PIXIE_CHAR_CLIENT) { 
+                                         logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: showDebugInfo ? npc.name : "a Mana Pixie"}, 'sensory-sight');
+                                         foundSomethingVisible = true;
+                                    }
                                 }
                             }
                         }
-                    }
-                    for(const id in otherPlayers) {
-                        const otherP = otherPlayers[id];
-                         if (isVisible(selfPlayer.x, selfPlayer.y, dR.char, otherP.x, otherP.y)) {
-                            logRandomizedEvent('LORE', 'PLAYER_ARRIVES', {playerName: otherP.name}, 'system'); 
-                            foundSomethingVisible = true;
+                        for(const id in otherPlayers) {
+                            const otherP = otherPlayers[id];
+                             if (isVisible(selfPlayer.x, selfPlayer.y, facingCharForLook, otherP.x, otherP.y)) {
+                                logRandomizedEvent('LORE', 'PLAYER_ARRIVES', {playerName: otherP.name}, 'system'); 
+                                foundSomethingVisible = true;
+                            }
+                        }
+                        if (!foundSomethingVisible) {
+                            if (messageContent) { 
+                                logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
+                            } else { 
+                                logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
+                            }
                         }
                     }
-                    if (!foundSomethingVisible) {
-                        // If player explicitly typed a direction like 'look n' vs just 'look'
-                        if (messageContent && messageContent.toLowerCase() !== selfPlayer.char.toLowerCase()) { 
-                            logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
-                        } else { 
-                            logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
-                        }
-                    }
+                } else { 
+                    addLogMessage(`Tome squints: Cannot look towards "${lookDirectionStr}".`, 'event-bad'); 
+                    shouldEmitToServer = false; 
                 }
-
-
             } else if (canonicalAction === "help") { 
                  addLogMessage("Tome patiently explains:\nMOVE: 'move [direction]' (n,s,e,w,fwd,back)\nLOOK: 'look [direction]'\nBUILD: 'build [direction]' or 'build' (in front)\nDESTROY: 'destroy [direction]' or 'destroy' (in front)\nCAST: 'cast [spell] [direction]'\nDRINK: 'drink potion'\nSAY: 'say [message]' or '[message]\nSHOUT: 'shout [message]' or ![message]", 'system'); 
                  shouldEmitToServer = false; 
@@ -918,7 +978,25 @@
         drawGrid(); 
         
         if (commandInput) { commandInput.focus(); }
-        const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+        const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); 
+        showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; 
+        debugInfoToggle.checked = showDebugInfo; 
+        rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
+        simulateTickControl.style.display = showDebugInfo ? 'block' : 'none'; // Initial state based on debugInfo
+        
+        const savedSimulateTick = localStorage.getItem('simulateServerTick');
+        if (showDebugInfo && savedSimulateTick !== null) { // Only load if debug info is also on
+            simulateTickToggle.checked = JSON.parse(savedSimulateTick);
+            simulateServerTickEnabled = simulateTickToggle.checked;
+            if (simulateServerTickEnabled && !simulatedTickInterval) {
+                 simulatedTickInterval = setInterval(() => {
+                    if (tickIndicator) { tickIndicator.classList.add('tick-flash'); if(tickFlashTimeout) clearTimeout(tickFlashTimeout); tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); }
+                    if (selfPlayer) { drawGrid(); }
+                }, GAME_TICK_RATE * 1000);
+            }
+        }
+
+
         updateStatus("Awaiting connection to the Ethereal Plane..."); 
         updateWeatherEffects(); 
         logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
