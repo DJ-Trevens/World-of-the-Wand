@@ -11,7 +11,7 @@
         const socket = io({path: "/world-of-the-wand/socket.io"});
     </script>
 </head>
-<body> {/* Theme class will be applied here by JS */}
+<body> 
     <div class="main-ui-container">
         <div class="left-panel">
             <div id="commandLog"></div>
@@ -31,7 +31,7 @@
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
                     </div>
-                    <button id="themeToggle">Toggle Theme</button> {/* New Theme Toggle Button */}
+                    <button id="themeToggle" title="Toggle Theme">🌙</button>
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -54,48 +54,6 @@
     </div>
 
     <script>
-        // ... (all your existing consts and game logic variables) ...
-        const themeToggleButton = document.getElementById('themeToggle');
-
-        // --- Theme Management ---
-        function applyTheme(theme) {
-            if (theme === 'light') {
-                document.body.classList.add('light-theme');
-                document.body.classList.remove('dark-theme'); // Ensure dark is removed
-            } else { // Default to dark
-                document.body.classList.add('dark-theme'); 
-                document.body.classList.remove('light-theme'); // Ensure light is removed
-            }
-            localStorage.setItem('worldOfTheWandTheme', theme);
-        }
-
-        function toggleTheme() {
-            const currentTheme = localStorage.getItem('worldOfTheWandTheme') || 'dark'; // Default to dark
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            applyTheme(newTheme);
-        }
-
-        themeToggleButton.addEventListener('click', toggleTheme);
-
-        // --- Initialize Theme on Load ---
-        function initializeTheme() {
-            const savedTheme = localStorage.getItem('worldOfTheWandTheme');
-            if (savedTheme) {
-                applyTheme(savedTheme);
-            } else {
-                // Optional: Check for prefers-color-scheme if no theme is saved
-                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-                    applyTheme('light');
-                } else {
-                    applyTheme('dark'); // Default
-                }
-            }
-        }
-        initializeTheme(); // Call this early
-
-        // ... (rest of your existing JavaScript, including game logic, Socket.IO handlers, etc.)
-        // Ensure this script block contains all your previous JavaScript,
-        // with the theme functions and initialization added.
         const gameCanvas = document.getElementById('gameCanvas');
         const gameCanvasContainer = document.getElementById('gameCanvasContainer');
         const rainOverlay = document.getElementById('rainOverlay');
@@ -108,6 +66,10 @@
         const localCommandsToggle = document.getElementById('localCommandsToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
+        const themeToggleButton = document.getElementById('themeToggle');
+
+        const MOON_EMOJI = '🌙'; 
+        const SUN_EMOJI = '☀️'; 
 
         let showDebugInfo = false; 
         let useLocalCommands = true; 
@@ -121,14 +83,8 @@
         let OBSERVABLE_DEPTH = 17;
         let prevSelfPlayerState = null;
 
-        let currentSceneData = { 
-            InsideID: 0, 
-            name: "The Whispering Plains" 
-        };
-        let globalWeather = {
-            isRaining: true, 
-            intensity: 0.1 
-        };
+        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" };
+        let globalWeather = { isRaining: true, intensity: 0.1 };
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50; 
 
@@ -138,8 +94,8 @@
         let targetPanX = 0, targetPanY = 0;   
 
         const DEFAULT_FONT_SIZE_PX = 18;
-        const DEFAULT_LINE_HEIGHT_MULTIPLIER = 0.9; // From your CSS for #gameCanvas
-        const DEFAULT_CHAR_WIDTH_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.6; // Monospace approximation
+        const DEFAULT_LINE_HEIGHT_MULTIPLIER = 0.9;
+        const DEFAULT_CHAR_WIDTH_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.6;
         const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * DEFAULT_LINE_HEIGHT_MULTIPLIER;
 
         let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
@@ -149,6 +105,43 @@
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
         const AURA_VISION_RANGE = 1;
+
+        function applyTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+                document.body.classList.remove('dark-theme');
+                themeToggleButton.textContent = MOON_EMOJI;
+                themeToggleButton.title = "Switch to Dark Mode";
+            } else { 
+                document.body.classList.add('dark-theme'); 
+                document.body.classList.remove('light-theme');
+                themeToggleButton.textContent = SUN_EMOJI;
+                themeToggleButton.title = "Switch to Light Mode";
+            }
+            localStorage.setItem('worldOfTheWandTheme', theme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('worldOfTheWandTheme') || (document.body.classList.contains('light-theme') ? 'light' : 'dark');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+        }
+
+        themeToggleButton.addEventListener('click', toggleTheme);
+
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('worldOfTheWandTheme');
+            if (savedTheme) {
+                applyTheme(savedTheme);
+            } else {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    applyTheme('light');
+                } else {
+                    applyTheme('dark'); 
+                }
+            }
+        }
+        initializeTheme();
 
         function get_dx_dy_from_direction_str(s) {
             const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
@@ -198,6 +191,23 @@
             return false;
         }
 
+        function addLogMessage(message, type = 'lore') {
+            const logEntry = document.createElement('div');
+            let displayStyle = 'ink';
+            switch (type) {
+                case 'event-bad': case 'chat-shout': case 'server-major-event': 
+                case 'player-trade': case 'player-damage': case 'welcome-message': 
+                    displayStyle = 'mana'; break;
+                case 'system': case 'event-good': case 'spell-cast': 
+                case 'lore': case 'user-input': case 'chat-say':          
+                default: displayStyle = 'ink'; break;
+            }
+            logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
+            logEntry.textContent = message;
+            commandLog.appendChild(logEntry);
+            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
+        }
+
         function updateStatus(statusText) {
             if (statusText) {
                 mainHeaderStatus.textContent = statusText;
@@ -216,14 +226,13 @@
         
         function estimateCharacterSize(context = "unknown") {
             console.log(`[estimateCharacterSize context: ${context}] Start. Canvas text: "${gameCanvas.textContent.substring(0,30).replace(/\n/g, "\\n")}..." charSizeEstimated: ${charSizeEstimated}`);
-            
             const computedStyle = getComputedStyle(gameCanvas);
             const usesPlaceholderText = !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists");
 
-            if (usesPlaceholderText) {
+            if (usesPlaceholderText || computedStyle.fontSize === "0px" || !computedStyle.fontFamily) {
                 charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
                 charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
-                console.warn(`[estimateCharacterSize context: ${context}] Using PREDEFINED FALLBACK (placeholder text): W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
+                console.warn(`[estimateCharacterSize context: ${context}] Using PREDEFINED FALLBACK (placeholder or invalid style): W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
                 charSizeEstimated = true; 
                 return; 
             }
@@ -232,7 +241,7 @@
             const tempSpan = document.createElement('span');
             tempSpan.style.fontFamily = computedStyle.fontFamily;
             tempSpan.style.fontSize = computedStyle.fontSize;
-            tempSpan.style.lineHeight = computedStyle.lineHeight; 
+            tempSpan.style.lineHeight = computedStyle.lineHeight;
             tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
             tempSpan.style.position = 'absolute';
@@ -241,36 +250,25 @@
 
             let measuredWidth = tempSpan.offsetWidth;
             let measuredHeight;
-
             const fs = parseFloat(computedStyle.fontSize);
             let lhNumeric = parseFloat(computedStyle.lineHeight); 
 
-            console.log(`[estimateCharacterSize context: ${context}] TempSpan: offsetWidth=${measuredWidth}, fs=${fs}. Computed gameCanvas line-height style: ${computedStyle.lineHeight} (parsed as ${lhNumeric})`);
-
-            if (computedStyle.lineHeight === "normal") {
-                measuredHeight = fs * 1.2; 
-                console.warn(`[estimateCharacterSize context: ${context}] tempSpan path: lineHeight was 'normal'. Using fs * 1.2 = ${measuredHeight.toFixed(2)}`);
-            } else if (!isNaN(lhNumeric) && computedStyle.lineHeight.includes('px')) {
-                measuredHeight = lhNumeric; 
-                 console.log(`[estimateCharacterSize context: ${context}] tempSpan path: lineHeight was in px: ${measuredHeight.toFixed(2)}px`);
-            } else if (!isNaN(lhNumeric)) { 
-                measuredHeight = fs * lhNumeric;
-                console.log(`[estimateCharacterSize context: ${context}] tempSpan path: lineHeight was unitless ${lhNumeric}. Using fs * ${lhNumeric} = ${measuredHeight.toFixed(2)}`);
-            } else {
-                measuredHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
-                console.warn(`[estimateCharacterSize context: ${context}] tempSpan path: Could not parse lineHeight. Defaulting to PREDEFINED FALLBACK H=${measuredHeight.toFixed(2)}`);
-            }
+            if (computedStyle.lineHeight === "normal") measuredHeight = fs * 1.2; 
+            else if (!isNaN(lhNumeric) && computedStyle.lineHeight.includes('px')) measuredHeight = lhNumeric; 
+            else if (!isNaN(lhNumeric)) measuredHeight = fs * lhNumeric;
+            else measuredHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
+            
             document.body.removeChild(tempSpan);
 
             if (measuredWidth > 0 && measuredHeight > 0) {
                 charRenderWidth = measuredWidth;
                 charRenderHeight = measuredHeight;
-                console.log(`[estimateCharacterSize context: ${context}] Accurate char size via tempSpan (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)}`);
             } else {
                 charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
                 charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
-                console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions. Reverting to PREDEFINED FALLBACK: W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
+                console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions. Reverting to PREDEFINED FALLBACK.`);
             }
+            console.log(`[estimateCharacterSize context: ${context}] Char size (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)}`);
             charSizeEstimated = true;
         }
 
@@ -284,7 +282,6 @@
             }
 
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
-            
             for (const playerID in otherPlayers) {
                 const otherGuy = otherPlayers[playerID];
                 if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
@@ -294,7 +291,6 @@
             if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
                 displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
             }
-
             let output = "";
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
@@ -380,25 +376,23 @@
         function centerViewOnPlayer(context = "unknown") {
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
-            console.log(`[centerViewOnPlayer context: ${context}] Called. selfPlayer: ${!!selfPlayer}, charSizeEstimated: ${charSizeEstimated}, Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)})`);
+            console.log(`[centerViewOnPlayer context: ${context}] Called. Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)})`);
             
-            if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvasContainer || !gameCanvas || containerHeight <= 0 || containerWidth <=0) {
-                 console.warn(`[centerViewOnPlayer context: ${context}] Cannot center: preconditions not met (e.g., container size 0).`);
+            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0) {
+                 console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Aborting centering.`);
                  currentPanX = 0; currentPanY = 0;
                  if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
             
-            if (!charSizeEstimated || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) { 
-                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}). Forcing re-estimation.`);
+            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) { 
+                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions. Forcing re-estimation.`);
                 charSizeEstimated = false; 
-                estimateCharacterSize(`centerViewOnPlayer_emergency_reestimate_from_${context}`);
-                
+                estimateCharacterSize(`centerView_emergency_reestimate_from_${context}`);
                 if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) {
                     console.error(`[centerViewOnPlayer context: ${context}] Emergency re-estimation FAILED. Using hardcoded default dimensions.`);
                     addLogMessage("Tome's script sputters: Visual calibration failed! Using fallback dimensions.", 'event-bad');
-                    charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
-                    charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
+                    charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
                 }
             }
             
@@ -406,9 +400,8 @@
             const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
             targetPanX = (containerWidth / 2) - playerVisualCenterX;
             targetPanY = (containerHeight / 2) - playerVisualCenterY;
-            currentPanX = targetPanX;
-            currentPanY = targetPanY;
-            console.log(`[centerViewOnPlayer context: ${context}] Centering: Player(${selfPlayer.x},${selfPlayer.y}), CharSize(W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
+            currentPanX = targetPanX; currentPanY = targetPanY;
+            console.log(`[centerViewOnPlayer context: ${context}] Centering: Player(${selfPlayer.x},${selfPlayer.y}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
             if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
@@ -480,25 +473,25 @@
             document.fonts.ready.then(() => {
                 console.log("Fonts ready. Initial UI setup after 'initial_game_data'.");
                 if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                    charSizeEstimated = false; 
-                    estimateCharacterSize("initial_state_fonts_ready_before_draw");   
-                    drawGrid(); 
-                    if (gameCanvas.textContent && !gameCanvas.textContent.startsWith("Initializing Realm...")  && !gameCanvas.textContent.startsWith("The mists")) {
-                         charSizeEstimated = false; 
-                         estimateCharacterSize("initial_state_fonts_ready_after_draw");   
-                    }
-                    updateStatus(); 
-                    setTimeout(() => { 
-                        console.log("Initial setup: delayed final estimate and centering.");
+                    
+                    function attemptInitialRenderAndCenter() {
                         charSizeEstimated = false; 
-                        estimateCharacterSize("initial_state_delayed_final_estimate");
-                        centerViewOnPlayer("initial_state_delayed_final_centering");
-                    }, 50); 
-                    updateWeatherEffects(); 
-                    addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
-                     if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
-                        addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
+                        estimateCharacterSize("initial_render_attempt");
+                        drawGrid();
+                        updateStatus();
+                        
+                        if (gameCanvasContainer.clientHeight > 0) {
+                            centerViewOnPlayer("initial_render_attempt_center");
+                            updateWeatherEffects(); 
+                            addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
+                            if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
+                        } else {
+                            console.warn("Container height still 0 after draw. Retrying centering shortly...");
+                            setTimeout(attemptInitialRenderAndCenter, 100); 
+                        }
                     }
+                    attemptInitialRenderAndCenter(); // Start the process
+
                 } else {
                     gameCanvas.textContent = "Error: Could not initialize player or world data after fonts ready."; 
                     addLogMessage("Tome warns: Manifestation failed (missing critical data).", 'event-bad');
@@ -507,15 +500,22 @@
                 console.error("Font loading error:", err);
                 addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
                  if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                    charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback_1"); 
-                    drawGrid(); 
-                    charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback_2");
-                    updateStatus(); 
-                    setTimeout(() => centerViewOnPlayer("fonts_catch_centering"), 50); 
-                    updateWeatherEffects();
-                    addLogMessage("Attempting to render world despite font issues...", 'system');
-                } else {
-                    gameCanvas.textContent = "Error: Font loading failed AND critical player data is missing.";
+                    function attemptInitialRenderAndCenterAfterFontFail() { // Renamed for clarity
+                        charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback_1"); 
+                        drawGrid(); 
+                        updateStatus(); 
+                        if (gameCanvasContainer.clientHeight > 0) {
+                            centerViewOnPlayer("fonts_catch_centering");
+                            updateWeatherEffects();
+                            addLogMessage("Attempting to render world despite font issues...", 'system');
+                        } else {
+                             console.warn("Container height still 0 after font fail. Retrying centering shortly...");
+                            setTimeout(attemptInitialRenderAndCenterAfterFontFail, 100);
+                        }
+                    }
+                    attemptInitialRenderAndCenterAfterFontFail();
+                 } else { 
+                    gameCanvas.textContent = "Error: Font and Player data error.";
                     addLogMessage("Tome wails: The world's very fabric is unstable! (Font & Data Error)", 'event-bad');
                 }
             });
@@ -734,8 +734,6 @@
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmitToServer = true; 
-            // Forcing server authoritative for now for simplicity.
-            // Set useLocalCommands to false to ensure all actions go to server for state changes.
             const currentUseLocalCommands = false; // Override the global useLocalCommands for this submit
 
             if (currentUseLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
