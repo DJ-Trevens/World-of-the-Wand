@@ -4,82 +4,81 @@
     --game-zoom: 1.4;
 
     /* --- UI Dark Theme --- */
-    --bg-primary-dark: #1E1F22;   
-    --bg-secondary-dark: #2C2F33; 
-    --bg-tome-dark: #F0E6D2;    
-    --bg-tome-cover-dark: #4A3B32; 
-    
-    --text-tome-ink-dark: #3A2A1A;  
-    --text-tome-mana-dark: #8B5CF6;   
-    --glow-tome-mana-dark: #A78BFA;   
-    
-    --text-primary-dark: #D1D5DB; 
-    --border-color-dark: #40434B;     
-    
+    --bg-primary-dark: #1E1F22;
+    --bg-secondary-dark: #2C2F33;
+    --bg-tome-dark: #F0E6D2;
+    --bg-tome-cover-dark: #4A3B32;
+
+    --text-tome-ink-dark: #3A2A1A;
+    --text-tome-mana-dark: #8B5CF6;
+    --glow-tome-mana-dark: #A78BFA;
+
+    --text-primary-dark: #D1D5DB;
+    --border-color-dark: #40434B;
+
     --highlight-blue-dark: var(--glow-tome-mana-dark);
-    --highlight-green-dark: #34D399;  
-    --highlight-red-dark: #F87171;    
+    --highlight-green-dark: #34D399;
+    --highlight-red-dark: #F87171;
 
     --heart-inactive-dark: #4B5563;
     --heart-shadow-dark: #111827;
 
-    --command-text-bg-dark: #E1D7C5; /* Slightly darker parchment for input */
-    --command-text-focus-bg-dark: #F0E6D2; /* Lighter parchment for focus */
+    --command-text-bg-dark: #E1D7C5;
+    --command-text-focus-bg-dark: #F0E6D2;
     --command-button-bg-dark: var(--text-tome-mana-dark);
     --command-button-text-dark: var(--bg-tome-dark);
-    --command-button-border-dark: var(--text-tome-mana-dark); 
+    --command-button-border-dark: var(--text-tome-mana-dark);
     --command-button-hover-bg-dark: var(--glow-tome-mana-dark);
     --command-button-active-bg-dark: color-mix(in srgb, var(--text-tome-mana-dark) 80%, black);
 
     --slider-thumb-bg-dark: var(--text-tome-mana-dark);
     --slider-track-bg-dark: #4B5563;
 
-
-    --raindrop-base-dark: 156, 163, 175; 
+    --raindrop-base-dark: 156, 163, 175;
 
     /* --- UI Light Theme --- */
-    --bg-primary-light: #FBF5E9;   
-    --bg-secondary-light: #FFFFFF; 
-    --bg-tome-light: #FFF9EF;      
-    --bg-tome-cover-light: #A0522D; 
-    
-    --text-tome-ink-light: #5D4037;       
-    --text-tome-mana-light: #7C3AED;   
-    --glow-tome-mana-light: #9333EA;   
-    
-    --text-primary-light: #374151; 
-    --border-color-light: #D1C7AC;     
-    
+    --bg-primary-light: #FBF5E9;
+    --bg-secondary-light: #FFFFFF;
+    --bg-tome-light: #FFF9EF;
+    --bg-tome-cover-light: #A0522D;
+
+    --text-tome-ink-light: #5D4037;
+    --text-tome-mana-light: #7C3AED;
+    --glow-tome-mana-light: #9333EA;
+
+    --text-primary-light: #374151;
+    --border-color-light: #D1C7AC;
+
     --highlight-blue-light: var(--glow-tome-mana-light);
-    --highlight-green-light: #10B981;  
-    --highlight-red-light: #EF4444;    
+    --highlight-green-light: #10B981;
+    --highlight-red-light: #EF4444;
 
     --heart-inactive-light: #9CA3AF;
-    --heart-shadow-light: #E5E7EB;   
+    --heart-shadow-light: #E5E7EB;
 
-    --command-text-bg-light: #F0EAD6; /* Parchment-like for light theme input */
-    --command-text-focus-bg-light: #FFF9EF; 
+    --command-text-bg-light: #F0EAD6;
+    --command-text-focus-bg-light: #FFF9EF;
     --command-button-bg-light: var(--text-tome-mana-light);
     --command-button-text-light: var(--bg-tome-light);
-    --command-button-border-light: var(--text-tome-mana-light); 
+    --command-button-border-light: var(--text-tome-mana-light);
     --command-button-hover-bg-light: var(--glow-tome-mana-light);
     --command-button-active-bg-light: color-mix(in srgb, var(--text-tome-mana-light) 80%, black);
 
     --slider-thumb-bg-light: var(--text-tome-mana-light);
     --slider-track-bg-light: #CBD5E0;
 
-    --raindrop-base-light: 107, 114, 128; 
+    --raindrop-base-light: 107, 114, 128;
 
     /* --- CONSISTENT Canvas Grid Colors --- */
-    --canvas-bg-consistent: #202225; 
-    --text-game-floor-consistent: #4F545C; 
-    --text-game-wall-consistent:  #7289DA; 
-    --text-game-water-consistent: #4DD0E1; 
-    --text-game-fog-consistent:   #2C2F33; 
-    --text-game-self-consistent:  #FEE75C; 
-    --text-game-other-consistent: #7FFFD4; 
-    --text-game-npc-pixie-consistent: #DB2777; 
-    --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25); 
+    --canvas-bg-consistent: #202225;
+    --text-game-floor-consistent: #4F545C;
+    --text-game-wall-consistent:  #7289DA;
+    --text-game-water-consistent: #4DD0E1;
+    --text-game-fog-consistent:   #2C2F33;
+    --text-game-self-consistent:  #5DADE2; /* New: Blue for self */
+    --text-game-other-consistent: #58D68D; /* New: Green for others */
+    --text-game-npc-pixie-consistent: #DB2777;
+    --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25);
 
 
     --font-tome: 'EB Garamond', serif;
@@ -99,8 +98,8 @@
     --highlight-blue: var(--highlight-blue-dark);
     --highlight-green: var(--highlight-green-dark);
     --highlight-red: var(--highlight-red-dark);
-    --heart-inactive: var(--heart-inactive-dark); 
-    --heart-shadow: var(--heart-shadow-dark);     
+    --heart-inactive: var(--heart-inactive-dark);
+    --heart-shadow: var(--heart-shadow-dark);
     --command-text-bg: var(--command-text-bg-dark);
     --command-text-focus-bg: var(--command-text-focus-bg-dark);
     --command-button-bg: var(--command-button-bg-dark);
@@ -112,7 +111,7 @@
     --slider-track-bg: var(--slider-track-bg-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
 
-    --canvas-bg: var(--canvas-bg-consistent); 
+    --canvas-bg: var(--canvas-bg-consistent);
 }
 
 body.light-theme {
@@ -128,8 +127,8 @@ body.light-theme {
     --highlight-blue: var(--highlight-blue-light);
     --highlight-green: var(--highlight-green-light);
     --highlight-red: var(--highlight-red-light);
-    --heart-inactive: var(--heart-inactive-light); 
-    --heart-shadow: var(--heart-shadow-light);     
+    --heart-inactive: var(--heart-inactive-light);
+    --heart-shadow: var(--heart-shadow-light);
     --command-text-bg: var(--command-text-bg-light);
     --command-text-focus-bg: var(--command-text-focus-bg-light);
     --command-button-bg: var(--command-button-bg-light);
@@ -148,53 +147,55 @@ html { height: 100%; overflow: hidden; }
 body {
     display: flex; height: 100vh; max-height: 100vh; margin: 0;
     font-family: var(--font-ui); background-color: var(--bg-primary);
-    color: var(--text-primary); overflow: hidden; 
+    color: var(--text-primary); overflow: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
 body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
 .main-ui-container { display: flex; flex-grow: 1; width: 100%; height: 100%; padding: 15px; box-sizing: border-box; gap: 15px; position: relative; }
 
-.left-panel { 
-    display: flex; 
-    flex-direction: column; 
-    flex-basis: 40%; flex-shrink: 1; min-width: 300px; 
-    background-color: var(--bg-tome-cover); 
-    border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 80%, black); 
-    border-radius: 10px 4px 4px 10px; position: relative; 
-    transition: background-color 0.3s ease, border-color 0.3s ease; 
-    overflow: hidden; 
-    padding: 10px;
+.left-panel {
+    display: flex;
+    flex-direction: column; /* Children stack vertically */
+    flex-basis: 40%; flex-shrink: 1; min-width: 300px;
+    background-color: var(--bg-tome-cover);
+    border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 80%, black);
+    border-radius: 10px 4px 4px 10px; position: relative;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    overflow: hidden;
+    padding: 10px; /* Padding for inner content */
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-.left-panel::before { 
-    content: ''; position: absolute; 
-    left: 0; top: 0; bottom: 0; width: 20px; 
-    background: linear-gradient(to right, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0) 100%); 
-    border-radius: 10px 0 0 10px; 
+.left-panel::before { /* Spine shadow */
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 20px;
+    background: linear-gradient(to right, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0) 100%);
+    border-radius: 10px 0 0 10px;
     pointer-events: none;
 }
 
-.right-panel { 
-    flex-basis: 60%; flex-shrink: 1; min-width: 350px; 
-    padding: 0; 
-    display: flex; flex-direction: column; 
-    background-color: var(--bg-secondary); 
-    border-radius: 8px; 
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+.right-panel {
+    flex-basis: 60%; flex-shrink: 1; min-width: 350px;
+    padding: 0; /* No padding, children manage their own */
+    display: flex; flex-direction: column;
+    background-color: var(--bg-secondary);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transition: background-color 0.3s ease;
 }
-#commandLog { 
-    background-color: var(--bg-tome); 
-    font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; 
-    padding: 15px 20px; 
-    border-radius: 3px; 
-    overflow-y: auto; 
-    flex-grow: 1; 
-    border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black); 
-    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1); 
-    position: relative; scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);  
-    transition: background-color 0.3s ease, border-color 0.3s ease; 
-    margin-bottom: 10px; 
+#commandLog { /* Now inside left-panel */
+    background-color: var(--bg-tome);
+    font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65;
+    padding: 15px 20px;
+    border-radius: 3px;
+    overflow-y: auto;
+    flex-grow: 1; /* Takes available vertical space in left-panel */
+    display: flex; /* To ensure it's visible and behaves as a block */
+    flex-direction: column; /* Children stack */
+    border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black);
+    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
+    position: relative; scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    /* margin-bottom: 10px; No longer needed as footer is separate */
 }
 
 #commandLog::-webkit-scrollbar { width: 8px; }
@@ -206,13 +207,13 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .log-style-ink { color: var(--text-tome-ink); font-weight: 500; transition: color 0.3s ease; }
 .log-style-mana {
     color: var(--text-tome-mana);
-    font-weight: 700; 
-    text-shadow: 0 0 6px var(--glow-tome-mana), 
+    font-weight: 700;
+    text-shadow: 0 0 6px var(--glow-tome-mana),
                  0 0 12px var(--glow-tome-mana),
-                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 40%, transparent); 
+                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 40%, transparent);
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.log-type-lore {} .log-type-system { font-style: italic; } .log-type-event-good {} .log-type-event-bad { font-weight: bold; } 
+.log-type-lore {} .log-type-system { font-style: italic; } .log-type-event-good {} .log-type-event-bad { font-weight: bold; }
 .log-style-ink.log-type-user-input { opacity: 0.85; color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); font-weight: 400; }
 .log-type-chat-say {} .log-type-chat-shout { font-weight: bold; } .log-type-welcome-message {}
 .log-type-sensory-sight { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-blue) 20%); }
@@ -220,241 +221,257 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .log-type-sensory-smell { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-red) 20%);}
 
 
-#mainHeaderStatusContainer { 
-    display: flex; align-items: center; justify-content: center; 
-    gap: 10px; background-color: rgba(0,0,0,0.25); border-radius: 6px 6px 0 0; 
-    padding: 5px 10px; flex-shrink: 0; 
-    border-bottom: 1px solid var(--border-color); 
-    transition: border-color 0.3s ease; 
+#mainHeaderStatusContainer {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; background-color: rgba(0,0,0,0.25); border-radius: 6px 6px 0 0;
+    padding: 5px 10px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
 }
-#mainHeaderStatus { 
-    color: var(--text-primary); padding: 5px 0; 
-    text-align: center; 
-    font-size: 0.9em; line-height: 1.3; flex-grow: 1; 
-    transition: color 0.3s ease; 
+#mainHeaderStatus {
+    color: var(--text-primary); padding: 5px 0;
+    text-align: center;
+    font-size: 0.9em; line-height: 1.3; flex-grow: 1;
+    transition: color 0.3s ease;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-#gameCanvasContainer { 
-    position: relative; 
-    flex-grow: 1; 
-    min-height: 200px; 
-    display: flex; align-items: center; justify-content: center; 
-    background-color: var(--canvas-bg); 
-    overflow: hidden; 
-    cursor: grab; padding: 0; 
-    transition: background-color 0.3s ease; 
-    margin-bottom: 0; /* Input box is no longer here */
+#gameCanvasContainer {
+    position: relative;
+    flex-grow: 1; /* Takes up available vertical space in right-panel */
+    min-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+    background-color: var(--canvas-bg);
+    overflow: hidden;
+    cursor: grab; padding: 0;
+    transition: background-color 0.3s ease;
+    /* No margin-bottom needed, input box is now separate */
 }
 #gameCanvasContainer:active { cursor: grabbing; }
 
 #gameCanvas {
-    transform-origin: 0 0; 
+    transform-origin: 0 0;
     transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--game-zoom, 1));
-    transition: transform 0.05s linear; 
+    transition: transform 0.05s linear;
 }
 
 #rainOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 2; }
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
-#commandInputBox { /* Now in left panel */
-    padding: 8px 10px 8px 15px; 
-    background-color: var(--bg-tome); 
-    border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--bg-tome) 40%);
-    border-radius: 0 0 0 6px; 
-    flex-shrink: 0; 
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+/* Command Input Box - Now at the bottom of the right panel */
+#commandInputBox {
+    padding: 10px 15px;
+    background-color: var(--bg-secondary); /* Match right panel's secondary bg */
+    border-top: 1px solid var(--border-color);
+    flex-shrink: 0; /* Don't shrink */
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1); /* Subtle shadow upwards */
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 #commandForm { display: flex; align-items: center; width: 100%; }
 
 /* Heartbeat Indicators */
-.heartbeat-indicator-inline, #wizardHeartIndicator { 
-    width: 10px; height: 10px; 
-    background-color: var(--heart-inactive); 
-    border-radius: 50%; 
-    margin-right: 6px; 
-    display: inline-block; 
-    vertical-align: middle; 
-    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
-    box-shadow: 0 0 2px var(--heart-shadow); 
+.heartbeat-indicator-inline {
+    width: 10px; height: 10px;
+    background-color: var(--heart-inactive);
+    border-radius: 50%;
+    margin-right: 6px;
+    display: inline-block;
+    vertical-align: middle;
+    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out;
+    box-shadow: 0 0 2px var(--heart-shadow);
 }
-/* This specific ID might not be used if the only indicator is in debug */
-#wizardHeartIndicator.heartbeat-flash { 
-    background-color: var(--highlight-red); 
-    box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red); 
-}
-#serverHeartbeatIndicator.heartbeat-flash { 
-    background-color: var(--highlight-red); 
-    box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red); 
+#serverHeartbeatIndicator.heartbeat-flash {
+    background-color: var(--highlight-red);
+    box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red);
 }
 #simulatedHeartbeatIndicator.heartbeat-flash {
-    background-color: var(--highlight-blue); 
+    background-color: var(--highlight-blue);
     box-shadow: 0 0 6px var(--highlight-blue), 0 0 10px var(--highlight-blue);
 }
 
-
-#commandForm label { color: var(--text-tome-ink); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
-#commandText { 
-    background-color: var(--command-text-bg); /* Themed background */
-    color: var(--text-tome-ink); 
-    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 20%, transparent); 
-    padding: 8px 10px; 
-    border-radius: 3px; 
-    font-size: 1em; flex-grow: 1; font-family: var(--font-game); 
-    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; 
+/* Styling for command input elements, now themed for general UI rather than tome page */
+#commandForm label {
+    color: var(--text-primary); /* Use primary text color */
+    font-weight: 500;
+    margin-right: 8px; font-size: 0.9em;
+    transition: color 0.3s ease;
 }
-#commandText:focus { 
-    outline: none; border-color: var(--text-tome-mana); 
-    background-color: var(--command-text-focus-bg); 
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-tome-mana) 40%, transparent);
+#commandText {
+    background-color: var(--bg-primary); /* Use primary bg, slightly inset */
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 8px 10px;
+    border-radius: 3px;
+    font-size: 1em; flex-grow: 1; font-family: var(--font-game);
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
-#commandForm button { 
-    background-color: var(--command-button-bg); 
-    color: var(--command-button-text);
-    border: 1px solid var(--command-button-border); 
+#commandText:focus {
+    outline: none; border-color: var(--highlight-blue);
+    background-color: var(--bg-primary); /* Keep same bg on focus, border indicates */
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent);
+}
+#commandForm button {
+    background-color: var(--highlight-blue); /* Themed button */
+    color: var(--bg-primary); /* Contrasting text */
+    border: 1px solid var(--highlight-blue);
     padding: 8px 15px; margin-left: 10px; cursor: pointer; border-radius: 3px;
     font-weight: 500; font-family: var(--font-ui); text-transform: uppercase;
     letter-spacing: 0.5px; font-size: 0.9em;
-    transition: background-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
 }
 #commandForm button:hover, #commandForm button:focus-visible {
-    background-color: var(--command-button-hover-bg); 
-    color: var(--command-button-text); 
-    text-shadow: 0 0 5px var(--glow-tome-mana), 0 0 8px var(--glow-tome-mana);
-    border-color: var(--command-button-hover-bg);
+    background-color: color-mix(in srgb, var(--highlight-blue) 85%, white);
+    border-color: color-mix(in srgb, var(--highlight-blue) 85%, white);
     outline: none;
 }
-#commandForm button:active { 
+#commandForm button:active {
     transform: translateY(1px);
-    background-color: var(--command-button-active-bg); 
+    background-color: color-mix(in srgb, var(--highlight-blue) 70%, black);
 }
 
-/* Debug and Auxiliary Panel Styling */
-#bottomRightPanelOuter {
-    flex-shrink: 0;
-    margin-top: 10px; 
-    background-color: var(--bg-secondary); 
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    padding: 8px; 
+
+/* Debug and Auxiliary Panel Styling - Now in Left Panel */
+.left-panel-footer { /* Container for the toggle switch */
+    flex-shrink: 0; /* Prevent shrinking */
+    padding-top: 10px; /* Space above the toggle */
+    margin-top: auto; /* Pushes to the bottom if left-panel is flex-column */
+    border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--bg-tome) 40%);
 }
 .debug-master-toggle {
-    padding-bottom: 5px; 
-    margin-bottom: 5px;
-    /* border-bottom: 1px solid var(--border-color); Removed to make it cleaner */
+    padding-bottom: 0; /* No extra padding needed below */
+    /* margin-bottom: 5px; No longer needed */
 }
 .debug-master-toggle label {
     font-size: 0.9em;
     font-weight: bold;
     cursor: pointer;
-    display: flex; 
+    display: flex;
     align-items: center;
+    color: var(--bg-tome); /* Text color suitable for tome cover background */
 }
 .debug-master-toggle input[type="checkbox"] {
     margin-right: 6px;
-    transform: scale(1.1); /* Slightly larger master toggle */
+    transform: scale(1.1);
+    accent-color: var(--text-tome-mana); /* Make checkbox match mana theme */
 }
 
-#debugAndAuxiliaryPanel { 
+#debugAndAuxiliaryPanel { /* Panel that toggles with commandLog */
     /* display:none; JS handles this */
-    flex-direction: column; /* Content inside this panel will stack if not overridden by .debug-panel-container */
-    padding-top: 8px; 
-    color: var(--text-primary);
+    display: flex; /* Default to flex when shown */
+    flex-direction: column;
+    flex-grow: 1; /* Takes available vertical space when visible */
+    padding: 15px 20px; /* Match commandLog padding */
+    background-color: var(--bg-tome); /* Same background as commandLog */
+    color: var(--text-tome-ink); /* Text color for debug panel content */
+    border-radius: 3px;
+    overflow-y: auto;
+    font-family: var(--font-ui); /* Use UI font for debug panel */
+    font-size: 0.9em; /* Slightly smaller font for debug */
+    line-height: 1.5;
+    scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
 }
 .debug-panel-container {
     display: flex;
-    flex-direction: row; /* This makes info and config side-by-side */
+    flex-direction: row;
     justify-content: space-between;
-    gap: 20px; 
+    gap: 20px;
 }
 .debug-info-side {
-    flex: 1; /* Takes up available space on the left for stats */
-    font-size: 0.8em; 
-    line-height: 1.6; 
-    text-align: left; 
+    flex: 1;
+    font-size: 1em; /* Relative to parent #debugAndAuxiliaryPanel */
+    line-height: 1.6;
+    text-align: left;
 }
 .debug-info-side h4, .debug-config-side h4 {
     margin-top: 0;
-    margin-bottom: 10px; 
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 6px; 
-    color: var(--text-primary); 
+    margin-bottom: 10px;
+    border-bottom: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
+    padding-bottom: 6px;
+    color: var(--text-tome-ink); /* Ensure headers use ink color */
+    font-family: var(--font-tome); /* Tome font for headers */
+    font-weight: 700;
 }
-.debug-info-side div { 
+.debug-info-side div {
     margin-bottom: 4px;
-    display: flex; 
+    display: flex;
     align-items: center;
 }
 .debug-config-side {
-    flex: 1; /* Allow config to take space too, or set a flex-basis */
-    /* flex-basis: 220px; Give config side a more fixed width if preferred */
-    flex-shrink: 0; 
+    flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: flex-start; 
-    gap: 8px; 
+    align-items: flex-start;
+    gap: 8px;
 }
 .debug-control-item {
     display: flex;
     align-items: center;
-    width: 100%; 
-    font-size: 0.85em;
+    width: 100%;
+    font-size: 1em; /* Relative to parent */
 }
-.debug-config-side label { /* General label styling within config */
+.debug-config-side label {
      margin-right: 5px;
      white-space: nowrap;
 }
 .debug-config-side input[type="range"] {
-    flex-grow: 1; 
-    accent-color: var(--text-tome-mana); 
+    flex-grow: 1;
+    accent-color: var(--text-tome-mana);
 }
-.debug-config-side #themeToggle { 
-    padding: 4px 8px; 
-    font-size: 1.1em; 
-    background-color: var(--border-color); 
-    color: var(--text-primary);
-    border: 1px solid var(--command-button-border);
-    align-self: flex-start; /* Align to the start of its flex container */
+.debug-config-side input[type="checkbox"] {
+    accent-color: var(--text-tome-mana);
+}
+.debug-config-side #themeToggle {
+    padding: 4px 8px;
+    font-size: 1.1em;
+    background-color: color-mix(in srgb, var(--text-tome-ink) 15%, var(--bg-tome) 85%);
+    color: var(--text-tome-ink);
+    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
+    border-radius: 3px;
+    align-self: flex-start;
 }
 .debug-config-side #themeToggle:hover {
     background-color: var(--text-tome-mana);
     color: var(--bg-tome);
 }
-hr.debug-hr {
+hr.debug-hr { /* This is inside #debugAndAuxiliaryPanel now */
     border: none;
-    border-top: 1px solid var(--border-color);
+    border-top: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
     margin: 8px 0;
 }
 
 
-@media (max-width: 800px) { 
-    .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } 
-    .left-panel { 
-        flex-basis: 35vh; 
-        min-height: 180px; 
-        width: 100%; 
-        min-width: unset; 
-    } 
-    #commandLog { padding: 15px; flex-grow:1; }
-    #commandInputBox { padding: 8px 15px; flex-shrink: 0; }
+@media (max-width: 800px) {
+    .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; }
+    .left-panel {
+        flex-basis: 30vh; /* Adjust height for log/debug */
+        min-height: 180px;
+        width: 100%;
+        min-width: unset;
+        order: 2; /* Left panel (log/debug) below right panel (game view) */
+    }
+    #commandLog { padding: 10px 15px; } /* Slightly less padding on mobile */
+    #debugAndAuxiliaryPanel { padding: 10px 15px; }
 
-    .right-panel { flex-grow: 1; width:100%;} 
-    #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: center; } 
-    
-    #bottomRightPanelOuter { margin-top: 5px;}
-    #debugAndAuxiliaryPanel { min-height: 80px; } 
+    .right-panel {
+        flex-grow: 1; width:100%;
+        order: 1; /* Right panel (game view + input) on top */
+        min-height: 50vh; /* Ensure it has decent height */
+    }
+    #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: center; }
+    #commandInputBox { padding: 8px 10px; } /* Adjust padding for mobile */
+
     .debug-panel-container {
         flex-direction: column; /* Stack debug sections on mobile */
     }
     .debug-config-side {
-        margin-top: 15px; 
-        align-items: stretch; 
+        margin-top: 15px;
+        align-items: stretch;
     }
     .debug-config-side .debug-control-item {
-        justify-content: space-between; 
+        justify-content: space-between;
     }
     .debug-config-side .debug-control-item input[type="range"] {
-        max-width: 120px; 
+        max-width: 120px;
     }
 }
