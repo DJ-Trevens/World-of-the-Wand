@@ -75,50 +75,131 @@ class ManaPixie:
 
 class Player:
     def __init__(self, sid, name):
-        self.id = sid; self.name = name; self.scene_x = 0; self.scene_y = 0; self.x = GRID_WIDTH // 2; self.y = GRID_HEIGHT // 2
-        self.char = random.choice(['^', 'v', '<', '>']); self.max_health = 100; self.current_health = 100
-        self.max_mana = 175; self.current_mana = 175.0; self.potions = INITIAL_POTIONS; self.gold = 0; self.walls = INITIAL_WALL_ITEMS
-        self.is_wet = False; self.time_became_wet = 0; self.mana_regen_accumulator = 0.0
+        self.id = sid
+        self.name = name
+        self.scene_x = 0
+        self.scene_y = 0
+        self.x = GRID_WIDTH // 2
+        self.y = GRID_HEIGHT // 2
+        self.char = random.choice(['^', 'v', '<', '>'])
+        self.max_health = 100
+        self.current_health = 100
+        self.max_mana = 175
+        self.current_mana = 175.0
+        self.potions = INITIAL_POTIONS
+        self.gold = 0
+        self.walls = INITIAL_WALL_ITEMS
+        self.is_wet = False
+        self.time_became_wet = 0
+        self.mana_regen_accumulator = 0.0
+
     def update_position(self, dx, dy, new_char, game_manager, socketio_instance):
-        old_scene_x, old_scene_y = self.scene_x, self.scene_y; original_x_tile, original_y_tile = self.x, self.y
-        scene_changed_flag = False; transition_key = None; nx, ny = self.x + dx, self.y + dy
-        if nx < 0: self.scene_x -= 1; self.x = GRID_WIDTH - 1; scene_changed_flag = True; transition_key = 'LORE.SCENE_TRANSITION_WEST'
-        elif nx >= GRID_WIDTH: self.scene_x += 1; self.x = 0; scene_changed_flag = True; transition_key = 'LORE.SCENE_TRANSITION_EAST'
-        else: self.x = nx
-        if ny < 0: self.scene_y -= 1; self.y = GRID_HEIGHT - 1; scene_changed_flag = True
-            if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_NORTH'
-        elif ny >= GRID_HEIGHT: self.scene_y += 1; self.y = 0; scene_changed_flag = True
-            if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
-        else: self.y = ny
-        self.char = new_char
-        if scene_changed_flag: game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
-            if transition_key: socketio_instance.emit('lore_message', {'messageKey': transition_key, 'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y}, 'type': 'system'}, room=self.id)
+        old_scene_x, old_scene_y = self.scene_x, self.scene_y
+        original_x_tile, original_y_tile = self.x, self.y
+        scene_changed_flag = False
+        transition_key = None
+        nx, ny = self.x + dx, self.y + dy
+
+        # Handle X-axis movement and scene transitions
+        if nx < 0:
+            self.scene_x -= 1
+            self.x = GRID_WIDTH - 1
+            scene_changed_flag = True
+            transition_key = 'LORE.SCENE_TRANSITION_WEST'
+        elif nx >= GRID_WIDTH:
+            self.scene_x += 1
+            self.x = 0
+            scene_changed_flag = True
+            transition_key = 'LORE.SCENE_TRANSITION_EAST'
+        else:
+            self.x = nx
+
+        # Handle Y-axis movement and scene transitions
+        if ny < 0:
+            self.scene_y -= 1
+            self.y = GRID_HEIGHT - 1 # Corrected this line in a previous iteration.
+            scene_changed_flag = True
+            if not transition_key: # This line (and the one below) must be correctly indented
+                transition_key = 'LORE.SCENE_TRANSITION_NORTH'
+        elif ny >= GRID_HEIGHT:
+            self.scene_y += 1
+            self.y = 0
+            scene_changed_flag = True
+            if not transition_key: # This line must be correctly indented
+                transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
+        else:
+            self.y = ny # Only update y if not a vertical scene transition
+            
+        self.char = new_char # Update character facing direction
+
+        if scene_changed_flag:
+            game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
+            if transition_key: 
+                socketio_instance.emit('lore_message', {
+                    'messageKey': transition_key, 
+                    'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y}, 
+                    'type': 'system'
+                }, room=self.id)
+        
         return scene_changed_flag or (self.x != original_x_tile or self.y != original_y_tile)
+
     def drink_potion(self, socketio_instance):
-        if self.potions > 0: self.potions -= 1; self.current_health = min(self.max_health, self.current_health + 15); socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_SUCCESS', 'type': 'event-good'}, room=self.id); return True
-        else: socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_FAIL_EMPTY', 'type': 'event-bad'}, room=self.id); return False
+        if self.potions > 0: 
+            self.potions -= 1
+            self.current_health = min(self.max_health, self.current_health + 15)
+            socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_SUCCESS', 'type': 'event-good'}, room=self.id)
+            return True
+        else: 
+            socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_FAIL_EMPTY', 'type': 'event-bad'}, room=self.id)
+            return False
+
     def can_afford_mana(self, cost): return self.current_mana >= cost
     def spend_mana(self, cost):
-        if self.can_afford_mana(cost): self.current_mana -= cost; return True
+        if self.can_afford_mana(cost): 
+            self.current_mana -= cost
+            return True
         return False
     def has_wall_items(self): return self.walls > 0
     def use_wall_item(self):
-        if self.has_wall_items(): self.walls -= 1; return True
+        if self.has_wall_items(): 
+            self.walls -= 1
+            return True
         return False
     def add_wall_item(self): self.walls += 1
+    
     def set_wet_status(self, status, socketio_instance, reason="unknown"):
-        if self.is_wet != status: self.is_wet = status
-            if status: self.time_became_wet = time.time()
-                if reason == "water_tile": socketio_instance.emit('player_event', {'type': 'stepped_in_water', 'sid': self.id}, room=self.id); socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_WET_WATER', 'type': 'system'}, room=self.id)
-                elif reason == "rain": socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_WET_RAIN', 'type': 'system'}, room=self.id)
-            else: socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_DRY', 'type': 'system'}, room=self.id)
-    def regenerate_mana(self, base_regen_amount, pixie_boost_total, socketio_instance):
-        total_regen_this_cycle = base_regen_amount + pixie_boost_total; self.mana_regen_accumulator += total_regen_this_cycle
-        if self.mana_regen_accumulator >= 1.0: mana_to_add = int(self.mana_regen_accumulator); self.current_mana = min(self.max_mana, self.current_mana + mana_to_add); self.mana_regen_accumulator -= mana_to_add
-            if pixie_boost_total > 0 and mana_to_add > 0: socketio_instance.emit('lore_message', {'messageKey': 'LORE.PIXIE_MANA_BOOST', 'type': 'event-good', 'placeholders': {'amount': mana_to_add}}, room=self.id)
-    def get_public_data(self): return {'id': self.id, 'name': self.name, 'x': self.x, 'y': self.y, 'char': self.char, 'scene_x': self.scene_x, 'scene_y': self.scene_y, 'is_wet': self.is_wet}
-    def get_full_data(self): return {'id': self.id, 'name': self.name, 'scene_x': self.scene_x, 'scene_y': self.scene_y, 'x': self.x, 'y': self.y, 'char': self.char, 'max_health': self.max_health,  'current_health': self.current_health, 'max_mana': self.max_mana,  'current_mana': int(self.current_mana), 'potions': self.potions, 'gold': self.gold,  'walls': self.walls, 'is_wet': self.is_wet}
+        if self.is_wet != status:
+            self.is_wet = status
+            if status:
+                self.time_became_wet = time.time()
+                if reason == "water_tile": 
+                    socketio_instance.emit('player_event', {'type': 'stepped_in_water', 'sid': self.id}, room=self.id)
+                    socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_WET_WATER', 'type': 'system'}, room=self.id)
+                elif reason == "rain": 
+                    socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_WET_RAIN', 'type': 'system'}, room=self.id)
+            else: 
+                socketio_instance.emit('lore_message', {'messageKey': 'LORE.BECAME_DRY', 'type': 'system'}, room=self.id)
 
+    def regenerate_mana(self, base_regen_amount, pixie_boost_total, socketio_instance):
+        total_regen_this_cycle = base_regen_amount + pixie_boost_total
+        self.mana_regen_accumulator += total_regen_this_cycle
+        if self.mana_regen_accumulator >= 1.0:
+            mana_to_add = int(self.mana_regen_accumulator)
+            self.current_mana = min(self.max_mana, self.current_mana + mana_to_add)
+            self.mana_regen_accumulator -= mana_to_add
+            if pixie_boost_total > 0 and mana_to_add > 0: 
+                socketio_instance.emit('lore_message', {'messageKey': 'LORE.PIXIE_MANA_BOOST', 'type': 'event-good', 'placeholders': {'amount': mana_to_add}}, room=self.id)
+
+    def get_public_data(self):
+        return {'id': self.id, 'name': self.name, 'x': self.x, 'y': self.y, 'char': self.char, 
+                'scene_x': self.scene_x, 'scene_y': self.scene_y, 'is_wet': self.is_wet}
+
+    def get_full_data(self):
+        return {'id': self.id, 'name': self.name, 'scene_x': self.scene_x, 'scene_y': self.scene_y,
+                'x': self.x, 'y': self.y, 'char': self.char, 'max_health': self.max_health, 
+                'current_health': self.current_health, 'max_mana': self.max_mana, 
+                'current_mana': int(self.current_mana), 'potions': self.potions, 'gold': self.gold, 
+                'walls': self.walls, 'is_wet': self.is_wet}
 class Scene:
     def __init__(self, scene_x, scene_y, name_generator_func=None):
         self.scene_x = scene_x; self.scene_y = scene_y; self.name = f"Area ({scene_x},{scene_y})"

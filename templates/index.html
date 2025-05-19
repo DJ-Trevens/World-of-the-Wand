@@ -14,12 +14,13 @@
 </head>
 <body> 
     <div class="main-ui-container">
-        <div class="left-panel"> 
+        <div class="left-panel">
             <div id="commandLog"></div>
             <div id="commandInputBox">
                 <form id="commandForm">
                     <label for="commandText">
-                        <span id="wizardHeartIndicator"></span> Inscribe Your Will:
+                        <!-- The wizardHeartIndicator span is for the server heartbeat, now displayed in debug panel -->
+                        Inscribe Your Will:
                     </label>
                     <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
                     <button type="submit">Enact</button>
@@ -37,7 +38,7 @@
                 <div id="rainOverlay"></div>
             </div>
             
-            <div id="bottomRightPanelOuter"> {/* New wrapper for the toggle + panel */}
+            <div id="bottomRightPanelOuter">
                 <div class="debug-master-toggle">
                      <label>
                         <input type="checkbox" id="debugInfoToggle"> Show Debug Panel
@@ -47,7 +48,7 @@
                     <hr class="debug-hr">
                     <div class="debug-panel-container"> 
                         <div class="debug-info-side">
-                            <h4>Debug Stats:</h4> 
+                            <h4>Debug Stats</h4> 
                             <div id="clientDebugInfo"> 
                                 <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
                                 <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
@@ -91,8 +92,7 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
-        // wizardHeartIndicator is for the command input label, if we want to bring it back
-        // const wizardHeartIndicator = document.getElementById('wizardHeartIndicator'); 
+        // wizardHeartIndicator used to be for command input, now serverHeartbeatIndicator for debug panel
         const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator'); 
         const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
@@ -113,7 +113,7 @@
         const MOON_EMOJI = '🌙'; 
         const SUN_EMOJI = '☀️'; 
 
-        let showDebugInfoState = true; 
+        let showDebugInfoState = true; // Default to true
         let selfPlayer = null;
         let otherPlayers = {}; 
         let visibleNPCs = [];
@@ -262,7 +262,7 @@
                 }
                 baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
                 
-                if (showDebugInfoState) { // Only add scene info to status if debug panel is visible
+                if (showDebugInfoState) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; 
                      mainHeaderStatus.textContent = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | ${baseStatus}`;
                 } else {
@@ -554,15 +554,11 @@
             showDebugInfoState = event.target.checked; 
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfoState)); 
             
-            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'block' : 'none'; // Toggle whole panel
-            // Controls inside the panel don't need individual toggling if parent is hidden
-            // rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none';
-            // simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
-            // clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none'; 
+            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'block' : 'none'; // Show/hide the whole panel
 
             if (!showDebugInfoState) { 
                 simulateHeartbeatToggle.checked = false;
-                simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
+                simulateHeartbeatToggle.dispatchEvent(new Event('change')); // Trigger change to stop simulation
             }
             updateStatus(); 
         });
@@ -667,11 +663,7 @@
             showDebugInfoState = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : true; 
             debugInfoToggle.checked = showDebugInfoState; 
             
-            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'flex' : 'none';
-            // Controls inside the panel are only relevant if the panel is shown
-            rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none';
-            simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
-            clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none';
+            debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'block' : 'none'; // Use block or flex based on CSS for panel
             
             const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
             if (showDebugInfoState && savedSimulateHeartbeat !== null) { 
@@ -699,7 +691,7 @@
                         if(!initialUIDone){
                              updateWeatherEffects(); 
                              logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-                             if(showDebugInfoState) { // Use state variable
+                             if(showDebugInfoState) {
                                 logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                              }
                              if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
@@ -1053,9 +1045,6 @@
         
         debugInfoToggle.checked = showDebugInfoState; 
         debugAndAuxiliaryPanel.style.display = showDebugInfoState ? 'flex' : 'none';
-        rainIntensityControl.style.display = showDebugInfoState ? 'block' : 'none';
-        simulateHeartbeatControl.style.display = showDebugInfoState ? 'block' : 'none'; 
-        clientDebugInfo.style.display = showDebugInfoState ? 'block' : 'none';
         
         const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
         if (showDebugInfoState && savedSimulateHeartbeat !== null) { 
@@ -1063,8 +1052,7 @@
         } else if (showDebugInfoState) { 
              simulateHeartbeatToggle.checked = false; 
         }
-        simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
-
+        simulateHeartbeatToggle.dispatchEvent(new Event('change')); // Initialize simulation state
 
         drawGrid(); 
         if (commandInput) { commandInput.focus(); }
