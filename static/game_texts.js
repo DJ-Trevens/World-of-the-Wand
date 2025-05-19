@@ -39,7 +39,7 @@ const GAME_TEXTS = {
             "The ethereal link solidifies. You are connected.",
             "A bridge forms across the aether. Connection successful."
         ],
-        WELCOME: ["Tome: You have materialized. Your essence is bound to ID: {playerId}."], // Removed fallback/observer placeholders for simplicity if server controls this
+        WELCOME: ["Tome: You have materialized. Your essence is bound to ID: {playerId}."],
         WELCOME_INITIAL: ["Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command."],
         INITIAL_RAIN: ["Tome notes: A chilling rain falls from the slate-grey sky."],
         POTION_DRINK_SUCCESS: [
@@ -141,7 +141,7 @@ const GAME_TEXTS = {
             "Tome reflects: You survey your immediate surroundings. Nothing seems out of the ordinary."
         ]
     },
-    SENSORY: { // New main key for sensory cues
+    SENSORY: { 
         PIXIE_SIGHT_SHIMMER: ["You catch a brief, iridescent shimmer, like that of {npcName}."],
         PIXIE_SIGHT_DART: ["A fleeting movement in the corner of your eye suggests {npcName} is near."],
         PIXIE_SOUND_CHIME: ["A faint, melodic chime echoes from {direction}, perhaps from {npcName}."],
@@ -154,7 +154,7 @@ const GAME_TEXTS = {
         SYSTEM: ["{message}"], 
         EVENT_GOOD: ["{message}"], 
         EVENT_BAD: ["{message}"],
-        SENSORY_SIGHT: ["{message}"], // Fallbacks for sensory types
+        SENSORY_SIGHT: ["{message}"], 
         SENSORY_SOUND: ["{message}"],
         SENSORY_SMELL: ["{message}"],
         SENSORY_MAGIC: ["{message}"]
@@ -178,7 +178,6 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
             textsArray = GAME_TEXTS.GENERIC[mainKey.toUpperCase()];
             if (!(placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "")) {
                 // console.warn(`Generic key ${mainKey.toUpperCase()} used, but no valid 'message' in placeholders:`, placeholders);
-                // return `Text error for generic type ${mainKey.toUpperCase()} (message content missing/empty)`;
             }
         } 
         else if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
@@ -193,7 +192,7 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
     if (!textsArray || textsArray.length === 0) { 
         console.warn(`Empty text array for key: ${actualKeyForLog}`);
         if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
-            return placeholders.message; // Fallback to raw message if array is empty
+            return placeholders.message; 
         }
         return `No text variants for: ${actualKeyForLog}`;
     }
@@ -203,11 +202,11 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
 
     for (const placeholder in placeholders) {
         if (placeholders.hasOwnProperty(placeholder) && typeof placeholders[placeholder] !== 'undefined') {
-             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), String(placeholders[placeholder])); // Ensure string conversion
+             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), String(placeholders[placeholder]));
         }
     }
     
-    selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, "").trim(); // Remove unfilled placeholders more aggressively
+    selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, "").trim();
     
     return selectedText;
 }

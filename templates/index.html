@@ -14,14 +14,12 @@
 </head>
 <body> 
     <div class="main-ui-container">
-        <div class="left-panel"> {/* This is the Journal */}
+        <div class="left-panel">
             <div id="commandLog"></div>
             <div id="commandInputBox">
                 <form id="commandForm">
                     <label for="commandText">
-                        {/* This wizardHeartIndicator is for server heartbeats and will be displayed in the debug panel now */}
-                        {/* <span id="wizardHeartIndicator"></span>  Removed from here */}
-                         Inscribe Your Will:
+                        <span id="wizardHeartIndicator"></span> Inscribe Your Will:
                     </label>
                     <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
                     <button type="submit">Enact</button>
@@ -42,13 +40,16 @@
             <div id="bottomRightPanel" class="info-panel">
                 <div class="debug-panel-container"> 
                     <div class="debug-info-side">
-                        <h4>Client Debug Stats:</h4>
+                        <label class="debug-control-item standalone-checkbox">
+                            <input type="checkbox" id="debugInfoToggle"> Debug Info
+                        </label>
                         <div id="clientDebugInfo" style="display:none;">
+                            <h4>Debug Stats:</h4> {/* Title Changed */}
                             <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
                             <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
                             <div>NPCs: <span id="dbgNpcsCount">0</span></div>
                             <div>
-                                <span id="wizardHeartIndicator" class="heartbeat-indicator-inline"></span> Server Heartbeat: <span id="dbgLastUpdate">Never</span>
+                                <span id="serverHeartbeatIndicator" class="heartbeat-indicator-inline"></span> Server Heartbeat: <span id="dbgLastUpdate">Never</span>
                             </div>
                             <div>
                                 <span id="simulatedHeartbeatIndicator" class="heartbeat-indicator-inline"></span> Sim. Heartbeat: <span id="dbgSimulating">false</span>
@@ -57,9 +58,6 @@
                     </div>
                     <div class="debug-config-side">
                         <h4>Debug Config:</h4>
-                        <label class="debug-control-item standalone-checkbox">
-                            <input type="checkbox" id="debugInfoToggle"> Show Debug Info
-                        </label>
                         <div id="rainIntensityControl" class="debug-control-item">
                             <label>
                                 Rain: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
@@ -88,8 +86,8 @@
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
-        // wizardHeartIndicator is now in the debug panel, but still referenced for server heartbeats
         const wizardHeartIndicator = document.getElementById('wizardHeartIndicator'); 
+        const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator'); // New ID for clarity
         const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
@@ -150,7 +148,7 @@
 
         let simulateServerHeartbeatEnabled = false; 
         let simulatedHeartbeatInterval = null;     
-        let serverHeartbeatFlashTimeout = null; 
+        let serverHeartbeatFlashTimeout = null; // Renamed
         let simulatedHeartbeatFlashTimeout = null; 
 
 
@@ -796,10 +794,10 @@
             }
             if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
 
-            if(wizardHeartIndicator && !simulateServerHeartbeatEnabled) { 
-                wizardHeartIndicator.classList.add('heartbeat-flash'); 
-                if(heartbeatFlashTimeout) clearTimeout(heartbeatFlashTimeout); 
-                heartbeatFlashTimeout = setTimeout(() => { if(wizardHeartIndicator) wizardHeartIndicator.classList.remove('heartbeat-flash'); }, 150); 
+            if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) { // Use serverHeartbeatIndicator
+                serverHeartbeatIndicator.classList.add('heartbeat-flash'); 
+                if(serverHeartbeatFlashTimeout) clearTimeout(serverHeartbeatFlashTimeout); 
+                serverHeartbeatFlashTimeout = setTimeout(() => { if(serverHeartbeatIndicator) serverHeartbeatIndicator.classList.remove('heartbeat-flash'); }, 150); 
             }
             
             const oldSceneX = selfPlayer.scene_x; const oldSceneY = selfPlayer.scene_y;
@@ -1055,6 +1053,7 @@
              simulateHeartbeatToggle.checked = false; 
         }
         simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
+
 
         drawGrid(); 
         if (commandInput) { commandInput.focus(); }
