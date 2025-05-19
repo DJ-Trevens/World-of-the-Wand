@@ -75,8 +75,8 @@
     --text-game-wall-consistent:  #7289DA;
     --text-game-water-consistent: #4DD0E1;
     --text-game-fog-consistent:   #2C2F33;
-    --text-game-self-consistent:  #5DADE2; /* New: Blue for self */
-    --text-game-other-consistent: #58D68D; /* New: Green for others */
+    --text-game-self-consistent:  #5DADE2;
+    --text-game-other-consistent: #58D68D;
     --text-game-npc-pixie-consistent: #DB2777;
     --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25);
 
@@ -155,15 +155,15 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 
 .left-panel {
     display: flex;
-    flex-direction: column; /* Children stack vertically */
+    flex-direction: column;
     flex-basis: 40%; flex-shrink: 1; min-width: 300px;
     background-color: var(--bg-tome-cover);
     border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 80%, black);
     border-radius: 10px 4px 4px 10px; position: relative;
     transition: background-color 0.3s ease, border-color 0.3s ease;
-    overflow: hidden;
-    padding: 10px; /* Padding for inner content */
+    overflow: hidden; /* Ensures children don't overflow rounded corners */
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    /* Padding removed, children manage their own or use a wrapper */
 }
 .left-panel::before { /* Spine shadow */
     content: ''; position: absolute;
@@ -175,27 +175,27 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 
 .right-panel {
     flex-basis: 60%; flex-shrink: 1; min-width: 350px;
-    padding: 0; /* No padding, children manage their own */
+    padding: 0;
     display: flex; flex-direction: column;
     background-color: var(--bg-secondary);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transition: background-color 0.3s ease;
 }
-#commandLog { /* Now inside left-panel */
+#commandLog {
     background-color: var(--bg-tome);
     font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65;
-    padding: 15px 20px;
+    padding: 15px 20px; /* Padding inside the log area */
+    margin: 10px; /* Margin around the log area, inside left-panel */
     border-radius: 3px;
     overflow-y: auto;
-    flex-grow: 1; /* Takes available vertical space in left-panel */
-    display: flex; /* To ensure it's visible and behaves as a block */
-    flex-direction: column; /* Children stack */
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
     border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black);
     box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
     position: relative; scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
     transition: background-color 0.3s ease, border-color 0.3s ease;
-    /* margin-bottom: 10px; No longer needed as footer is separate */
 }
 
 #commandLog::-webkit-scrollbar { width: 8px; }
@@ -238,14 +238,13 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 
 #gameCanvasContainer {
     position: relative;
-    flex-grow: 1; /* Takes up available vertical space in right-panel */
+    flex-grow: 1;
     min-height: 200px;
     display: flex; align-items: center; justify-content: center;
     background-color: var(--canvas-bg);
     overflow: hidden;
     cursor: grab; padding: 0;
     transition: background-color 0.3s ease;
-    /* No margin-bottom needed, input box is now separate */
 }
 #gameCanvasContainer:active { cursor: grabbing; }
 
@@ -259,18 +258,16 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
-/* Command Input Box - Now at the bottom of the right panel */
 #commandInputBox {
     padding: 10px 15px;
-    background-color: var(--bg-secondary); /* Match right panel's secondary bg */
+    background-color: var(--bg-secondary);
     border-top: 1px solid var(--border-color);
-    flex-shrink: 0; /* Don't shrink */
-    box-shadow: 0 -2px 5px rgba(0,0,0,0.1); /* Subtle shadow upwards */
+    flex-shrink: 0;
+    box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
     transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 #commandForm { display: flex; align-items: center; width: 100%; }
 
-/* Heartbeat Indicators */
 .heartbeat-indicator-inline {
     width: 10px; height: 10px;
     background-color: var(--heart-inactive);
@@ -290,15 +287,14 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     box-shadow: 0 0 6px var(--highlight-blue), 0 0 10px var(--highlight-blue);
 }
 
-/* Styling for command input elements, now themed for general UI rather than tome page */
 #commandForm label {
-    color: var(--text-primary); /* Use primary text color */
+    color: var(--text-primary);
     font-weight: 500;
     margin-right: 8px; font-size: 0.9em;
     transition: color 0.3s ease;
 }
 #commandText {
-    background-color: var(--bg-primary); /* Use primary bg, slightly inset */
+    background-color: var(--bg-primary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     padding: 8px 10px;
@@ -308,12 +304,12 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 }
 #commandText:focus {
     outline: none; border-color: var(--highlight-blue);
-    background-color: var(--bg-primary); /* Keep same bg on focus, border indicates */
+    background-color: var(--bg-primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent);
 }
 #commandForm button {
-    background-color: var(--highlight-blue); /* Themed button */
-    color: var(--bg-primary); /* Contrasting text */
+    background-color: var(--highlight-blue);
+    color: var(--bg-primary);
     border: 1px solid var(--highlight-blue);
     padding: 8px 15px; margin-left: 10px; cursor: pointer; border-radius: 3px;
     font-weight: 500; font-family: var(--font-ui); text-transform: uppercase;
@@ -330,17 +326,14 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     background-color: color-mix(in srgb, var(--highlight-blue) 70%, black);
 }
 
-
-/* Debug and Auxiliary Panel Styling - Now in Left Panel */
-.left-panel-footer { /* Container for the toggle switch */
-    flex-shrink: 0; /* Prevent shrinking */
-    padding-top: 10px; /* Space above the toggle */
-    margin-top: auto; /* Pushes to the bottom if left-panel is flex-column */
-    border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--bg-tome) 40%);
+.left-panel-footer {
+    flex-shrink: 0;
+    padding: 10px; /* Padding around the toggle itself */
+    border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--text-tome-ink) 40%); /* Tome-themed border */
+    background-color: var(--bg-tome-cover); /* Ensure footer matches panel bg */
 }
 .debug-master-toggle {
-    padding-bottom: 0; /* No extra padding needed below */
-    /* margin-bottom: 5px; No longer needed */
+    /* No specific style needed if label is styled directly */
 }
 .debug-master-toggle label {
     font-size: 0.9em;
@@ -348,130 +341,119 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     cursor: pointer;
     display: flex;
     align-items: center;
-    color: var(--bg-tome); /* Text color suitable for tome cover background */
+    color: var(--bg-tome); /* Light text on dark tome cover */
 }
 .debug-master-toggle input[type="checkbox"] {
     margin-right: 6px;
     transform: scale(1.1);
-    accent-color: var(--text-tome-mana); /* Make checkbox match mana theme */
+    accent-color: var(--text-tome-mana);
 }
 
-#debugAndAuxiliaryPanel { /* Panel that toggles with commandLog */
-    /* display:none; JS handles this */
-    display: flex; /* Default to flex when shown */
-    flex-direction: column;
-    flex-grow: 1; /* Takes available vertical space when visible */
-    padding: 15px 20px; /* Match commandLog padding */
-    background-color: var(--bg-tome); /* Same background as commandLog */
-    color: var(--text-tome-ink); /* Text color for debug panel content */
+#debugAndAuxiliaryPanel {
+    display: flex; /* Changed from 'none' initially. JS will toggle it. */
+    flex-direction: column; /* For the inner scrolling wrapper */
+    flex-grow: 1;
+    background-color: var(--bg-tome);
+    color: var(--text-tome-ink);
     border-radius: 3px;
+    overflow: hidden; /* Let the inner wrapper handle scroll */
+    margin: 10px; /* Match commandLog margin */
+    border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black);
+    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
+}
+.debug-panel-content { /* New wrapper for scrolling */
+    padding: 15px 20px; /* Padding inside the debug content area */
     overflow-y: auto;
-    font-family: var(--font-ui); /* Use UI font for debug panel */
-    font-size: 0.9em; /* Slightly smaller font for debug */
+    flex-grow: 1;
+    font-family: var(--font-ui);
+    font-size: 0.9em;
     line-height: 1.5;
     scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
 }
-.debug-panel-container {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    gap: 20px;
+.debug-panel-content::-webkit-scrollbar { width: 8px; }
+.debug-panel-content::-webkit-scrollbar-track { background: var(--bg-tome); }
+.debug-panel-content::-webkit-scrollbar-thumb { background-color: var(--text-tome-ink); border-radius: 4px; border: 2px solid var(--bg-tome); }
+
+.debug-section {
+    margin-bottom: 20px;
 }
-.debug-info-side {
-    flex: 1;
-    font-size: 1em; /* Relative to parent #debugAndAuxiliaryPanel */
-    line-height: 1.6;
-    text-align: left;
+.debug-section:last-child {
+    margin-bottom: 0;
 }
-.debug-info-side h4, .debug-config-side h4 {
+.debug-section h4 {
     margin-top: 0;
     margin-bottom: 10px;
     border-bottom: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
     padding-bottom: 6px;
-    color: var(--text-tome-ink); /* Ensure headers use ink color */
-    font-family: var(--font-tome); /* Tome font for headers */
+    color: var(--text-tome-ink);
+    font-family: var(--font-tome);
     font-weight: 700;
 }
-.debug-info-side div {
-    margin-bottom: 4px;
+.debug-info-section div, .debug-context-section div { /* For items in stats and context */
+    margin-bottom: 5px;
     display: flex;
     align-items: center;
 }
-.debug-config-side {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+.debug-context-section span { /* Make context values slightly more prominent or distinct */
+    font-weight: 500;
+    margin-left: 4px;
+    color: color-mix(in srgb, var(--text-tome-ink) 80%, black);
 }
-.debug-control-item {
+
+.debug-config-section .debug-control-item {
     display: flex;
     align-items: center;
+    justify-content: space-between; /* Align label left, control right */
+    margin-bottom: 8px;
     width: 100%;
-    font-size: 1em; /* Relative to parent */
 }
-.debug-config-side label {
-     margin-right: 5px;
+.debug-config-section label {
+     margin-right: 10px; /* Space between label and control */
      white-space: nowrap;
 }
-.debug-config-side input[type="range"] {
-    flex-grow: 1;
+.debug-config-section input[type="range"] {
+    flex-grow: 1; /* Allow slider to take space if needed */
+    max-width: 150px; /* Or a fixed width */
     accent-color: var(--text-tome-mana);
 }
-.debug-config-side input[type="checkbox"] {
+.debug-config-section input[type="checkbox"] {
     accent-color: var(--text-tome-mana);
+    transform: scale(1.1);
 }
-.debug-config-side #themeToggle {
+.debug-config-section #themeToggle {
     padding: 4px 8px;
     font-size: 1.1em;
     background-color: color-mix(in srgb, var(--text-tome-ink) 15%, var(--bg-tome) 85%);
     color: var(--text-tome-ink);
     border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
     border-radius: 3px;
-    align-self: flex-start;
 }
-.debug-config-side #themeToggle:hover {
+.debug-config-section #themeToggle:hover {
     background-color: var(--text-tome-mana);
     color: var(--bg-tome);
 }
-hr.debug-hr { /* This is inside #debugAndAuxiliaryPanel now */
-    border: none;
-    border-top: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
-    margin: 8px 0;
-}
-
 
 @media (max-width: 800px) {
     .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; }
     .left-panel {
-        flex-basis: 30vh; /* Adjust height for log/debug */
+        flex-basis: 30vh;
         min-height: 180px;
         width: 100%;
         min-width: unset;
-        order: 2; /* Left panel (log/debug) below right panel (game view) */
+        order: 2;
     }
-    #commandLog { padding: 10px 15px; } /* Slightly less padding on mobile */
-    #debugAndAuxiliaryPanel { padding: 10px 15px; }
+    #commandLog, #debugAndAuxiliaryPanel { margin: 5px; padding: 10px 15px; }
 
     .right-panel {
         flex-grow: 1; width:100%;
-        order: 1; /* Right panel (game view + input) on top */
-        min-height: 50vh; /* Ensure it has decent height */
+        order: 1;
+        min-height: 50vh;
     }
     #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: center; }
-    #commandInputBox { padding: 8px 10px; } /* Adjust padding for mobile */
+    #commandInputBox { padding: 8px 10px; }
 
-    .debug-panel-container {
-        flex-direction: column; /* Stack debug sections on mobile */
-    }
-    .debug-config-side {
-        margin-top: 15px;
-        align-items: stretch;
-    }
-    .debug-config-side .debug-control-item {
-        justify-content: space-between;
-    }
-    .debug-config-side .debug-control-item input[type="range"] {
+    .debug-panel-content { padding: 10px 15px; } /* Adjust padding for mobile */
+    .debug-config-section .debug-control-item input[type="range"] {
         max-width: 120px;
     }
 }
