@@ -99,6 +99,10 @@
         const FLOOR_CHAR = '·'; 
         const AURA_VISION_RANGE = 1;
 
+        // CSS Zoom factor is now managed by a CSS variable set in style.css
+        // const GAME_ZOOM_FACTOR = 1.4; // No longer needed here
+        // document.documentElement.style.setProperty('--game-zoom', GAME_ZOOM_FACTOR);
+
         function applyTheme(theme) {
             if (theme === 'light') {
                 document.body.classList.add('light-theme');
@@ -115,9 +119,7 @@
         }
 
         function toggleTheme() {
-            const currentThemeIsDark = document.body.classList.contains('dark-theme') || 
-                                     (!localStorage.getItem('worldOfTheWandTheme') && 
-                                      !window.matchMedia('(prefers-color-scheme: light)').matches);
+            const currentThemeIsDark = document.body.classList.contains('dark-theme');
             applyTheme(currentThemeIsDark ? 'light' : 'dark');
         }
         themeToggleButton.addEventListener('click', toggleTheme);
@@ -245,9 +247,8 @@
                 gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
                 return;
             }
-            gameCanvas.style.setProperty('--pan-x', `${currentPanX}px`);
-            gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
-
+            // Pan is applied via CSS variables now, not directly on transform here.
+            // gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
             for (const playerID in otherPlayers) {
                 const otherGuy = otherPlayers[playerID];
@@ -305,7 +306,7 @@
             isDragging = true; document.body.classList.add('is-dragging');
             gameCanvasContainer.style.cursor = 'grabbing';
             startDragX = e.clientX - currentPanX; startDragY = e.clientY - currentPanY;
-            gameCanvas.style.transition = 'none'; 
+            gameCanvas.style.transition = 'none'; // Remove transition for instant drag
         });
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
@@ -317,7 +318,11 @@
             if (e.button !== 0 || !isDragging) return;
             isDragging = false; document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
-            gameCanvas.style.transition = 'transform 0.3s ease-out'; 
+            // Re-apply transition only if not centering immediately after
+            // If centerViewOnPlayer is called, it will manage its own transition if needed
+            if (!isDragging) { // Check again to ensure state hasn't changed
+                gameCanvas.style.transition = 'transform 0.3s ease-out';
+            }
         });
         gameCanvasContainer.addEventListener('mouseleave', () => {
             if(isDragging){ 
@@ -330,17 +335,14 @@
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
             const currentZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1");
-
-            console.log(`[centerViewOnPlayer context: ${context}] Called. Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Zoom: ${currentZoom}, charSizeEstimatedAtLeastOnce: ${charSizeEstimatedAtLeastOnce}`);
-            
+            console.log(`[centerViewOnPlayer context: ${context}] Called. Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Zoom: ${currentZoom}, charSizeEst: ${charSizeEstimatedAtLeastOnce}`);
             if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0) {
                  console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Aborting centering.`);
-                 gameCanvas.style.setProperty('--pan-x', `0px`);
-                 gameCanvas.style.setProperty('--pan-y', `0px`);
+                 gameCanvas.style.setProperty('--pan-x', `0px`); gameCanvas.style.setProperty('--pan-y', `0px`);
                 return; 
             }
-            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) { // Adjusted absurd height check by zoom
-                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)} scaledH:${(charRenderHeight*currentZoom).toFixed(2)}). Forcing re-estimation.`);
+            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) { // Check scaled height
+                console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions. Forcing re-estimation.`);
                 estimateCharacterSize(`centerView_emergency_reestimate_from_${context}`);
                 if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) {
                     console.error(`[centerViewOnPlayer context: ${context}] Emergency re-estimation FAILED. Using hardcoded default dimensions.`);
@@ -353,6 +355,7 @@
             targetPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentZoom);
             currentPanX = targetPanX; currentPanY = targetPanY;
             console.log(`[centerViewOnPlayer context: ${context}] Centering: Player(${selfPlayer.x},${selfPlayer.y}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
+            gameCanvas.style.transition = 'transform 0.3s ease-out'; // Ensure easing is on for programmatic centering
             gameCanvas.style.setProperty('--pan-x', `${currentPanX}px`);
             gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
         }
@@ -388,6 +391,10 @@
                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
                             initialUIDone = true;
                         }
+                    } else if (newHeight > 0 && newWidth > 0 && selfPlayer && initialCenteringDone && !isDragging) {
+                        // Re-center on resize if already centered and not dragging
+                        console.log("[ResizeObserver] Window/container resized. Re-centering player.");
+                        centerViewOnPlayer("ResizeObserver_recenter");
                     }
                 }
             }
@@ -396,7 +403,7 @@
 
         socket.on('connect', () => {
             console.log("Socket.IO connected successfully! SID (client-side):", socket.id);
-            addLogMessage("Tome hums: Connection to the Ethereal Plane established.", 'system');
+            logRandomizedEvent('LORE', 'CONNECTION_ESTABLISHED', {}, 'system');
         });
         socket.on('connect_error', (err) => {
             console.error("Socket.IO connection error:", err);
@@ -420,7 +427,7 @@
             document.fonts.ready.then(() => {
                 console.log("Fonts ready. Initial data processed.");
                 if (selfPlayer) {
-                    charSizeEstimatedAtLeastOnce = false; estimateCharacterSize("initial_data_fonts_ready");
+                    estimateCharacterSize("initial_data_fonts_ready"); 
                     drawGrid(); updateStatus(); 
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
                         console.log("Container has height post-draw. Ensuring centering & UI setup.");
@@ -462,7 +469,7 @@
                 console.error("Font loading error:", err);
                 logRandomizedEvent('LORE', 'FONT_SORCERY_FAILED', {}, 'event-bad');
                  if (selfPlayer) { 
-                    charSizeEstimatedAtLeastOnce = false; estimateCharacterSize("fonts_catch_fallback"); 
+                    estimateCharacterSize("fonts_catch_fallback"); 
                     drawGrid(); updateStatus(); 
                      setTimeout(() => {
                         if (!initialCenteringDone && gameCanvasContainer.clientHeight > 0) {
@@ -471,7 +478,7 @@
                         } else if(!initialCenteringDone) { console.error("Container height still 0 after font catch. Centering failed."); }
                         if (!initialUIDone) { updateWeatherEffects(); initialUIDone = true; }
                      }, 250);
-                    addLogMessage("Attempting to render world despite font issues...", 'system'); // Direct message
+                    addLogMessage("Attempting to render world despite font issues...", 'system');
                  } else { logRandomizedEvent('LORE', 'FONT_AND_DATA_ERROR', {}, 'event-bad'); }
             });
         });
@@ -520,12 +527,12 @@
             const sceneChanged = selfPlayer.scene_x !== oldSceneX || selfPlayer.scene_y !== oldSceneY;
             const positionChanged = selfPlayer.x !== oldX || selfPlayer.y !== oldY;
             const facingChanged = selfPlayer.char !== oldChar;
-            if (sceneChanged) { /* Server should send a specific lore_message with a key now */ }
+            if (sceneChanged) { /* Server should send a specific lore_message for this */ }
             else if (positionChanged) logRandomizedEvent('PLAYER_MOVE', null, {x: selfPlayer.x, y: selfPlayer.y, direction: getDirectionWord(selfPlayer.char)}, 'lore');
             else if (facingChanged) logRandomizedEvent('PLAYER_TURN', null, {direction: getDirectionWord(selfPlayer.char), x: selfPlayer.x, y: selfPlayer.y}, 'lore');
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
-                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1") > 100 ){ //Check scaled height
+                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1") > 100 ){
                         estimateCharacterSize("game_update_pre_recenter_estimate");
                     }
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0); 
