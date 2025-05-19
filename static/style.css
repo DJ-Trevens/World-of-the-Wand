@@ -6,8 +6,8 @@
     /* --- UI Dark Theme --- */
     --bg-primary-dark: #1E1F22;   
     --bg-secondary-dark: #2C2F33; 
-    --bg-tome-dark: #F0E6D2;    
-    --bg-tome-cover-dark: #4A3B32; 
+    --bg-tome-dark: #F0E6D2;    /* Parchment for log background */
+    --bg-tome-cover-dark: #4A3B32; /* Dark Leather for left-panel */
     
     --text-tome-ink-dark: #3A2A1A;  
     --text-tome-mana-dark: #8B5CF6;   
@@ -16,22 +16,22 @@
     --text-primary-dark: #D1D5DB; 
     --border-color-dark: #40434B;     
     
-    --highlight-blue-dark: var(--glow-tome-mana-dark); /* Used for simulated heartbeat */
+    --highlight-blue-dark: var(--glow-tome-mana-dark);
     --highlight-green-dark: #34D399;  
-    --highlight-red-dark: #F87171;    /* Used for server heartbeat */
+    --highlight-red-dark: #F87171;    
 
     --heart-inactive-dark: #4B5563;
     --heart-shadow-dark: #111827;
 
-    --command-text-focus-bg-dark: #374151; 
+    --command-text-focus-bg-dark: #E1D7C5; /* Lighter parchment for focus */
     --command-button-border-dark: #4B5563; 
     --raindrop-base-dark: 156, 163, 175; 
 
     /* --- UI Light Theme --- */
     --bg-primary-light: #FBF5E9;   
     --bg-secondary-light: #FFFFFF; 
-    --bg-tome-light: #FFF9EF;      
-    --bg-tome-cover-light: #A0522D; 
+    --bg-tome-light: #FFF9EF;      /* Lighter Parchment for log background */
+    --bg-tome-cover-light: #A0522D; /* Sienna Brown Leather for left-panel */
     
     --text-tome-ink-light: #5D4037;       
     --text-tome-mana-light: #7C3AED;   
@@ -40,14 +40,14 @@
     --text-primary-light: #374151; 
     --border-color-light: #D1C7AC;     
     
-    --highlight-blue-light: var(--glow-tome-mana-light); /* Used for simulated heartbeat */
+    --highlight-blue-light: var(--glow-tome-mana-light);
     --highlight-green-light: #10B981;  
-    --highlight-red-light: #EF4444;    /* Used for server heartbeat */
+    --highlight-red-light: #EF4444;    
 
     --heart-inactive-light: #9CA3AF;
     --heart-shadow-light: #E5E7EB;   
 
-    --command-text-focus-bg-light: #E5E7EB; 
+    --command-text-focus-bg-light: #FFFFFF; 
     --command-button-border-light: #9CA3AF; 
     --raindrop-base-light: 107, 114, 128; 
 
@@ -126,12 +126,20 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     flex-direction: column; 
     flex-basis: 40%; flex-shrink: 1; min-width: 300px; 
     background-color: var(--bg-tome-cover); 
-    border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 70%, black); 
+    border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 80%, black); 
     border-radius: 10px 4px 4px 10px; position: relative; 
     transition: background-color 0.3s ease, border-color 0.3s ease; 
     overflow: hidden; 
+    padding: 10px; /* Padding for the cover effect */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
-.left-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 15px; background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05)); border-radius: 10px 0 0 10px; }
+.left-panel::before { /* Spine shadow effect */
+    content: ''; position: absolute; 
+    left: 0; top: 0; bottom: 0; width: 20px; /* Increased width */
+    background: linear-gradient(to right, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0) 100%); 
+    border-radius: 10px 0 0 10px; 
+    pointer-events: none;
+}
 
 .right-panel { 
     flex-basis: 60%; flex-shrink: 1; min-width: 350px; 
@@ -145,18 +153,21 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 #commandLog { 
     background-color: var(--bg-tome); 
     font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; 
-    padding: 20px 25px 20px 20px; 
-    border-radius: 3px 0 0 0; 
+    padding: 15px 20px; /* Adjusted padding */
+    border-radius: 3px; 
     overflow-y: auto; 
     flex-grow: 1; 
-    border: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black); 
-    border-bottom: none; 
-    box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); 
-    position: relative; scrollbar-width: none; -ms-overflow-style: none;  
+    border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black); 
+    box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1); 
+    position: relative; scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);  
     transition: background-color 0.3s ease, border-color 0.3s ease; 
+    margin-bottom: 10px; /* Space before input box */
 }
 
-#commandLog::-webkit-scrollbar { display: none; }
+#commandLog::-webkit-scrollbar { width: 8px; }
+#commandLog::-webkit-scrollbar-track { background: var(--bg-tome); }
+#commandLog::-webkit-scrollbar-thumb { background-color: var(--text-tome-ink); border-radius: 4px; border: 2px solid var(--bg-tome); }
+
 .log-entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed color-mix(in srgb, var(--text-tome-ink) 30%, transparent); word-wrap: break-word; white-space: pre-wrap; }
 .log-entry:last-child { border-bottom: none; }
 .log-style-ink { color: var(--text-tome-ink); font-weight: 500; transition: color 0.3s ease; }
@@ -177,7 +188,7 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 
 
 #mainHeaderStatusContainer { 
-    display: flex; align-items: center; justify-content: space-between; 
+    display: flex; align-items: center; justify-content: center; /* Center status text */
     gap: 10px; background-color: rgba(0,0,0,0.25); border-radius: 6px 6px 0 0; 
     padding: 5px 10px; flex-shrink: 0; 
     border-bottom: 1px solid var(--border-color); 
@@ -185,7 +196,7 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 }
 #mainHeaderStatus { 
     color: var(--text-primary); padding: 5px 0; 
-    text-align: left; 
+    text-align: center; 
     font-size: 0.9em; line-height: 1.3; flex-grow: 1; 
     transition: color 0.3s ease; 
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -200,14 +211,13 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     overflow: hidden; 
     cursor: grab; padding: 0; 
     transition: background-color 0.3s ease; 
-    /* No border or margin-bottom here, part of .right-panel's flow */
 }
 #gameCanvasContainer:active { cursor: grabbing; }
 
 #gameCanvas {
     transform-origin: 0 0; 
     transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--game-zoom, 1));
-    transition: transform 0.3s ease-out; 
+    transition: transform 0.05s linear; /* Faster, linear transition for general updates */
 }
 
 #rainOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 2; }
@@ -215,18 +225,18 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
 #commandInputBox { /* Now in left panel */
-    padding: 10px 15px 10px 20px; 
+    padding: 8px 10px 8px 15px; /* Fine-tuned padding */
     background-color: var(--bg-tome); 
-    border-top: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black);
-    border-radius: 0 0 0 3px; /* Only round bottom-left as it's at the bottom of the "book" */
+    border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--bg-tome) 40%); /* Softer top border */
+    border-radius: 0 0 0 6px; /* Match left-panel radius */
     flex-shrink: 0; 
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
 }
 #commandForm { display: flex; align-items: center; width: 100%; }
 
-/* Server Heartbeat in Journal Input */
-#wizardHeartIndicator { 
-    width: 10px; 
-    height: 10px; 
+/* Generic Heartbeat Indicator Styling - for debug panel */
+.heartbeat-indicator-inline { 
+    width: 10px; height: 10px; 
     background-color: var(--heart-inactive); 
     border-radius: 50%; 
     margin-right: 6px; 
@@ -235,33 +245,23 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
     box-shadow: 0 0 2px var(--heart-shadow); 
 }
-#wizardHeartIndicator.heartbeat-flash { 
+/* Server Heartbeat */
+#serverHeartbeatIndicator.heartbeat-flash { 
     background-color: var(--highlight-red); 
     box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red); 
 }
-
-/* Simulated Heartbeat in Debug Panel */
-.heartbeat-indicator-inline { 
-    width: 10px; height: 10px; 
-    background-color: var(--heart-inactive); 
-    border-radius: 50%; 
-    margin-left: 5px; 
-    display: inline-block; 
-    vertical-align: middle; 
-    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
-    box-shadow: 0 0 2px var(--heart-shadow);
-}
-.heartbeat-indicator-inline.heartbeat-flash {
-    background-color: var(--highlight-blue); /* Different color for simulated */
+/* Simulated Client Heartbeat */
+#simulatedHeartbeatIndicator.heartbeat-flash {
+    background-color: var(--highlight-blue); 
     box-shadow: 0 0 6px var(--highlight-blue), 0 0 10px var(--highlight-blue);
 }
 
 
 #commandForm label { color: var(--text-tome-ink); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
 #commandText { 
-    background-color: color-mix(in srgb, var(--bg-tome) 90%, #000000 10%); 
+    background-color: color-mix(in srgb, var(--bg-tome) 95%, #000000 5%); 
     color: var(--text-tome-ink); 
-    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent); 
+    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 20%, transparent); 
     padding: 8px 10px; 
     border-radius: 3px; 
     font-size: 1em; flex-grow: 1; font-family: var(--font-game); 
@@ -269,11 +269,11 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 }
 #commandText:focus { 
     outline: none; border-color: var(--text-tome-mana); 
-    background-color: var(--bg-tome); 
+    background-color: color-mix(in srgb, var(--bg-tome) 98%, white); 
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-tome-mana) 40%, transparent);
 }
 #commandForm button { 
-    background-color: color-mix(in srgb, var(--bg-tome-cover) 80%, white 20%); 
+    background-color: color-mix(in srgb, var(--bg-tome-cover) 85%, var(--bg-tome) 15%); 
     color: var(--bg-tome);
     border: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, black); 
     padding: 8px 15px; margin-left: 10px; cursor: pointer; border-radius: 3px;
@@ -293,41 +293,34 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     background-color: color-mix(in srgb, var(--text-tome-mana) 80%, black); 
 }
 
-/* Debug and Auxiliary Panel Styling */
-#bottomRightPanelOuter { /* Wrapper for the toggle and the panel */
+#bottomRightPanelOuter {
     flex-shrink: 0;
-    margin-top: 10px; /* Space between canvas and this section */
-}
-.debug-master-toggle {
-    padding: 0 10px 5px 10px; /* Padding for the checkbox */
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 5px;
+    margin-top: 10px; 
+    background-color: var(--bg-secondary); /* Give the wrapper the panel background */
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    padding: 8px; /* Padding for the master toggle */
 }
 .debug-master-toggle label {
     font-size: 0.9em;
     font-weight: bold;
+    cursor: pointer;
 }
-
-#debugAndAuxiliaryPanel { /* This is the panel that gets toggled */
-    /* display: none; /* Initially hidden, JS will show it */
-    flex-direction: column; /* Content within this panel stacks */
-    background-color: var(--bg-secondary);
-    border-radius: 6px;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-    color: var(--text-primary);
+#debugAndAuxiliaryPanel { 
+    /* display:none; JS handles this */
+    flex-direction: column; 
+    padding-top: 8px; /* Space below the master toggle hr */
+    /* No background/border here, it's on the outer wrapper */
 }
 .debug-panel-container {
     display: flex;
-    justify-content: space-between;
-    gap: 20px; 
+    flex-direction: column; /* Stack info and config */
+    gap: 15px; 
 }
 .debug-info-side {
-    flex: 2; /* Takes more space on the left for stats */
-    font-size: 0.8em; 
-    line-height: 1.5; 
-    text-align: left; /* Ensure text is left-aligned */
+    font-size: 0.85em; 
+    line-height: 1.6; 
+    text-align: left; 
 }
 .debug-info-side h4, .debug-config-side h4 {
     margin-top: 0;
@@ -342,8 +335,6 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     align-items: center;
 }
 .debug-config-side {
-    flex: 1; /* Takes less space on the right */
-    flex-shrink: 0; 
     display: flex;
     flex-direction: column;
     align-items: flex-start; 
@@ -355,9 +346,6 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     width: 100%; 
     font-size: 0.85em;
 }
-.debug-control-item.standalone-checkbox { 
-    font-weight: normal; /* No longer need bold as it's part of config */
-}
 .debug-config-side .debug-control-item label {
     margin-right: 5px;
     white-space: nowrap;
@@ -365,22 +353,22 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .debug-config-side .debug-control-item input[type="range"] {
     flex-grow: 1; 
 }
-.debug-config-side #themeToggle { /* Specific styling for theme toggle in this panel */
+.debug-config-side #themeToggle { 
     padding: 4px 8px; 
     font-size: 1.1em; 
-    /* margin-left: auto; /* Push to right if container allows */
+    align-self: flex-start; /* Align to start of its container */
 }
 hr.debug-hr {
     border: none;
     border-top: 1px solid var(--border-color);
-    margin: 10px 0;
+    margin: 8px 0;
 }
 
 
 @media (max-width: 800px) { 
     .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } 
     .left-panel { 
-        flex-basis: 35vh; /* Adjusted */
+        flex-basis: 35vh; 
         min-height: 180px; 
         width: 100%; 
         min-width: unset; 
