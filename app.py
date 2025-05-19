@@ -1,7 +1,7 @@
 # app.py
 
 import eventlet
-eventlet.monkey_patch()
+# eventlet.monkey_patch() # Ensure this is at the very top
 
 import os
 import random
@@ -12,6 +12,9 @@ import traceback
 import uuid
 
 # --- Game Settings ---
+# (Keep all your game settings, classes Player, ManaPixie, Scene, GameManager as they were in the last complete app.py)
+# For brevity, I will only show the changed game_loop and start_game_loop_for_worker
+# and the necessary import for eventlet.spawn if not already there.
 GRID_WIDTH, GRID_HEIGHT, GAME_HEARTBEAT_RATE, SHOUT_MANA_COST, MAX_VIEW_DISTANCE = 20, 15, 0.75, 5, 8
 _game_loop_started_in_this_process = False
 DESTROY_WALL_MANA_COST = 10
@@ -218,7 +221,7 @@ class GameManager:
         self.queued_actions = {}; self.socketio = socketio_instance
         self.server_is_raining = SERVER_IS_RAINING
         self.heartbeats_until_mana_regen = HEARTBEATS_PER_MANA_REGEN_CYCLE 
-        self.loop_is_actually_running_flag = False
+        self.loop_is_actually_running_flag = False # For graceful shutdown if needed
 
     def spawn_initial_npcs(self):
         scene_0_0 = self.get_or_create_scene(0,0)
@@ -299,13 +302,13 @@ class GameManager:
             for other_sid in new_scene_obj.get_player_sids():
                 if other_sid != player.id: self.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
 
-    def is_player_visible_to_observer(self, obs_p, target_p): # True LoS/FOV would go here
+    def is_player_visible_to_observer(self, obs_p, target_p):
         if not obs_p or not target_p: return False
         if obs_p.id == target_p.id: return False
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return abs(obs_p.x - target_p.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_p.y) <= MAX_VIEW_DISTANCE
     
-    def is_npc_visible_to_observer(self, obs_p, target_npc): # True LoS/FOV would go here
+    def is_npc_visible_to_observer(self, obs_p, target_npc):
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
         return abs(obs_p.x - target_npc.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_npc.y) <= MAX_VIEW_DISTANCE
@@ -455,15 +458,15 @@ def game_loop():
 
     try:
         game_manager.loop_is_actually_running_flag = True
-        print(f"[{my_pid}] game_loop: Flag 'loop_is_actually_running_flag' SET to True.")
+        # print(f"[{my_pid}] game_loop: Flag 'loop_is_actually_running_flag' SET to True.") # Reduced verbosity
         
         game_manager.spawn_initial_npcs()
-        print(f"[{my_pid}] game_loop: Initial NPCs spawned (or attempted).")
+        # print(f"[{my_pid}] game_loop: Initial NPCs spawned (or attempted).") # Reduced verbosity
         
         loop_count = 0
         while game_manager.loop_is_actually_running_flag: 
             loop_count += 1
-            # print(f"====== [{my_pid}] TOP OF GAME HEARTBEAT {loop_count} ======") 
+            # print(f"====== [{my_pid}] TOP OF GAME HEARTBEAT {loop_count} ======") # Reduced verbosity
 
             loop_start_time = time.time()
             
@@ -527,10 +530,12 @@ def game_loop():
                             'self_player_data': self_data_payload, 'visible_other_players': visible_others_payload,
                             'visible_npcs': visible_npcs_payload, 'visible_terrain': visible_terrain_payload, 
                         }
-                        # print(f"-----> [{my_pid}] Heartbeat {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----") 
+                        # print(f"-----> [{my_pid}] Heartbeat {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----") # Verbose but useful
                         sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_this_heartbeat +=1
                     if num_updates_sent_this_heartbeat > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Heartbeat {loop_count}: Successfully sent 'game_update' to {num_updates_sent_this_heartbeat} players this heartbeat.")
                     elif len(current_players_snapshot) > 0 and num_updates_sent_this_heartbeat == 0 and loop_count % 10 == 1 : print(f"[{my_pid}] Heartbeat {loop_count}: Players present ({len(current_players_snapshot)}), but NO 'game_update' was successfully emitted this heartbeat.")
+                else:
+                    if loop_count % 30 == 1 :print(f"[{my_pid}] Heartbeat {loop_count}: No players in game_manager to send updates to.")
             except Exception as e_emit_section:
                 print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!")
                 traceback.print_exc()
@@ -538,20 +543,19 @@ def game_loop():
             elapsed_time = time.time() - loop_start_time
             sleep_duration = GAME_HEARTBEAT_RATE - elapsed_time
             
-            print(f"[{my_pid}] Heartbeat {loop_count}: Elapsed {elapsed_time:.4f}s. Target sleep: {sleep_duration:.4f}s.")
+            # print(f"[{my_pid}] Heartbeat {loop_count}: Elapsed {elapsed_time:.4f}s. Target sleep: {sleep_duration:.4f}s.") # Can be very verbose
 
             if sleep_duration < -0.1: 
-                print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Heartbeat {loop_count} took {elapsed_time:.4f}s. Yielding minimally (0.0001s).")
+                # print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Heartbeat {loop_count} took {elapsed_time:.4f}s. Yielding minimally (0.0001s).") # Verbose
                 sio.sleep(0.0001) 
             elif sleep_duration < 0: 
-                print(f"[{my_pid}] Heartbeat {loop_count}: Slight overrun or on time. Yielding minimally (0.0001s). Took {elapsed_time:.4f}s.")
+                # print(f"[{my_pid}] Heartbeat {loop_count}: Slight overrun or on time. Yielding minimally (0.0001s). Took {elapsed_time:.4f}s.") # Verbose
                 sio.sleep(0.0001) 
             else: 
-                # print(f"[{my_pid}] Heartbeat {loop_count}: Attempting to sio.sleep({sleep_duration:.4f}s)")
                 sio.sleep(sleep_duration) 
             
-            print(f"[{my_pid}] Heartbeat {loop_count}: Returned from sleep/yield.") 
-            print(f"====== [{my_pid}] BOTTOM OF GAME HEARTBEAT {loop_count} ======\n") 
+            # print(f"[{my_pid}] Heartbeat {loop_count}: Returned from sleep/yield.") # Critical debug: ensure this appears!
+            # print(f"====== [{my_pid}] BOTTOM OF GAME HEARTBEAT {loop_count} ======\n") # Keep this to confirm loop continuation for now
     except Exception as e_loop_main: 
         print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
         if hasattr(game_manager, 'loop_is_actually_running_flag'): game_manager.loop_is_actually_running_flag = False 
