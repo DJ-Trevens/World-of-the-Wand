@@ -99,9 +99,8 @@
         const FLOOR_CHAR = '·'; 
         const AURA_VISION_RANGE = 1;
 
-        // CSS Zoom factor is now managed by a CSS variable set in style.css
-        // const GAME_ZOOM_FACTOR = 1.4; // No longer needed here
-        // document.documentElement.style.setProperty('--game-zoom', GAME_ZOOM_FACTOR);
+        const GAME_ZOOM_FACTOR = 1.4;
+        document.documentElement.style.setProperty('--game-zoom', GAME_ZOOM_FACTOR);
 
         function applyTheme(theme) {
             if (theme === 'light') {
@@ -247,8 +246,7 @@
                 gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
                 return;
             }
-            // Pan is applied via CSS variables now, not directly on transform here.
-            // gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+            // Pan and scale are applied via CSS variables set on #gameCanvas
             let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
             for (const playerID in otherPlayers) {
                 const otherGuy = otherPlayers[playerID];
@@ -305,8 +303,12 @@
             if (e.button !== 0) return; 
             isDragging = true; document.body.classList.add('is-dragging');
             gameCanvasContainer.style.cursor = 'grabbing';
-            startDragX = e.clientX - currentPanX; startDragY = e.clientY - currentPanY;
-            gameCanvas.style.transition = 'none'; // Remove transition for instant drag
+            const currentStyle = getComputedStyle(gameCanvas);
+            const currentPanXFromCSS = parseFloat(currentStyle.getPropertyValue('--pan-x')) || currentPanX;
+            const currentPanYFromCSS = parseFloat(currentStyle.getPropertyValue('--pan-y')) || currentPanY;
+            startDragX = e.clientX - currentPanXFromCSS; 
+            startDragY = e.clientY - currentPanYFromCSS;
+            gameCanvas.style.transition = 'none'; 
         });
         window.addEventListener('mousemove', (e) => {
             if (!isDragging) return;
@@ -318,11 +320,7 @@
             if (e.button !== 0 || !isDragging) return;
             isDragging = false; document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
-            // Re-apply transition only if not centering immediately after
-            // If centerViewOnPlayer is called, it will manage its own transition if needed
-            if (!isDragging) { // Check again to ensure state hasn't changed
-                gameCanvas.style.transition = 'transform 0.3s ease-out';
-            }
+            if (!isDragging) { gameCanvas.style.transition = 'transform 0.3s ease-out'; }
         });
         gameCanvasContainer.addEventListener('mouseleave', () => {
             if(isDragging){ 
@@ -335,13 +333,14 @@
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
             const currentZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1");
+
             console.log(`[centerViewOnPlayer context: ${context}] Called. Container (W:${containerWidth}, H:${containerHeight}), Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Zoom: ${currentZoom}, charSizeEst: ${charSizeEstimatedAtLeastOnce}`);
             if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0) {
                  console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Aborting centering.`);
                  gameCanvas.style.setProperty('--pan-x', `0px`); gameCanvas.style.setProperty('--pan-y', `0px`);
                 return; 
             }
-            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) { // Check scaled height
+            if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) { 
                 console.warn(`[centerViewOnPlayer context: ${context}] Unreliable char dimensions. Forcing re-estimation.`);
                 estimateCharacterSize(`centerView_emergency_reestimate_from_${context}`);
                 if (charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight * currentZoom > 100) {
@@ -355,7 +354,7 @@
             targetPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentZoom);
             currentPanX = targetPanX; currentPanY = targetPanY;
             console.log(`[centerViewOnPlayer context: ${context}] Centering: Player(${selfPlayer.x},${selfPlayer.y}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
-            gameCanvas.style.transition = 'transform 0.3s ease-out'; // Ensure easing is on for programmatic centering
+            gameCanvas.style.transition = 'transform 0.3s ease-out'; 
             gameCanvas.style.setProperty('--pan-x', `${currentPanX}px`);
             gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
         }
@@ -392,7 +391,6 @@
                             initialUIDone = true;
                         }
                     } else if (newHeight > 0 && newWidth > 0 && selfPlayer && initialCenteringDone && !isDragging) {
-                        // Re-center on resize if already centered and not dragging
                         console.log("[ResizeObserver] Window/container resized. Re-centering player.");
                         centerViewOnPlayer("ResizeObserver_recenter");
                     }
@@ -496,13 +494,36 @@
             }
         });
         socket.on('lore_message', (data) => {
-            if (data.messageKey && GAME_TEXTS[data.messageKey.split('.')[0]]) { 
-                const keys = data.messageKey.split('.'); const mainKey = keys[0];
-                const subKey = keys.length > 1 ? keys.slice(1).join('.') : null; 
-                logRandomizedEvent(mainKey, subKey, data.placeholders || { message: data.message }, data.type || 'lore');
-            } else {
-                 logRandomizedEvent('GENERIC', (data.type || 'lore').toUpperCase(), { message: data.message || "An unknown lore event occurred." }, data.type || 'lore');
+            let mainKeyToUse = 'GENERIC';
+            let subKeyToUse = (data.type || 'lore').toUpperCase();
+            let placeholdersToUse = { message: data.message || "An unknown lore event occurred." };
+
+            if (data.messageKey) {
+                const keys = data.messageKey.split('.');
+                if (GAME_TEXTS[keys[0]]) { // Check if the main key (e.g., 'LORE') exists
+                    mainKeyToUse = keys[0];
+                    if (keys.length > 1) {
+                        const potentialSubKey = keys.slice(1).join('.');
+                        if (GAME_TEXTS[mainKeyToUse][potentialSubKey]) { // Check if subkey exists
+                            subKeyToUse = potentialSubKey;
+                        } else { // Main key exists, but subkey doesn't. Use main key as subkey for GENERIC.
+                            subKeyToUse = mainKeyToUse.toUpperCase(); // For GENERIC.LORE, GENERIC.SYSTEM etc.
+                            mainKeyToUse = 'GENERIC'; // Fallback to generic category
+                            placeholdersToUse = { message: data.message || `Content for ${data.messageKey} missing.`};
+                        }
+                    } else { // Only a main key was provided e.g. "WELCOME_INITIAL"
+                        subKeyToUse = null; // Let getRandomGameText handle if mainKey is array or object
+                    }
+                    // If specific key found, override placeholders if server sent them
+                    if(data.placeholders) placeholdersToUse = data.placeholders;
+                     // Ensure original message is still available for generic templates
+                    if(data.message && !placeholdersToUse.message) placeholdersToUse.message = data.message;
+
+                } else { // messageKey itself is not a known main category
+                     placeholdersToUse = { message: data.message || `Unknown event: ${data.messageKey}` };
+                }
             }
+            logRandomizedEvent(mainKeyToUse, subKeyToUse, placeholdersToUse, data.type || 'lore');
         });
         socket.on('chat_message', (data) => {
             let prefix = ""; let messageType = 'chat-say'; 
@@ -527,7 +548,7 @@
             const sceneChanged = selfPlayer.scene_x !== oldSceneX || selfPlayer.scene_y !== oldSceneY;
             const positionChanged = selfPlayer.x !== oldX || selfPlayer.y !== oldY;
             const facingChanged = selfPlayer.char !== oldChar;
-            if (sceneChanged) { /* Server should send a specific lore_message for this */ }
+            if (sceneChanged) { /* Server lore_message should handle this by sending a keyed message */ }
             else if (positionChanged) logRandomizedEvent('PLAYER_MOVE', null, {x: selfPlayer.x, y: selfPlayer.y, direction: getDirectionWord(selfPlayer.char)}, 'lore');
             else if (facingChanged) logRandomizedEvent('PLAYER_TURN', null, {direction: getDirectionWord(selfPlayer.char), x: selfPlayer.x, y: selfPlayer.y}, 'lore');
             if (sceneChanged || positionChanged || facingChanged) {
@@ -557,8 +578,13 @@
             const placeholders = data.placeholders || { actionWord: data.actionWordAttempted || "", message: data.message };
             const messageType = data.success ? 'system' : 'event-bad';
             let textToLog = getRandomGameText('ACTION_SENT_FEEDBACK', messageKey, placeholders);
-            if (textToLog.startsWith("Missing text for:") || textToLog.startsWith("No text variants for:")) { 
-                 textToLog = (data.success ? "Tome nods: " : "Tome objects: ") + (data.message || "Action processed.");
+            if (textToLog.startsWith("Missing text for:") || textToLog.startsWith("No text variants for:") || textToLog.includes("{message}")) { 
+                // If {message} is still present, it means the specific key didn't have it, or generic was used without message in placeholders
+                if (data.message && data.message.trim() !== "") {
+                    textToLog = (data.success ? "Tome nods: " : "Tome objects: ") + data.message;
+                } else {
+                    textToLog = (data.success ? "Tome nods: Action acknowledged." : "Tome objects: Action failed.");
+                }
             }
             addLogMessage(textToLog, messageType);
         });
@@ -657,7 +683,6 @@
             if(showDebugInfo) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus(); updateWeatherEffects();
         };
-        
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
