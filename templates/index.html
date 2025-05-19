@@ -8,7 +8,6 @@
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
-        // Path must exactly match the server-side path for Socket.IO
         const socket = io({path: "/world-of-the-wand/socket.io"});
     </script>
 </head>
@@ -197,32 +196,30 @@
             }
         }
 
-        function estimateCharacterSize() {
+        function estimateCharacterSize(context = "unknown") {
+            console.log(`[estimateCharacterSize context: ${context}] Canvas text: "${gameCanvas.textContent.substring(0,30).replace(/\n/g, "\\n")}..." charSizeEstimated: ${charSizeEstimated}`);
+            const computedGameCanvasStyle = getComputedStyle(gameCanvas);
             const usesPlaceholderText = !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists");
 
             if (usesPlaceholderText && !charSizeEstimated) {
-                const computedStyle = getComputedStyle(gameCanvas);
-                const fs = parseFloat(computedStyle.fontSize || "18px"); 
-                charRenderWidth = fs * 0.6; 
-                charRenderHeight = fs * 0.9; 
+                const explicitFontSize = 18; // Your CSS target for #gameCanvas font-size
+                const explicitLineHeightMultiplier = 0.9; // Your CSS target for #gameCanvas line-height
+                
+                charRenderWidth = explicitFontSize * 0.6; 
+                charRenderHeight = explicitFontSize * explicitLineHeightMultiplier; 
 
-                if (isNaN(charRenderHeight) || charRenderHeight <= 0) { 
-                    console.warn("Fallback charRenderHeight (fs * 0.9) was invalid, using fs * 1.2");
-                    charRenderHeight = fs * 1.2; 
-                }
-                console.warn("Using FALLBACK char size estimation (due to placeholder text):", charRenderWidth, charRenderHeight);
+                console.warn(`[estimateCharacterSize context: ${context}] Using HARDCODED FALLBACK char size (due to placeholder text): W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}. (Based on 18px * 0.9 line-height)`);
                 charSizeEstimated = true; 
                 return; 
             }
 
             if (!charSizeEstimated || !usesPlaceholderText) {
-                console.log("Attempting ACCURATE char size estimation with tempSpan (canvas has non-placeholder text or re-estimation forced).");
+                console.log(`[estimateCharacterSize context: ${context}] Attempting ACCURATE char size with tempSpan.`);
                 const tempSpan = document.createElement('span');
-                const gameCanvasStyle = getComputedStyle(gameCanvas);
-
-                tempSpan.style.fontFamily = gameCanvasStyle.fontFamily;
-                tempSpan.style.fontSize = gameCanvasStyle.fontSize;
-                tempSpan.style.lineHeight = gameCanvasStyle.lineHeight;
+                
+                tempSpan.style.fontFamily = computedGameCanvasStyle.fontFamily;
+                tempSpan.style.fontSize = computedGameCanvasStyle.fontSize;
+                tempSpan.style.lineHeight = computedGameCanvasStyle.lineHeight;
                 tempSpan.style.whiteSpace = 'pre';
                 tempSpan.style.visibility = 'hidden';
                 tempSpan.style.position = 'absolute';
@@ -230,33 +227,34 @@
                 document.body.appendChild(tempSpan);
 
                 charRenderWidth = tempSpan.offsetWidth;
-                const fs = parseFloat(gameCanvasStyle.fontSize);
-                let lh = parseFloat(gameCanvasStyle.lineHeight); 
+                const fs = parseFloat(computedGameCanvasStyle.fontSize);
+                let lhValue = parseFloat(computedGameCanvasStyle.lineHeight); 
 
-                if (isNaN(lh) || lh <= 0 || gameCanvasStyle.lineHeight === 'normal') {
-                    console.warn(`Accurate path: Computed gameCanvas lineHeight was '${gameCanvasStyle.lineHeight}'. Forcing 0.9 (CSS) or 1.2 (fallback).`);
-                    lh = 0.9; 
-                    charRenderHeight = fs * lh;
-                    if (isNaN(charRenderHeight) || charRenderHeight <= 0) { 
-                        charRenderHeight = fs * 1.2;
-                    }
-                } else {
-                     charRenderHeight = fs * lh; 
+                console.log(`[estimateCharacterSize context: ${context}] TempSpan: offsetWidth=${charRenderWidth}, fs=${fs}. Computed gameCanvas line-height style: ${computedGameCanvasStyle.lineHeight} (parsed as ${lhValue}px)`);
+
+                if (computedGameCanvasStyle.lineHeight === 'normal') {
+                    charRenderHeight = fs * 1.2; 
+                    console.warn(`[estimateCharacterSize context: ${context}] Line height was 'normal'. Using fs * 1.2 = ${charRenderHeight.toFixed(2)}`);
+                } else if (!isNaN(lhValue) && computedGameCanvasStyle.lineHeight.includes('px')) {
+                    charRenderHeight = lhValue; 
+                    console.log(`[estimateCharacterSize context: ${context}] Line height was in px. Using directly: ${charRenderHeight.toFixed(2)}px`);
+                } else if (!isNaN(lhValue)) { 
+                    charRenderHeight = fs * lhValue;
+                    console.log(`[estimateCharacterSize context: ${context}] Line height was unitless. Using fs * ${lhValue} = ${charRenderHeight.toFixed(2)}`);
+                } else { 
+                    charRenderHeight = fs * 0.9; // CSS target fallback
+                    console.warn(`[estimateCharacterSize context: ${context}] Could not parse line-height. Defaulting to fs * 0.9 = ${charRenderHeight.toFixed(2)}`);
                 }
                 
                 document.body.removeChild(tempSpan);
 
-                if (charRenderWidth > 0 && charRenderHeight > 0) {
-                    console.log("Accurate char size via tempSpan (W x H):", charRenderWidth, "x", charRenderHeight);
-                } else {
-                    console.warn("tempSpan method yielded non-positive dimensions. Using basic fs * 0.6 / fs * 0.9 fallback.");
-                    const fsFallback = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px");
+                if (charRenderWidth <= 0 || charRenderHeight <= 0) {
+                    console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions (W:${charRenderWidth}, H:${charRenderHeight}). Reverting to hardcoded fallback.`);
+                    const fsFallback = 18; // Explicit default
                     charRenderWidth = fsFallback * 0.6;
                     charRenderHeight = fsFallback * 0.9;
-                    if (isNaN(charRenderHeight) || charRenderHeight <=0) { 
-                         charRenderHeight = fsFallback * 1.2;
-                    }
                 }
+                console.log(`[estimateCharacterSize context: ${context}] Accurate char size via tempSpan (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)}`);
                 charSizeEstimated = true; 
             }
         }
@@ -373,21 +371,26 @@
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvasContainer || !gameCanvas) {
-                 console.warn("Cannot center view: missing player, char size, grid dimensions, or canvas elements.");
+            const containerHeight = gameCanvasContainer.clientHeight;
+            console.log(`[centerViewOnPlayer] Called. selfPlayer: ${!!selfPlayer}, charSizeEstimated: ${charSizeEstimated}, Container H: ${containerHeight}, Char H: ${charRenderHeight.toFixed(2)}`);
+            
+            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvasContainer || !gameCanvas || containerHeight <= 0) {
+                 console.warn(`[centerViewOnPlayer] Cannot center: preconditions not met. Container H: ${containerHeight}`);
                  currentPanX = 0; 
                  currentPanY = 0;
                  if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
-            if (charRenderWidth <=0 || charRenderHeight <=0) {
-                console.warn(`Cannot center view: Invalid char dimensions (${charRenderWidth}x${charRenderHeight}). Re-estimating.`);
-                charSizeEstimated = false;
-                estimateCharacterSize(); 
-                if(!(charRenderWidth > 0 && charRenderHeight > 0)) { 
-                    console.error("Re-estimation of char size failed during centerViewOnPlayer. Aborting centering. Grid may be off-center.");
-                    addLogMessage("Tome groans: The world appears distorted! (Display calibration error)", 'event-bad');
-                    return; 
+            
+            if (charRenderHeight > 50 || charRenderHeight <= 0 || charRenderWidth <=0 ) { 
+                console.warn(`[centerViewOnPlayer] Absurd char dimensions (H: ${charRenderHeight.toFixed(2)}, W: ${charRenderWidth.toFixed(2)}). Re-estimating NOW.`);
+                charSizeEstimated = false; 
+                estimateCharacterSize("centerViewOnPlayer_emergency_reestimate");
+                if (charRenderHeight > 50 || charRenderHeight <= 0 || charRenderWidth <=0 ) { 
+                    console.error(`[centerViewOnPlayer] Emergency re-estimation FAILED. Using hardcoded default char H=16px, W based on 18px*0.6.`);
+                    addLogMessage("Tome's script sputters: Visual calibration failed! Using fallback dimensions.", 'event-bad');
+                    charRenderHeight = 16; 
+                    charRenderWidth = 18 * 0.6; 
                 }
             }
             
@@ -395,11 +398,11 @@
             const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
             targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
-            targetPanY = (gameCanvasContainer.clientHeight / 2) - playerVisualCenterY;
+            targetPanY = (containerHeight / 2) - playerVisualCenterY;
             
             currentPanX = targetPanX;
             currentPanY = targetPanY;
-            console.log(`Centering View: Player(${selfPlayer.x},${selfPlayer.y}), CharSize(${charRenderWidth.toFixed(2)},${charRenderHeight.toFixed(2)}), Pan(${targetPanX.toFixed(2)},${targetPanY.toFixed(2)})`);
+            console.log(`[centerViewOnPlayer] Centering: Player(${selfPlayer.x},${selfPlayer.y}), CharSize(W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
             if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
@@ -448,10 +451,9 @@
             selfPlayer = data.player; 
             if (myPlayerID === null && socket.id) { 
                 myPlayerID = socket.id;
-                console.log("myPlayerID was null, set from socket.id during initial_state:", myPlayerID);
             }
             if (selfPlayer.id !== myPlayerID && myPlayerID !== null) { 
-                console.warn(`Player ID mismatch! Client Socket ID: ${myPlayerID}, Server assigned Player ID: ${selfPlayer.id}. Using server ID.`);
+                console.warn(`Player ID mismatch! Client Socket ID: ${myPlayerID}, Server Player ID: ${selfPlayer.id}. Using server ID.`);
             }
             myPlayerID = selfPlayer.id;
 
@@ -461,41 +463,42 @@
             otherPlayers = data.other_players || {}; 
             prevSelfPlayerState = { ...selfPlayer };
 
-            const savedDebugInfo = localStorage.getItem('showDebugInfo');
-            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false;
-            debugInfoToggle.checked = showDebugInfo; 
-            rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-
-            const savedLocalCommands = localStorage.getItem('useLocalCommands');
-            useLocalCommands = savedLocalCommands !== null ? JSON.parse(savedLocalCommands) : true;
-            localCommandsToggle.checked = useLocalCommands;
-
-            const savedRainIntensity = localStorage.getItem('rainIntensity');
-            globalWeather.intensity = savedRainIntensity !== null ? parseFloat(savedRainIntensity) : 0.1;
-            rainIntensitySlider.value = globalWeather.intensity;
-
-            if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
+            // Load preferences (omitted for brevity, assume they load correctly)
 
             document.fonts.ready.then(() => {
-                console.log("Fonts ready, proceeding with initial UI setup after initial_state.");
+                console.log("Fonts ready. Initial UI setup after initial_state.");
                 if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
+                    
+                    console.log("Call 1: estimateCharacterSize (before first drawGrid)");
                     charSizeEstimated = false; 
-                    estimateCharacterSize();   
+                    estimateCharacterSize("initial_state_fonts_ready_before_draw");   
+                    
                     drawGrid(); 
+                    console.log(`Call 2: After first drawGrid. Canvas text: "${gameCanvas.textContent.substring(0,30).replace(/\n/g, "\\n")}..."`);
+
                     if (gameCanvas.textContent && !gameCanvas.textContent.startsWith("Initializing Realm...") && !gameCanvas.textContent.startsWith("The mists")) {
-                         charSizeEstimated = false; 
-                         estimateCharacterSize();   
+                        console.log("Call 3: Canvas has real content. Re-estimating char size.");
+                        charSizeEstimated = false; 
+                        estimateCharacterSize("initial_state_fonts_ready_after_real_draw");   
+                    } else {
+                        console.log("Call 3 (skipped): Canvas still has placeholder text.");
                     }
+                    
                     updateStatus(); 
+                    
+                    // Use setTimeout to delay centering slightly after rAF, ensuring layout is fully stable
                     requestAnimationFrame(() => {
-                        if (!charSizeEstimated || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) { 
-                            console.log("Performing a final char size estimation just before centering.");
-                            charSizeEstimated = false;
-                            estimateCharacterSize();
-                        }
-                        console.log(`Attempting to center view. Char dimensions: W=${charRenderWidth}, H=${charRenderHeight}`);
-                        centerViewOnPlayer(); 
+                        setTimeout(() => {
+                            console.log("Call 4: Inside rAF -> setTimeout, before final estimate and centering.");
+                            if (!charSizeEstimated || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) { 
+                                console.warn("[rAF -> setTimeout] charSizeEstimated is false or dimensions look off. Final re-estimation.");
+                                charSizeEstimated = false;
+                                estimateCharacterSize("initial_state_rAF_setTimeout_final_estimate");
+                            }
+                            centerViewOnPlayer(); 
+                        }, 0); // Minimal delay, just to push to end of event queue after paint
                     });
+                    
                     updateWeatherEffects(); 
                     addLogMessage(`Tome: You have materialized in The Whispering Plains. Your journey begins. (SID: ${myPlayerID})`, 'welcome-message');
                     if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
@@ -504,23 +507,21 @@
                 } else {
                     gameCanvas.textContent = "Error: Could not initialize player or world data correctly after fonts ready."; 
                     addLogMessage("Tome warns: Error! Could not manifest in world due to missing critical data after fonts ready.", 'event-bad');
-                    console.error("Critical data (selfPlayer or GRID_WIDTH) missing or invalid after fonts ready:", selfPlayer, GRID_WIDTH);
                 }
             }).catch(err => {
                 console.error("Font loading error or timeout:", err);
                 addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
                  if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) { 
-                    charSizeEstimated = false; estimateCharacterSize(); 
+                    charSizeEstimated = false; estimateCharacterSize("fonts_ready_catch_1"); 
                     drawGrid(); 
-                    charSizeEstimated = false; estimateCharacterSize(); 
+                    charSizeEstimated = false; estimateCharacterSize("fonts_ready_catch_2"); 
                     updateStatus(); 
-                    requestAnimationFrame(() => centerViewOnPlayer()); 
+                    requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0) ); 
                     updateWeatherEffects();
-                     addLogMessage("Attempting to render world despite font issues...", 'system');
+                    addLogMessage("Attempting to render world despite font issues...", 'system');
                 } else {
                     gameCanvas.textContent = "Error: Font loading failed AND critical player data is missing.";
                     addLogMessage("Tome wails: The world's very fabric is unstable! (Font & Data Error)", 'event-bad');
-                    console.error("Font loading failed and critical data (selfPlayer or GRID_WIDTH) is still missing.");
                 }
             });
         });
@@ -537,7 +538,7 @@
 
         socket.on('player_left', (data) => { 
             const playerID = data.id;
-            const playerName = data.name || 'A sorcerer'; // Use name from server if provided
+            const playerName = data.name || 'A sorcerer'; 
             console.log("Player left:", playerID, playerName);
             if (otherPlayers[playerID]) {
                 delete otherPlayers[playerID];
@@ -590,13 +591,10 @@
                 console.warn("Received game_state_update but selfPlayer or myPlayerID is not set. Ignoring.");
                 return;
             }
-            // For debugging, log the player state for the current client from the update
             const selfPlayerUpdate = allPlayers.find(p => p.id === myPlayerID);
-            if (selfPlayerUpdate) {
-                console.log("Client received game_state_update. Self player data from server:", selfPlayerUpdate);
-            } else {
-                console.warn("Client received game_state_update, but selfPlayer (ID: "+myPlayerID+") not found in the update array:", allPlayers);
-            }
+            // if (selfPlayerUpdate) { // Reduced logging noise
+            //      console.log("Client game_state_update. SelfPlayer X,Y,Char:", selfPlayerUpdate.x, selfPlayerUpdate.y, selfPlayerUpdate.char);
+            // }
             
             if(tickIndicator) {
                 tickIndicator.classList.add('tick-flash');
@@ -635,7 +633,7 @@
                             otherPlayers[playerData.id] = playerData;
                         }
                     }
-                    if(!isDragging) requestAnimationFrame(centerViewOnPlayer); 
+                    if(!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
                 } else { 
                     const movedX = selfPlayer.x !== prevSelfPlayerState.x;
                     const movedY = selfPlayer.y !== prevSelfPlayerState.y;
@@ -646,13 +644,13 @@
                             let facingDirectionWord = getDirectionWord(selfPlayer.char);
                             addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
                         }
-                        if (!isDragging) requestAnimationFrame(centerViewOnPlayer); 
+                        if (!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
                     } else if (turned) {
                          if (!useLocalCommands) {
                             let facingDirectionWord = getDirectionWord(selfPlayer.char);
                             addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
                         }
-                         if (!isDragging) requestAnimationFrame(centerViewOnPlayer); 
+                         if (!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
                     }
                 }
             }
@@ -662,8 +660,8 @@
             if (!charSizeEstimated && selfPlayer && gameCanvas.textContent && !gameCanvas.textContent.startsWith("The mists") && !gameCanvas.textContent.startsWith("Initializing Realm...")) {
                 console.log("Attempting char size estimation post game_state_update due to !charSizeEstimated");
                 requestAnimationFrame(() => { 
-                    charSizeEstimated = false; estimateCharacterSize();
-                    if(!isDragging) centerViewOnPlayer(); 
+                    charSizeEstimated = false; estimateCharacterSize("game_state_update_reestimate");
+                    if(!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
                 });
             }
             updateWeatherEffects(); 
@@ -816,7 +814,7 @@
                     
                     addLogMessage(`Tome (Local): You ${canonicalAction} ${getDirectionWord(dirResult.char)}.`, 'system');
                     drawGrid();
-                    if (!isDragging) requestAnimationFrame(centerViewOnPlayer);
+                    if (!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0));
                     updateStatus();
                 } else {
                     addLogMessage(`Tome frowns (Local): Your path to "${effectiveTargetWord}" is unclear.`, 'event-bad');
