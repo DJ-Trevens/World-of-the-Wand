@@ -1,16 +1,25 @@
+# app.py
+
 import eventlet
 eventlet.monkey_patch() # Should be the very first non-import line
 
 import os
 import random
 from flask import Flask, render_template, request, Blueprint
-from flask_socketio import SocketIO, emit as emit_ctx # emit_ctx can be used as 'emit' in handlers
+from flask_socketio import SocketIO, emit as emit_ctx
 import time
 import traceback
 
 # --- Game Settings ---
 GRID_WIDTH, GRID_HEIGHT, GAME_TICK_RATE, SHOUT_MANA_COST, MAX_VIEW_DISTANCE = 20, 15, 0.75, 5, 8
-_game_loop_started_in_this_process = False 
+_game_loop_started_in_this_process = False
+DESTROY_WALL_MANA_COST = 10
+INITIAL_WALL_ITEMS = 777
+
+# Tile Types (for server-side representation)
+TILE_FLOOR = 0
+TILE_WALL = 1
+
 
 def get_player_name(sid): return f"Wizard-{sid[:4]}"
 
@@ -24,24 +33,24 @@ class Player:
         self.x = GRID_WIDTH // 2
         self.y = GRID_HEIGHT // 2
         self.char = random.choice(['^', 'v', '<', '>'])
-        
+
         self.max_health = 100
         self.current_health = 100
         self.max_mana = 175
         self.current_mana = 175
         self.potions = 7
         self.gold = 0
+        self.walls = INITIAL_WALL_ITEMS # New attribute
 
     def update_position(self, dx, dy, new_char, game_manager, socketio_instance):
         old_scene_x, old_scene_y = self.scene_x, self.scene_y
-        original_x_tile, original_y_tile = self.x, self.y # For checking if actual tile position changed
-        
+        original_x_tile, original_y_tile = self.x, self.y
+
         scene_changed_flag = False
         transition_key = None
 
-        nx, ny = self.x + dx, self.y + dy # Target coordinates based on current position + delta
-        
-        # Handle X movement and scene transitions
+        nx, ny = self.x + dx, self.y + dy
+
         if nx < 0:
             self.scene_x -= 1
             self.x = GRID_WIDTH - 1
@@ -55,7 +64,6 @@ class Player:
         else:
             self.x = nx
 
-        # Handle Y movement and scene transitions
         if ny < 0:
             self.scene_y -= 1
             self.y = GRID_HEIGHT - 1
@@ -67,21 +75,20 @@ class Player:
             scene_changed_flag = True
             if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
         else:
-            self.y = ny # Assign new y if it's within current scene bounds
-            
-        self.char = new_char # Update character regardless of movement
+            self.y = ny
+
+        self.char = new_char
 
         if scene_changed_flag:
-            game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y) # Notifies other players
-            if transition_key: # Send lore message to the player who transitioned
+            game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
+            if transition_key:
                 socketio_instance.emit('lore_message', {
                     'messageKey': transition_key,
                     'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y},
-                    'message': f"You arrive in area ({self.scene_x},{self.scene_y}).", # Fallback
+                    'message': f"You arrive in area ({self.scene_x},{self.scene_y}).",
                     'type': 'system'
                 }, room=self.id)
-        
-        # Return true if tile position or scene changed. Char change alone (look) doesn't count as "moved".
+
         return scene_changed_flag or (self.x != original_x_tile or self.y != original_y_tile)
 
     def drink_potion(self, socketio_instance):
@@ -103,28 +110,39 @@ class Player:
             return True
         return False
 
+    def has_wall_items(self):
+        return self.walls > 0
+
+    def use_wall_item(self):
+        if self.has_wall_items():
+            self.walls -= 1
+            return True
+        return False
+
+    def add_wall_item(self):
+        self.walls += 1
+
     def get_public_data(self):
-        """Data safe to send to other clients."""
-        return {'id': self.id, 'name': self.name, 'x': self.x, 'y': self.y, 
+        return {'id': self.id, 'name': self.name, 'x': self.x, 'y': self.y,
                 'char': self.char, 'scene_x': self.scene_x, 'scene_y': self.scene_y}
 
     def get_full_data(self):
-        """All data for the player themselves."""
-        return {'id': self.id, 'name': self.name, 'scene_x': self.scene_x, 'scene_y': self.scene_y, 
-                'x': self.x, 'y': self.y, 'char': self.char, 
+        return {'id': self.id, 'name': self.name, 'scene_x': self.scene_x, 'scene_y': self.scene_y,
+                'x': self.x, 'y': self.y, 'char': self.char,
                 'max_health': self.max_health, 'current_health': self.current_health,
-                'max_mana': self.max_mana, 'current_mana': self.current_mana, 
-                'potions': self.potions, 'gold': self.gold}
+                'max_mana': self.max_mana, 'current_mana': self.current_mana,
+                'potions': self.potions, 'gold': self.gold,
+                'walls': self.walls}
 
 class Scene:
     def __init__(self, scene_x, scene_y, name_generator_func=None):
         self.scene_x = scene_x
         self.scene_y = scene_y
-        # Simple name generation for now, can be expanded
-        self.name = f"Area ({scene_x},{scene_y})" 
+        self.name = f"Area ({scene_x},{scene_y})"
         if name_generator_func:
             self.name = name_generator_func(scene_x, scene_y)
-        self.players_sids = set() # Set of player sids
+        self.players_sids = set()
+        self.terrain_grid = [[TILE_FLOOR for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
 
     def add_player(self, player_sid):
         self.players_sids.add(player_sid)
@@ -133,14 +151,33 @@ class Scene:
         self.players_sids.discard(player_sid)
 
     def get_player_sids(self):
-        return list(self.players_sids) # Return a copy
+        return list(self.players_sids)
+
+    def get_tile_type(self, x, y):
+        if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH:
+            return self.terrain_grid[y][x]
+        return None
+
+    def set_tile_type(self, x, y, tile_type):
+        if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH:
+            self.terrain_grid[y][x] = tile_type
+            return True
+        return False
+
+    def get_walls_in_scene_for_payload(self):
+        walls = []
+        for r_idx, row in enumerate(self.terrain_grid):
+            for c_idx, tile in enumerate(row):
+                if tile == TILE_WALL:
+                    walls.append({'x': c_idx, 'y': r_idx})
+        return walls
 
 class GameManager:
     def __init__(self, socketio_instance):
-        self.players = {}  # sid: Player_object
-        self.scenes = {}   # (scene_x, scene_y): Scene_object
-        self.queued_actions = {} # sid: action_data
-        self.socketio = socketio_instance # Store socketio instance
+        self.players = {}
+        self.scenes = {}
+        self.queued_actions = {}
+        self.socketio = socketio_instance
 
     def get_or_create_scene(self, scene_x, scene_y):
         scene_coords = (scene_x, scene_y)
@@ -152,37 +189,28 @@ class GameManager:
         name = get_player_name(sid)
         player = Player(sid, name)
         self.players[sid] = player
-        
+
         scene = self.get_or_create_scene(player.scene_x, player.scene_y)
         scene.add_player(sid)
-        
-        # Announce to others in the new scene (already existing players)
+
         new_player_public_data = player.get_public_data()
         for other_sid_in_scene in scene.get_player_sids():
-            if other_sid_in_scene != sid: # Don't announce to self
+            if other_sid_in_scene != sid:
                 self.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
-        
-        # print(f"[{os.getpid()}] GM: Added {name}({sid}) to scene ({player.scene_x},{player.scene_y}). Players: {len(self.players)}")
         return player
 
     def remove_player(self, sid):
         player = self.players.pop(sid, None)
-        if sid in self.queued_actions: # Clean up any pending actions for this player
+        if sid in self.queued_actions:
             del self.queued_actions[sid]
-            
+
         if player:
             old_scene_coords = (player.scene_x, player.scene_y)
             if old_scene_coords in self.scenes:
                 scene = self.scenes[old_scene_coords]
                 scene.remove_player(sid)
-                # Announce to others in the old scene
-                for other_sid_in_scene in scene.get_player_sids(): # Should be empty if player was last one
+                for other_sid_in_scene in scene.get_player_sids():
                     self.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene)
-                # Optional: Clean up empty scenes
-                # if not scene.get_player_sids():
-                #     del self.scenes[old_scene_coords]
-                #     print(f"[{os.getpid()}] GM: Cleaned up empty scene {old_scene_coords}")
-            # print(f"[{os.getpid()}] GM: Removed {player.name}({sid}). Players: {len(self.players)}")
             return player
         return None
 
@@ -194,26 +222,22 @@ class GameManager:
         new_scene_coords = (player.scene_x, player.scene_y)
 
         if old_scene_coords != new_scene_coords:
-            # Remove from old scene and notify its occupants
             if old_scene_coords in self.scenes:
                 old_scene_obj = self.scenes[old_scene_coords]
                 old_scene_obj.remove_player(player.id)
-                for other_sid in old_scene_obj.get_player_sids(): # Players remaining in old scene
+                for other_sid in old_scene_obj.get_player_sids():
                     self.socketio.emit('player_exited_your_scene', {'id': player.id, 'name': player.name}, room=other_sid)
 
-            # Add to new scene and notify its occupants
             new_scene_obj = self.get_or_create_scene(player.scene_x, player.scene_y)
             new_scene_obj.add_player(player.id)
-            player_public_data_for_new_scene = player.get_public_data() # Ensure data is current for new scene
-            for other_sid in new_scene_obj.get_player_sids(): # Players already in new scene
-                if other_sid != player.id: # Don't notify self
+            player_public_data_for_new_scene = player.get_public_data()
+            for other_sid in new_scene_obj.get_player_sids():
+                if other_sid != player.id:
                     self.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
-            
-            # print(f"[{os.getpid()}] GM: Player {player.name} moved from {old_scene_coords} to {new_scene_coords}")
 
     def is_player_visible_to_observer(self, observer_player, target_player):
         if not observer_player or not target_player: return False
-        if observer_player.id == target_player.id: return False # Not visible to self in this context
+        if observer_player.id == target_player.id: return False
         if observer_player.scene_x != target_player.scene_x or \
            observer_player.scene_y != target_player.scene_y:
             return False
@@ -222,7 +246,6 @@ class GameManager:
 
     def get_visible_players_for_observer(self, observer_player):
         visible_others = []
-        # Only check players in the same scene as the observer
         observer_scene_coords = (observer_player.scene_x, observer_player.scene_y)
         if observer_scene_coords in self.scenes:
             scene = self.scenes[observer_scene_coords]
@@ -234,93 +257,135 @@ class GameManager:
                     visible_others.append(target_player.get_public_data())
         return visible_others
 
+    def get_target_coordinates(self, player, dx, dy):
+        target_x, target_y = player.x + dx, player.y + dy
+        return target_x, target_y
+
     def process_actions(self):
-        # Make a copy because players might disconnect during processing, modifying self.players or actions
-        current_actions_to_process = dict(self.queued_actions) 
-        self.queued_actions.clear() # Clear original immediately
-        processed_sids = set() # Keep track of sids whose actions are processed
+        current_actions_to_process = dict(self.queued_actions)
+        self.queued_actions.clear()
+        processed_sids = set()
 
         for sid_action, action_data in current_actions_to_process.items():
-            if sid_action in processed_sids : continue # Should not happen if we clear original and copy
-
+            if sid_action in processed_sids : continue
             player = self.get_player(sid_action)
-            if not player:
-                # print(f"[{os.getpid()}] GM: Action for non-existent player {sid_action}. Action: {action_data.get('type')}")
-                continue
-            
+            if not player: continue
+
             action_type = action_data.get('type')
             details = action_data.get('details', {})
-            # print(f"[{os.getpid()}] GM: Processing action '{action_type}' for {player.name}")
 
             if action_type == 'move' or action_type == 'look':
                 dx, dy = details.get('dx', 0), details.get('dy', 0)
                 new_char = details.get('newChar', player.char)
-                # Player.update_position handles scene changes and emits lore for it
-                player.update_position(dx, dy, new_char, self, self.socketio)
-            
+
+                if action_type == 'move' and (dx != 0 or dy != 0):
+                    target_x, target_y = player.x + dx, player.y + dy
+                    scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
+
+                    next_tile_is_wall = False
+                    if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT:
+                        tile_type_at_target = scene_of_player.get_tile_type(target_x, target_y)
+                        if tile_type_at_target == TILE_WALL:
+                            next_tile_is_wall = True
+
+                    if next_tile_is_wall:
+                        self.socketio.emit('lore_message', {
+                            'messageKey': 'LORE.ACTION_BLOCKED_WALL',
+                            'type': 'event-bad',
+                            'message': "You bump into a solid wall!"
+                        }, room=player.id)
+                        if player.char != new_char:
+                             player.char = new_char
+                    else:
+                        player.update_position(dx, dy, new_char, self, self.socketio)
+                else:
+                    player.update_position(dx, dy, new_char, self, self.socketio)
+
+            elif action_type == 'build_wall':
+                dx, dy = details.get('dx', 0), details.get('dy', 0)
+                target_x, target_y = self.get_target_coordinates(player, dx, dy)
+                scene = self.get_or_create_scene(player.scene_x, player.scene_y)
+
+                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT):
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad', 'message':"Cannot build there."}, room=player.id)
+                elif scene.get_tile_type(target_x, target_y) != TILE_FLOOR:
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad', 'message':"Something is in the way."}, room=player.id)
+                elif not player.has_wall_items():
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_NO_MATERIALS', 'type': 'event-bad', 'message':"No wall items."}, room=player.id)
+                else:
+                    player.use_wall_item()
+                    scene.set_tile_type(target_x, target_y, TILE_WALL)
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good', 'message':f"Wall built. {player.walls} left."}, room=player.id)
+
+            elif action_type == 'destroy_wall':
+                dx, dy = details.get('dx', 0), details.get('dy', 0)
+                target_x, target_y = self.get_target_coordinates(player, dx, dy)
+                scene = self.get_or_create_scene(player.scene_x, player.scene_y)
+
+                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT):
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad', 'message':"Nothing to destroy there."}, room=player.id)
+                elif scene.get_tile_type(target_x, target_y) != TILE_WALL:
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_WALL', 'type': 'event-bad', 'message':"No wall there."}, room=player.id)
+                elif not player.can_afford_mana(DESTROY_WALL_MANA_COST):
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_MANA', 'placeholders': {'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-bad', 'message':f"Need {DESTROY_WALL_MANA_COST} mana."}, room=player.id)
+                else:
+                    player.spend_mana(DESTROY_WALL_MANA_COST)
+                    player.add_wall_item() # Reclaim materials
+                    scene.set_tile_type(target_x, target_y, TILE_FLOOR)
+                    self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good', 'message':f"Wall destroyed. {player.walls} items now. Cost {DESTROY_WALL_MANA_COST} mana."}, room=player.id)
+
             elif action_type == 'drink_potion':
-                player.drink_potion(self.socketio) # Emits lore from within
-            
+                player.drink_potion(self.socketio)
+
             elif action_type == 'say':
                 message_text = details.get('message', '')
                 if message_text:
-                    chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 
+                    chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text,
                                   'type': 'say', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
-                    
                     player_scene_coords = (player.scene_x, player.scene_y)
                     if player_scene_coords in self.scenes:
                         scene = self.scenes[player_scene_coords]
-                        for target_sid in scene.get_player_sids(): # Send to everyone in the same scene
+                        for target_sid in scene.get_player_sids():
                             self.socketio.emit('chat_message', chat_data, room=target_sid)
-            
+
             elif action_type == 'shout':
                 message_text = details.get('message', '')
                 if message_text:
                     if player.spend_mana(SHOUT_MANA_COST):
-                        chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 
+                        chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text,
                                       'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
-                        
-                        # Iterate over all players and check scene proximity
-                        for target_player_obj in list(self.players.values()): # Iterate a copy
+                        for target_player_obj in list(self.players.values()):
                             if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
                                abs(target_player_obj.scene_y - player.scene_y) <= 1:
                                 self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                        
-                        self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 
-                                                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
-                                                            'type': 'system', 
-                                                            'message': f"Voice booms, cost {SHOUT_MANA_COST} mana!"}, 
+                        self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT',
+                                                            'placeholders': {'manaCost': SHOUT_MANA_COST},
+                                                            'type': 'system',
+                                                            'message': f"Voice booms, cost {SHOUT_MANA_COST} mana!"},
                                            room=player.id)
                     else:
-                        self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 
-                                                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
-                                                            'type': 'event-bad', 
-                                                            'message': "Not enough mana to shout."}, 
+                        self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT',
+                                                            'placeholders': {'manaCost': SHOUT_MANA_COST},
+                                                            'type': 'event-bad',
+                                                            'message': "Not enough mana to shout."},
                                            room=player.id)
-            processed_sids.add(sid_action) # Mark as processed
+            processed_sids.add(sid_action)
 
 # --- App Setup & SocketIO ---
 app = Flask(__name__)
-# SECRET_KEY must be set before SocketIO if it uses session-based features, though not strictly necessary for this game's current auth.
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'dev_security_key')
 GAME_PATH_PREFIX = '/world-of-the-wand'
 
-# Create SocketIO instance first
 sio = SocketIO(logger=True, engineio_logger=True, async_mode="eventlet")
-
-# Instantiate GameManager and pass the SocketIO instance
 game_manager = GameManager(socketio_instance=sio)
-
-# Now initialize SocketIO with the app and path
 sio.init_app(app, path=f"{GAME_PATH_PREFIX}/socket.io")
 
-# Setup blueprint
 game_blueprint = Blueprint('game', __name__, template_folder='templates', static_folder='static', static_url_path='/static/game')
 @game_blueprint.route('/')
 def index_route(): return render_template('index.html')
 app.register_blueprint(game_blueprint, url_prefix=GAME_PATH_PREFIX)
 
-@app.route('/') # Health check for root path
+@app.route('/')
 def health_check_route(): return "OK", 200
 
 # --- Game Loop (Refactored) ---
@@ -332,105 +397,96 @@ def game_loop():
         while True:
             loop_start_time = time.time()
             loop_count += 1
-            
-            if loop_count % 20 == 1: # Less frequent top-of-loop log
+
+            if loop_count % 20 == 1:
                  print(f"---- [{my_pid}] Tick {loop_count} ---- Players: {len(game_manager.players)} ---- Actions: {len(game_manager.queued_actions)} ----")
 
-            game_manager.process_actions() # Centralized action processing
+            game_manager.process_actions()
 
             if game_manager.players:
-                # Create a snapshot of players to iterate over, in case of disconnects during emit
                 current_players_snapshot = list(game_manager.players.values())
                 num_updates_sent_successfully = 0
 
                 for recipient_player in current_players_snapshot:
-                    # Ensure player still exists (might have disconnected)
                     if recipient_player.id not in game_manager.players:
                         continue
-                    
-                    # Get data for the recipient
+
                     self_data_payload = recipient_player.get_full_data()
-                    
-                    # Get data for other visible players
                     visible_others_payload = game_manager.get_visible_players_for_observer(recipient_player)
-                    
+
+                    current_scene_obj = game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y)
+                    visible_walls_payload = current_scene_obj.get_walls_in_scene_for_payload()
+
                     payload_for_client = {
                         'self_player_data': self_data_payload,
                         'visible_other_players': visible_others_payload,
+                        'visible_walls': visible_walls_payload,
                     }
-                    
+
                     try:
-                        sio.emit('game_update', payload_for_client, room=recipient_player.id) # Use sio instance
+                        sio.emit('game_update', payload_for_client, room=recipient_player.id)
                         num_updates_sent_successfully +=1
                     except Exception as e_emit:
                         print(f"!!! [{my_pid}] Tick {loop_count}: ERROR during sio.emit for SID {recipient_player.id}: {e_emit}")
                         traceback.print_exc()
-                
-                if num_updates_sent_successfully > 0 and loop_count % 10 == 1 : # Less frequent success log
+
+                if num_updates_sent_successfully > 0 and loop_count % 10 == 1 :
                      print(f"[{my_pid}] Tick {loop_count}: Completed sending 'game_update' to {num_updates_sent_successfully} players.")
-            # else:
-            #     if loop_count % 60 == 1 :print(f"[{my_pid}] Tick {loop_count}: No players to send updates to this tick.") # Can be noisy
-            
+
             elapsed_time = time.time() - loop_start_time
             sleep_duration = GAME_TICK_RATE - elapsed_time
             if sleep_duration > 0:
-                sio.sleep(sleep_duration) # Use sio instance for eventlet-friendly sleep
-            elif sleep_duration < -0.05: # Allow for small fluctuations
+                sio.sleep(sleep_duration)
+            elif sleep_duration < -0.05:
                 print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s (ran over by {-sleep_duration:.4f}s).")
-    except Exception as e_loop: 
+    except Exception as e_loop:
         print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN GAME_LOOP (PID: {my_pid}): {e_loop} !!!!!!!!")
         traceback.print_exc()
 
 # --- SocketIO Event Handlers (Refactored) ---
-@sio.on('connect') # Use sio instance for decorators
+@sio.on('connect')
 def handle_connect_event(auth=None):
     sid, pid = request.sid, os.getpid()
-    player = game_manager.add_player(sid) # Handles creation, adding to scene, and notifying others
-    
-    # Prepare initial data for the connecting player
+    player = game_manager.add_player(sid)
+
     player_full_data = player.get_full_data()
     visible_to_new_player = game_manager.get_visible_players_for_observer(player)
 
-    # Send initial_game_data to the new player
-    # emit_ctx (or just 'emit') is context-aware and fine here
     emit_ctx('initial_game_data', {
         'player_data': player_full_data,
-        'other_players_in_scene': visible_to_new_player, 
-        'grid_width': GRID_WIDTH, 
-        'grid_height': GRID_HEIGHT, 
+        'other_players_in_scene': visible_to_new_player,
+        'grid_width': GRID_WIDTH,
+        'grid_height': GRID_HEIGHT,
         'tick_rate': GAME_TICK_RATE
     })
     print(f"[{pid}] Connect: {player.name} ({sid}). Players: {len(game_manager.players)}")
 
-@sio.on('disconnect') # Use sio instance
+@sio.on('disconnect')
 def handle_disconnect_event():
     sid, pid = request.sid, os.getpid()
-    player_left = game_manager.remove_player(sid) # Handles removal from scene and notifying others
-    
+    player_left = game_manager.remove_player(sid)
+
     if player_left:
         print(f"[{pid}] Disconnect: {player_left.name} ({sid}). Players: {len(game_manager.players)}")
     else:
-        # This can happen if disconnect occurs before player was fully added or if already removed
         print(f"[{pid}] Disconnect for SID {sid} (player not found or already removed by GameManager).")
 
-@sio.on('queue_player_action') # Use sio instance
+@sio.on('queue_player_action')
 def handle_queue_player_action(data):
     sid, pid = request.sid, os.getpid()
     player = game_manager.get_player(sid)
-    if not player: 
+    if not player:
         emit_ctx('action_feedback', {'success': False, 'message': "Player not recognized."})
         return
 
     action_type = data.get('type')
-    # Consider making valid_actions a class member of GameManager or a constant
-    valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout'] 
+    valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout', 'build_wall', 'destroy_wall']
     if action_type not in valid_actions:
         emit_ctx('action_feedback', {'success': False, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_FAILED_UNKNOWN_COMMAND', 'placeholders': {'actionWord': action_type}, 'message': f"Unknown action: {action_type}."})
         return
-    
-    game_manager.queued_actions[sid] = data 
+
+    game_manager.queued_actions[sid] = data
     emit_ctx('action_feedback', {'success': True, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_QUEUED', 'message': "Your will is noted..."})
-    # print(f"[{pid}] Action queued for {player.name} ({sid}): {data.get('type', 'N/A')}") # Slightly less verbose log
 
 # --- Game Loop Startup ---
 def start_game_loop_for_worker():
@@ -439,9 +495,9 @@ def start_game_loop_for_worker():
     if not _game_loop_started_in_this_process:
         print(f"[{my_pid}] Worker: Attempting to start game_loop task...")
         try:
-            sio.start_background_task(target=game_loop) # Use sio instance
+            sio.start_background_task(target=game_loop)
             _game_loop_started_in_this_process = True
-            sio.sleep(0.01) # Yield control briefly to allow the task to actually start
+            sio.sleep(0.01)
             print(f"[{my_pid}] Worker: Game loop task started successfully via sio.start_background_task.")
         except Exception as e:
             print(f"!!! [{my_pid}] Worker: FAILED TO START GAME LOOP: {e} !!!"); traceback.print_exc()
@@ -450,9 +506,7 @@ def start_game_loop_for_worker():
 # --- Main Execution ---
 if __name__ == '__main__':
     print(f"[{os.getpid()}] Starting Flask-SocketIO server for LOCAL DEVELOPMENT...")
-    start_game_loop_for_worker() 
-    sio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), use_reloader=False) # Use sio instance
-else: # Gunicorn
-    # When Gunicorn imports this module, GameManager is instantiated with `sio`.
-    # The `post_fork` hook in `gunicorn_config.py` will call `start_game_loop_for_worker`.
+    start_game_loop_for_worker()
+    sio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), use_reloader=False)
+else:
     print(f"[{os.getpid()}] App module loaded by Gunicorn. Game loop is intended to start via post_fork hook.")
