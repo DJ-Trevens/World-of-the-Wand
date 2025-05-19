@@ -3,7 +3,7 @@
 :root {
     --game-zoom: 1.4;
 
-    /* --- Dark Theme --- */
+    /* --- Dark Theme (for UI elements OUTSIDE canvas) --- */
     --bg-primary-dark: #1a202c;   
     --bg-secondary-dark: #2d3748; 
     --bg-tome-dark: #f7fafc;      
@@ -26,17 +26,7 @@
     --command-button-border-dark: #4A5568; 
     --raindrop-base-dark: 160, 174, 192; 
 
-    --canvas-bg-dark-mode: #FFFFFF; 
-    --text-game-floor-dark: #5A616A; 
-    --text-game-wall-dark:  #3c3c3c; 
-    --text-game-water-dark: #60a5fa; 
-    --text-game-fog-dark:   #D1D5DB; 
-    --text-game-self-dark:  #10B981; 
-    --text-game-other-dark: #F59E0B; 
-    --text-game-wet-tint-dark: rgba(59, 130, 246, 0.3);
-
-
-    /* --- Light Theme --- */
+    /* --- Light Theme (for UI elements OUTSIDE canvas) --- */
     --bg-primary-light: #FDFBF6;   
     --bg-secondary-light: #EFEAE2; 
     --bg-tome-light: #FFFFFF;      
@@ -59,21 +49,23 @@
     --command-button-border-light: #A0AEC0; 
     --raindrop-base-light: 100, 116, 139; 
 
-    --canvas-bg-light-mode: #1f2937; 
-    --text-game-floor-light: #9CA3AF; 
-    --text-game-wall-light:  #E5E7EB; 
-    --text-game-water-light: #3b82f6; 
-    --text-game-fog-light:   #4B5563; 
-    --text-game-self-light:  #34D399; 
-    --text-game-other-light: #FBBF24; 
-    --text-game-wet-tint-light: rgba(37, 99, 235, 0.3);
+    /* --- CONSISTENT Canvas Grid Colors (Dark Background, Light Chars) --- */
+    /* To be used regardless of body theme */
+    --canvas-bg-consistent: #1f2937; /* Dark gray/blue - formerly light theme's canvas bg */
+    --text-game-floor-consistent: #9CA3AF; /* Light Gray */
+    --text-game-wall-consistent:  #E5E7EB; /* Lighter Gray / Off-white */
+    --text-game-water-consistent: #3b82f6; /* Bright Blue */
+    --text-game-fog-consistent:   #4B5563; /* Medium Gray for fog on dark bg */
+    --text-game-self-consistent:  #34D399; /* Teal/Green */
+    --text-game-other-consistent: #FBBF24; /* Amber/Yellow */
+    --text-game-wet-tint-consistent: rgba(59, 130, 246, 0.3); /* Light blueish tint */
 
 
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
 
-    /* Apply Dark Theme by Default */
+    /* Apply Dark Theme by Default for UI elements */
     --bg-primary: var(--bg-primary-dark);
     --bg-secondary: var(--bg-secondary-dark);
     --bg-tome: var(--bg-tome-dark);
@@ -92,17 +84,13 @@
     --command-button-border: var(--command-button-border-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
 
-    --canvas-bg: var(--canvas-bg-dark-mode); 
-    --text-game-floor: var(--text-game-floor-dark);
-    --text-game-wall: var(--text-game-wall-dark);
-    --text-game-water: var(--text-game-water-dark);
-    --text-game-fog: var(--text-game-fog-dark);
-    --text-game-self: var(--text-game-self-dark);
-    --text-game-other: var(--text-game-other-dark);
-    --text-game-wet-tint: var(--text-game-wet-tint-dark);
+    /* Canvas colors will be set directly from -consistent variables in JS */
+    /* but gameCanvasContainer can use a consistent bg too */
+    --canvas-bg: var(--canvas-bg-consistent); 
 }
 
 body.light-theme {
+    /* UI elements change for light theme */
     --bg-primary: var(--bg-primary-light);
     --bg-secondary: var(--bg-secondary-light);
     --bg-tome: var(--bg-tome-light);
@@ -121,14 +109,8 @@ body.light-theme {
     --command-button-border: var(--command-button-border-light);
     --raindrop-base-rgb: var(--raindrop-base-light);
 
-    --canvas-bg: var(--canvas-bg-light-mode);
-    --text-game-floor: var(--text-game-floor-light);
-    --text-game-wall: var(--text-game-wall-light);
-    --text-game-water: var(--text-game-water-light);
-    --text-game-fog: var(--text-game-fog-light);
-    --text-game-self: var(--text-game-self-light);
-    --text-game-other: var(--text-game-other-light);
-    --text-game-wet-tint: var(--text-game-wet-tint-light);
+    /* Canvas grid colors remain consistent (dark background) */
+    --canvas-bg: var(--canvas-bg-consistent);
 }
 
 html { height: 100%; overflow: hidden; }
@@ -172,7 +154,7 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 #gameCanvasContainer { 
     position: relative; flex-grow: 1; min-height: 150px; 
     display: flex; align-items: center; justify-content: center; 
-    background-color: var(--canvas-bg); 
+    background-color: var(--canvas-bg); /* Use the consistent canvas background */
     border-radius: 6px; overflow: hidden; 
     border: 1px solid var(--border-color); 
     cursor: grab; padding: 0; 
