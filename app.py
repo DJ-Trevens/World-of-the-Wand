@@ -461,23 +461,24 @@ def game_loop():
         print(f"[{my_pid}] game_loop: Initial NPCs spawned (or attempted).")
         
         loop_count = 0
-        while True:
+        while True: 
             loop_count += 1
-            print(f"====== [{my_pid}] TOP OF GAME LOOP TICK {loop_count} ======") 
+            print(f"====== [{my_pid}] TOP OF GAME HEARTBEAT {loop_count} ======") 
 
             loop_start_time = time.time()
             
             try:
-                # print(f"[{my_pid}] Tick {loop_count}: Calling process_actions(). Players: {len(game_manager.players)}, Queued: {len(game_manager.queued_actions)}")
+                # print(f"[{my_pid}] Heartbeat {loop_count}: Calling process_actions(). Players: {len(game_manager.players)}, Queued: {len(game_manager.queued_actions)}")
                 game_manager.process_actions()
-                # print(f"[{my_pid}] Tick {loop_count}: Finished process_actions().")
+                # print(f"[{my_pid}] Heartbeat {loop_count}: Finished process_actions().")
             except Exception as e_proc_actions:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in process_actions: {e_proc_actions} !!!!!!"; traceback.print_exc())
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in process_actions: {e_proc_actions} !!!!!!")
+                traceback.print_exc() 
 
             try:
-                game_manager.ticks_until_mana_regen -=1
+                game_manager.ticks_until_mana_regen -=1 # Using old var name, can change to heartbeat_until_mana_regen if desired
                 if game_manager.ticks_until_mana_regen <= 0:
-                    # print(f"[{my_pid}] Tick {loop_count}: Processing mana regeneration.")
+                    # print(f"[{my_pid}] Heartbeat {loop_count}: Processing mana regeneration.")
                     for player_obj in list(game_manager.players.values()):
                         pixie_boost_for_player = 0
                         player_scene_obj = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
@@ -488,9 +489,10 @@ def game_loop():
                                 if dist <= PIXIE_PROXIMITY_FOR_BOOST: pixie_boost_for_player += PIXIE_MANA_REGEN_BOOST
                         player_obj.regenerate_mana(BASE_MANA_REGEN_PER_TICK, pixie_boost_for_player, sio)
                     game_manager.ticks_until_mana_regen = TICKS_PER_MANA_REGEN_CYCLE
-                    # print(f"[{my_pid}] Tick {loop_count}: Finished mana regeneration.")
+                    # print(f"[{my_pid}] Heartbeat {loop_count}: Finished mana regeneration.")
             except Exception as e_mana_regen:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in mana_regen: {e_mana_regen} !!!!!!"; traceback.print_exc())
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in mana_regen: {e_mana_regen} !!!!!!")
+                traceback.print_exc()
 
             try:
                 if game_manager.server_is_raining:
@@ -498,11 +500,12 @@ def game_loop():
                         player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                         if not player_scene.is_indoors: 
                             if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
-                for player_obj in list(game_manager.players.values()): # Drying logic
+                for player_obj in list(game_manager.players.values()): 
                     player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                     if player_scene.is_indoors and player_obj.is_wet: player_obj.set_wet_status(False, sio, reason="indoors")
             except Exception as e_wetness:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in rain/wetness: {e_wetness} !!!!!!"; traceback.print_exc())
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in rain/wetness: {e_wetness} !!!!!!")
+                traceback.print_exc()
 
             try:
                 if loop_count % 5 == 0: 
@@ -510,7 +513,8 @@ def game_loop():
                         scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                         game_manager.process_sensory_perception(player_obj, scene_of_player)
             except Exception as e_sensory:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in sensory perception: {e_sensory} !!!!!!"; traceback.print_exc())
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in sensory perception: {e_sensory} !!!!!!")
+                traceback.print_exc()
 
             try:
                 if game_manager.players:
@@ -527,33 +531,35 @@ def game_loop():
                             'self_player_data': self_data_payload, 'visible_other_players': visible_others_payload,
                             'visible_npcs': visible_npcs_payload, 'visible_terrain': visible_terrain_payload, 
                         }
-                        # print(f"-----> [{my_pid}] Tick {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----") # Keep for debug
+                        # print(f"-----> [{my_pid}] Heartbeat {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----") 
                         sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_this_tick +=1
-                    if num_updates_sent_this_tick > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Tick {loop_count}: Successfully sent 'game_update' to {num_updates_sent_this_tick} players this tick.")
-                    elif len(current_players_snapshot) > 0 and num_updates_sent_this_tick == 0 and loop_count % 10 == 1 : print(f"[{my_pid}] Tick {loop_count}: Players present, but NO 'game_update' was successfully emitted this tick.")
+                    if num_updates_sent_this_tick > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Heartbeat {loop_count}: Successfully sent 'game_update' to {num_updates_sent_this_tick} players this heartbeat.")
+                    elif len(current_players_snapshot) > 0 and num_updates_sent_this_tick == 0 and loop_count % 10 == 1 : print(f"[{my_pid}] Heartbeat {loop_count}: Players present, but NO 'game_update' was successfully emitted this heartbeat.")
                 else:
-                    if loop_count % 30 == 1 :print(f"[{my_pid}] Tick {loop_count}: No players in game_manager to send updates to.")
+                    if loop_count % 30 == 1 :print(f"[{my_pid}] Heartbeat {loop_count}: No players in game_manager to send updates to.")
             except Exception as e_emit_section:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!"; traceback.print_exc())
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!")
+                traceback.print_exc()
             
             elapsed_time = -1.0; sleep_duration = -1.0 
             try:
                 current_time_before_elapsed = time.time()
                 elapsed_time = current_time_before_elapsed - loop_start_time
                 sleep_duration = GAME_TICK_RATE - elapsed_time
-                # print(f"[{my_pid}] Tick {loop_count}: Calculated sleep_duration: {sleep_duration:.4f}s") # Verbose
                 if sleep_duration > 0: 
-                    # print(f"[{my_pid}] Tick {loop_count}: >>> Attempting to sio.sleep({sleep_duration:.4f}s)") # Verbose
                     sio.sleep(sleep_duration)
-                    # print(f"[{my_pid}] Tick {loop_count}: <<< Successfully returned from sio.sleep()") # Verbose
                 elif sleep_duration < -0.1: 
-                    print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Tick {loop_count} took {elapsed_time:.4f}s. No sleep.")
+                    print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Heartbeat {loop_count} took {elapsed_time:.4f}s. No sleep.")
                 else: 
-                    # print(f"[{my_pid}] Tick {loop_count}: Sleep duration is very small or zero ({sleep_duration:.4f}s), minimal/no sleep.") # Verbose
                     sio.sleep(0.001) 
-            except TypeError as e_sleep_type: print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic: {e_sleep_type} !!!!!!"); print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}"); traceback.print_exc()
-            except Exception as e_sleep_generic: print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic: {e_sleep_generic} !!!!!!"); traceback.print_exc()
-            # print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Can be verbose if loop runs ok
+            except TypeError as e_sleep_type: 
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: TypeError during sleep logic: {e_sleep_type} !!!!!!"); 
+                print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}")
+                traceback.print_exc()
+            except Exception as e_sleep_generic: 
+                print(f"!!!!!! [{my_pid}] Heartbeat {loop_count}: Generic Exception during sleep logic: {e_sleep_generic} !!!!!!"); 
+                traceback.print_exc()
+            # print(f"====== [{my_pid}] BOTTOM OF GAME HEARTBEAT {loop_count} ======\n") # Less verbose now
     except Exception as e_loop_main: 
         print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
         if hasattr(game_manager, 'loop_is_actually_running_flag'): game_manager.loop_is_actually_running_flag = False 
