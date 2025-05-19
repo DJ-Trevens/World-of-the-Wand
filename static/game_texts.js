@@ -143,6 +143,35 @@ const GAME_TEXTS = {
             "Tome feels lighter: You finally feel dry again.",
             "The moisture evaporates from your robes, a welcome relief.",
             "Warmth returns as the dampness leaves you."
+        ],
+        // NPC Related Lore
+        PIXIE_MOVED_AWAY: [
+            "Tome observes: {pixieName} flits out of your path with a faint chime.",
+            "The air shimmers as {pixieName} dodges your approach.",
+            "{pixieName} zips aside, its wings a blur."
+        ],
+        PIXIE_BLOCKED_PATH: [
+            "Tome notes: {pixieName} hovers defiantly, somehow blocking your way.",
+            "Despite its size, {pixieName} holds its ground, and you cannot pass."
+        ],
+        PIXIE_MANA_BOOST: [
+            "Tome glows faintly: Nearby pixies hum, and you feel your mana replenish by {amount}!",
+            "A spark of aether from a pixie invigorates you, restoring {amount} mana.",
+            "The pixies' presence seems to quicken your mana regeneration by {amount}."
+        ],
+        SEES_PIXIE_NEARBY: [ // For the 'look' command
+            "Tome notes: A tiny, shimmering Mana Pixie ({pixieName}) darts nearby.",
+            "You catch a glimpse of {pixieName}, a Mana Pixie, flitting through the air.",
+            "The air around {pixieName}, a Mana Pixie, seems to crackle with faint energy."
+        ],
+        LOOK_DIRECTION_EMPTY: [
+            "Tome shows: You peer {direction}, but see nothing of particular interest.",
+            "Gazing {direction}, the area seems quiet.",
+            "The way {direction} appears clear."
+        ],
+        LOOK_AROUND_EMPTY: [
+            "Tome reflects: You survey your immediate surroundings. Nothing seems out of the ordinary.",
+            "A quick scan reveals no immediate points of interest."
         ]
     },
     GENERIC: { 

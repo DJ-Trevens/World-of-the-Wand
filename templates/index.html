@@ -72,6 +72,7 @@
         let showDebugInfo = false; 
         let selfPlayer = null;
         let otherPlayers = {}; 
+        let visibleNPCs = []; // To store NPC data from server
         let visibleTerrain = { walls: [], water: [] }; 
         let myPlayerID = null; 
         let GRID_WIDTH = 20; 
@@ -100,6 +101,7 @@
         const FLOOR_CHAR = '·';  
         const WALL_CHAR = '▓';   
         const WATER_CHAR = '~'; 
+        const PIXIE_CHAR_CLIENT = '*'; // Consistent with server
         const AURA_VISION_RANGE = 1;
 
         const GAME_ZOOM_FACTOR = 1.4; 
@@ -192,7 +194,13 @@
                 mainHeaderStatus.textContent = statusText;
             } else if (selfPlayer) {
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
-                let baseStatus = `Health: ${healthPercentage}% | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
+                // New status bar format
+                let baseStatus = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana`;
+                if (showDebugInfo) { // Show max mana only in debug
+                     baseStatus += `/${selfPlayer.max_mana}`;
+                }
+                baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions`;
+                
                 if (showDebugInfo) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; 
                      baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | Walls: ${selfPlayer.walls !== undefined ? selfPlayer.walls : 'N/A'} | ${baseStatus}`;
@@ -284,8 +292,10 @@
             const fogColor = bodyStyle.getPropertyValue('--text-game-fog-consistent').trim();
             const selfPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-self-consistent').trim();
             const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other-consistent').trim();
+            const npcPixieColor = bodyStyle.getPropertyValue('--text-game-npc-pixie-consistent').trim() || otherPlayerBaseColor; // Fallback to other player color
             const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint-consistent').trim();
 
+            // Draw terrain base (floor, water, walls)
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
                     let charToDraw = FLOOR_CHAR;
@@ -296,8 +306,7 @@
                     } else if (visibleTerrain.walls && visibleTerrain.walls.some(w => w.x === x && w.y === y)) {
                         charToDraw = WALL_CHAR; colorToUse = wallColor;
                     }
-
-                    // Apply fog if not visible (players will be drawn over fog if they are in a fogged tile)
+                    
                     if (!isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
                         charToDraw = FOG_CHAR; colorToUse = fogColor;
                     }
@@ -305,6 +314,16 @@
                     ctx.fillStyle = colorToUse;
                     ctx.fillText(charToDraw, x * charRenderWidth, y * charRenderHeight);
                 }
+            }
+            
+            // Draw NPCs
+            if (visibleNPCs) {
+                visibleNPCs.forEach(npc => {
+                    if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, npc.x, npc.y)) {
+                        ctx.fillStyle = npcPixieColor; // Use specific color if defined, else fallback
+                        ctx.fillText(npc.char || PIXIE_CHAR_CLIENT, npc.x * charRenderWidth, npc.y * charRenderHeight);
+                    }
+                });
             }
 
             // Draw other players
@@ -322,7 +341,7 @@
                 }
             }
             
-            // Draw self player (ensures it's on top of terrain and other players if same tile)
+            // Draw self player
              if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, selfPlayer.x, selfPlayer.y, true )) { 
                 ctx.fillStyle = selfPlayerBaseColor;
                 ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
@@ -480,6 +499,7 @@
             GRID_WIDTH = data.grid_width; GRID_HEIGHT = data.grid_height; GAME_TICK_RATE = data.tick_rate;
             otherPlayers = {}; 
             visibleTerrain = { walls: [], water: [] }; 
+            visibleNPCs = data.visible_npcs || []; // Initialize NPCs
             if (data.other_players_in_scene) data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
             prevSelfPlayerState = { ...selfPlayer };
             const savedDebugInfo = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
@@ -580,6 +600,7 @@
         socket.on('player_event', (data) => { 
             if (data.type === 'stepped_in_water' && data.sid === myPlayerID) { 
                 console.log("Client: Received stepped_in_water event. Playing sound (placeholder)... SPLASH!");
+                // playWaterStepSound(); 
             }
         });
         
@@ -595,6 +616,7 @@
             otherPlayers = {}; 
             if(data.visible_other_players) data.visible_other_players.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; }); 
             visibleTerrain = data.visible_terrain || { walls: [], water: [] }; 
+            visibleNPCs = data.visible_npcs || []; // Update NPCs
 
             updateStatus(); 
             
@@ -657,7 +679,7 @@
             console.log("Socket.IO disconnected. Reason:", reason);
             updateStatus(`Severed from the Ethereal Plane! (${reason})`);
             logRandomizedEvent('LORE', 'DISCONNECTED', { reason: reason }, 'event-bad');
-            selfPlayer = null; otherPlayers = {}; visibleTerrain = {walls:[], water:[]}; prevSelfPlayerState = null;
+            selfPlayer = null; otherPlayers = {}; visibleTerrain = {walls:[], water:[]}; visibleNPCs = []; prevSelfPlayerState = null;
             stopRainEffect(); drawGrid(); 
         });
         
@@ -730,6 +752,32 @@
                 const eTW = messageContent || selfPlayer.char; const dR = parseDirection(eTW, selfPlayer.char);
                 if (dR.isValid) commandToSend.details = { dx: 0, dy: 0, newChar: dR.char };
                 else { addLogMessage(`Tome squints: Cannot look towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
+
+                // Look command enhancement for pixies
+                if (shouldEmitToServer && visibleNPCs) {
+                    let foundPixie = false;
+                    const lookTargetX = selfPlayer.x + dR.dx; // If looking forward after turning
+                    const lookTargetY = selfPlayer.y + dR.dy;
+
+                    for(const npc of visibleNPCs) {
+                        if(npc.char === PIXIE_CHAR_CLIENT) { // Check if it's a pixie
+                            // Check if pixie is generally in the direction player is now looking or very close
+                            // This is a simple check, could be more sophisticated (e.g. isVisible from player's new facing)
+                            if (manhattanDistance(selfPlayer.x, selfPlayer.y, npc.x, npc.y) <= 3) {
+                                logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: npc.name || "a pixie"}, 'system');
+                                foundPixie = true;
+                                break; 
+                            }
+                        }
+                    }
+                    if (!foundPixie && (dR.dx !==0 || dR.dy !==0) ) { // if looked in a specific direction and no pixie
+                        logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
+                    } else if (!foundPixie) {
+                         logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
+                    }
+                }
+
+
             } else if (canonicalAction === "help") { 
                  addLogMessage("Tome patiently explains:\nMOVE: 'move [direction]' (n,s,e,w,fwd,back)\nLOOK: 'look [direction]'\nBUILD: 'build [direction]' or 'build' (in front)\nDESTROY: 'destroy [direction]' or 'destroy' (in front)\nCAST: 'cast [spell] [direction]'\nDRINK: 'drink potion'\nSAY: 'say [message]' or '[message]\nSHOUT: 'shout [message]' or ![message]", 'system'); 
                  shouldEmitToServer = false; 
@@ -785,7 +833,6 @@
             updateStatus(); updateWeatherEffects();
         };
         
-        // Initial setup
         initializeTheme(); 
         estimateCharacterSize("initial_page_load"); 
         drawGrid(); 
