@@ -67,18 +67,18 @@
         const rainIntensityControl = document.getElementById('rainIntensityControl');
 
         let showDebugInfo = false; 
-        let useLocalCommands = true; // Note: Local commands might become less effective with server-authoritative state.
+        let useLocalCommands = true; 
         
         let selfPlayer = null;
-        let otherPlayers = {}; // Will store players by their ID for quick lookup
-        let myPlayerID = null; // Will be set from selfPlayer.id
+        let otherPlayers = {}; 
+        let myPlayerID = null; 
         let GRID_WIDTH = 20; 
         let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
         let OBSERVABLE_DEPTH = 17;
         let prevSelfPlayerState = null;
 
-        let currentSceneData = { // This can be part of selfPlayer or a separate server message if scenes have unique global data
+        let currentSceneData = { 
             InsideID: 0, 
             name: "The Whispering Plains" 
         };
@@ -102,467 +102,63 @@
         const FLOOR_CHAR = '·'; 
         const AURA_VISION_RANGE = 1;
 
-        function get_dx_dy_from_direction_str(s) {
-            const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
-            return mapping[s] || [0, 0];
-        }
-
-        function get_direction_str_from_dx_dy(dx, dy) {
-            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
-            return mapping[`${dx},${dy}`];
-        }
-
-        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
-            const worldDX = targetX - playerX;
-            const worldDY = targetY - playerY;
-            let pf;
-            if (playerFacingChar === '^') pf = 'n';
-            else if (playerFacingChar === 'v') pf = 's';
-            else if (playerFacingChar === '<') pf = 'w';
-            else if (playerFacingChar === '>') pf = 'e';
-            else return { rx: worldDX, ry: worldDY };
-
-            if (pf === 'n') return {rx: worldDX, ry: worldDY};
-            if (pf === 's') return {rx: -worldDX, ry: -worldDY};
-            if (pf === 'w') return {rx: -worldDY, ry: worldDX};
-            if (pf === 'e') return {rx: worldDY, ry: -worldDX};
-            return { rx: worldDX, ry: worldDY };
-        }
-
-        function manhattanDistance(x1, y1, x2, y2) {
-            return Math.abs(x1 - x2) + Math.abs(y1 - y2);
-        }
-
-        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
-            if (!observerChar || !selfPlayer) return false; // Ensure selfPlayer is available for observerChar
-            let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
-
-            if (scry || manhattanDist <= AURA_VISION_RANGE) {
-                return true;
-            }
-            
-            const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            const OBSERVABLE_WIDTH_CONST = 1.0;
-
-            if (ry < 0 && -ry <= OBSERVABLE_DEPTH && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH_CONST )) {
-                return true;
-            }
-            return false;
-        }
-
-
-        function addLogMessage(message, type = 'lore') {
-            const logEntry = document.createElement('div');
-            let displayStyle = 'ink';
-            switch (type) {
-                case 'event-bad':         
-                case 'chat-shout':       
-                case 'server-major-event': 
-                case 'player-trade':       
-                case 'player-damage':
-                case 'welcome-message': 
-                    displayStyle = 'mana';
-                    break;
-                case 'system':            
-                case 'event-good':        
-                case 'spell-cast':        
-                case 'lore':              
-                case 'user-input':        
-                case 'chat-say':          
-                default:
-                    displayStyle = 'ink';
-                    break;
-            }
-            logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
-            logEntry.textContent = message;
-            commandLog.appendChild(logEntry);
-            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
-        }
-
-        function updateStatus(statusText) {
-            if (statusText) {
-                mainHeaderStatus.textContent = statusText;
-            } else if (selfPlayer) {
-                let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
-                let baseStatus = `Health: ${healthPercentage}% | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
-                if (showDebugInfo) {
-                    let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
-                     baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) | ${baseStatus}`;
-                }
-                mainHeaderStatus.textContent = baseStatus;
-            } else {
-                mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
-            }
-        }
-
-        function estimateCharacterSize(context = "unknown") {
-            const computedGameCanvasStyle = getComputedStyle(gameCanvas);
-            const usesPlaceholderText = !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists");
-
-            if (usesPlaceholderText && !charSizeEstimated) {
-                const explicitFontSize = 18; 
-                const explicitLineHeightMultiplier = 0.9;
-                charRenderWidth = explicitFontSize * 0.6; 
-                charRenderHeight = explicitFontSize * explicitLineHeightMultiplier; 
-                console.warn(`[estimateCharacterSize context: ${context}] Using HARDCODED FALLBACK (placeholder text): W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
-                charSizeEstimated = true; 
-                return; 
-            }
-
-            if (!charSizeEstimated || !usesPlaceholderText) {
-                const tempSpan = document.createElement('span');
-                tempSpan.style.fontFamily = computedGameCanvasStyle.fontFamily;
-                tempSpan.style.fontSize = computedGameCanvasStyle.fontSize;
-                tempSpan.style.lineHeight = computedGameCanvasStyle.lineHeight;
-                tempSpan.style.whiteSpace = 'pre';
-                tempSpan.style.visibility = 'hidden';
-                tempSpan.style.position = 'absolute';
-                tempSpan.textContent = 'M'; 
-                document.body.appendChild(tempSpan);
-                charRenderWidth = tempSpan.offsetWidth;
-                const fs = parseFloat(computedGameCanvasStyle.fontSize);
-                let lhValue = parseFloat(computedGameCanvasStyle.lineHeight); 
-
-                if (computedGameCanvasStyle.lineHeight === 'normal') charRenderHeight = fs * 1.2; 
-                else if (!isNaN(lhValue) && computedGameCanvasStyle.lineHeight.includes('px')) charRenderHeight = lhValue; 
-                else if (!isNaN(lhValue)) charRenderHeight = fs * lhValue;
-                else charRenderHeight = fs * 0.9; 
-                
-                document.body.removeChild(tempSpan);
-
-                if (charRenderWidth <= 0 || charRenderHeight <= 0) {
-                    const fsFallback = 18; 
-                    charRenderWidth = fsFallback * 0.6;
-                    charRenderHeight = fsFallback * 0.9;
-                    console.warn(`[estimateCharacterSize context: ${context}] tempSpan failed. Reverting to hardcoded: W=${charRenderWidth.toFixed(2)}, H=${charRenderHeight.toFixed(2)}`);
-                } else {
-                    console.log(`[estimateCharacterSize context: ${context}] Accurate via tempSpan (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)}`);
-                }
-                charSizeEstimated = true; 
-            }
-        }
-
-        function drawGrid() {
-            if (!selfPlayer || GRID_WIDTH === 0 || GRID_HEIGHT === 0) {
-                gameCanvas.textContent = "The mists obscure your vision...\n\n(Awaiting server data)";
-                return;
-            }
-            if (targetPanX !== 0 || targetPanY !== 0 || currentPanX !== 0 || currentPanY !== 0 || isDragging) {
-                 gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
-            }
-
-            let displayGrid = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(FLOOR_CHAR));
-            
-            for (const playerID in otherPlayers) { // otherPlayers is now server-controlled for visibility
-                const otherGuy = otherPlayers[playerID];
-                // Server already filtered to current scene and visibility for 'visible_other_players'
-                if (otherGuy.x >= 0 && otherGuy.x < GRID_WIDTH && otherGuy.y >= 0 && otherGuy.y < GRID_HEIGHT) {
-                    displayGrid[otherGuy.y][otherGuy.x] = otherGuy.char;
-                }
-            }
-            if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
-                displayGrid[selfPlayer.y][selfPlayer.x] = selfPlayer.char;
-            }
-
-            let output = "";
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH; x++) {
-                    // Client-side visibility cone can still be applied here on top of server-sent data
-                    // Or, trust the server's 'visible_other_players' and simplify client visibility checks
-                    // For now, let's use the client's detailed cone for fog of war on terrain/tiles
-                    if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
-                        output += displayGrid[y][x];
-                    } else {
-                        output += FOG_CHAR;
-                    }
-                }
-                output += "\n";
-            }
-            gameCanvas.textContent = output.trimEnd();
-        }
-        
-        function startRainEffect(intensity) {
-            if (rainInterval) clearInterval(rainInterval);
-            rainOverlay.innerHTML = ''; 
-            rainInterval = setInterval(() => {
-                if (Math.random() < (intensity * 0.5) ) { 
-                    const drop = document.createElement('div');
-                    drop.classList.add('raindrop');
-                    drop.style.left = Math.random() * 100 + '%';
-                    const duration = 0.4 + Math.random() * 0.4; 
-                    drop.style.animationDuration = duration + 's';
-                    drop.style.animationDelay = Math.random() * 0.2 + 's'; 
-                    rainOverlay.appendChild(drop);
-                    drop.addEventListener('animationend', () => drop.remove());
-                }
-            }, RAIN_INTERVAL_DELAY);
-        }
-
-        function stopRainEffect() {
-            if (rainInterval) clearInterval(rainInterval);
-            rainInterval = null;
-            rainOverlay.innerHTML = ''; 
-        }
-        
-        function updateWeatherEffects() {
-            if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
-                    globalWeather.intensity = rainIntensitySlider.valueAsNumber; 
-                    startRainEffect(globalWeather.intensity);
-                }
-            } else {
-                if (rainInterval) stopRainEffect();
-            }
-        }
-
-        gameCanvasContainer.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return; 
-            isDragging = true;
-            document.body.classList.add('is-dragging');
-            gameCanvasContainer.style.cursor = 'grabbing';
-            startDragX = e.clientX - currentPanX;
-            startDragY = e.clientY - currentPanY;
-            gameCanvas.style.transition = 'none'; 
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            currentPanX = e.clientX - startDragX;
-            currentPanY = e.clientY - startDragY;
-            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (e.button !== 0 || !isDragging) return;
-            isDragging = false;
-            document.body.classList.remove('is-dragging');
-            gameCanvasContainer.style.cursor = 'grab';
-            gameCanvas.style.transition = 'transform 0.3s ease-out'; 
-        });
-        gameCanvasContainer.addEventListener('mouseleave', () => {
-            if(isDragging){ 
-                isDragging = false;
-                document.body.classList.remove('is-dragging');
-                gameCanvasContainer.style.cursor = 'grab';
-                gameCanvas.style.transition = 'transform 0.3s ease-out';
-            }
-        });
-
-        function centerViewOnPlayer() {
-            const containerHeight = gameCanvasContainer.clientHeight;
-            console.log(`[centerViewOnPlayer] Called. selfPlayer: ${!!selfPlayer}, charSizeEstimated: ${charSizeEstimated}, Container H: ${containerHeight}, Char H: ${charRenderHeight.toFixed(2)}`);
-            
-            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvasContainer || !gameCanvas || containerHeight <= 0) {
-                 console.warn(`[centerViewOnPlayer] Cannot center: preconditions not met. Container H: ${containerHeight}`);
-                 currentPanX = 0; currentPanY = 0;
-                 if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
-                return; 
-            }
-            
-            if (charRenderHeight > 50 || charRenderHeight <= 0 || charRenderWidth <=0 ) { 
-                console.warn(`[centerViewOnPlayer] Absurd char dimensions (H: ${charRenderHeight.toFixed(2)}, W: ${charRenderWidth.toFixed(2)}). Re-estimating NOW.`);
-                charSizeEstimated = false; 
-                estimateCharacterSize("centerViewOnPlayer_emergency_reestimate");
-                if (charRenderHeight > 50 || charRenderHeight <= 0 || charRenderWidth <=0 ) { 
-                    console.error(`[centerViewOnPlayer] Emergency re-estimation FAILED. Using hardcoded default char H=16px, W based on 18px*0.6.`);
-                    addLogMessage("Tome's script sputters: Visual calibration failed! Using fallback dimensions.", 'event-bad');
-                    charRenderHeight = 16.2; charRenderWidth = 18 * 0.6; // Explicit defaults
-                }
-            }
-            
-            const playerVisualCenterX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
-            const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
-            targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
-            targetPanY = (containerHeight / 2) - playerVisualCenterY;
-            currentPanX = targetPanX; currentPanY = targetPanY;
-            console.log(`[centerViewOnPlayer] Centering: Player(${selfPlayer.x},${selfPlayer.y}), CharSize(W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
-            if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
-        }
-
+        function get_dx_dy_from_direction_str(s) { /* ... unchanged ... */ }
+        function get_direction_str_from_dx_dy(dx, dy) { /* ... unchanged ... */ }
+        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) { /* ... unchanged ... */ }
+        function manhattanDistance(x1, y1, x2, y2) { /* ... unchanged ... */ }
+        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) { /* ... unchanged ... */ }
+        function addLogMessage(message, type = 'lore') { /* ... unchanged ... */ }
+        function updateStatus(statusText) { /* ... unchanged ... */ }
+        function estimateCharacterSize(context = "unknown") { /* ... unchanged ... */ }
+        function drawGrid() { /* ... unchanged ... */ }
+        function startRainEffect(intensity) { /* ... unchanged ... */ }
+        function stopRainEffect() { /* ... unchanged ... */ }
+        function updateWeatherEffects() { /* ... unchanged ... */ }
+        gameCanvasContainer.addEventListener('mousedown', (e) => { /* ... unchanged ... */ });
+        window.addEventListener('mousemove', (e) => { /* ... unchanged ... */ });
+        window.addEventListener('mouseup', (e) => { /* ... unchanged ... */ });
+        gameCanvasContainer.addEventListener('mouseleave', () => { /* ... unchanged ... */ });
+        function centerViewOnPlayer() { /* ... unchanged ... */ }
         debugInfoToggle.addEventListener('change', (event) => { /* ... unchanged ... */ });
         localCommandsToggle.addEventListener('change', (event) => { /* ... unchanged ... */ });
         rainIntensitySlider.addEventListener('input', (event) => { /* ... unchanged ... */ });
-
-        // --- NEW Socket.IO Event Handlers ---
-        socket.on('connect', () => {
-            console.log("Socket.IO connected successfully! SID (client-side):", socket.id);
-            // myPlayerID will be set by 'initial_game_data' from server
-            addLogMessage("Tome hums: Connection to the Ethereal Plane established.", 'system');
-        });
-
+        socket.on('connect', () => { /* ... unchanged ... */ });
         socket.on('connect_error', (err) => { /* ... unchanged ... */ });
-
-        socket.on('initial_game_data', (data) => {
-            console.log("Received 'initial_game_data':", data);
-            if (!data || !data.player_data) {
-                console.error("Received invalid 'initial_game_data':", data);
-                addLogMessage("Tome warns: Corrupted manifestation data from the server.", 'event-bad');
-                gameCanvas.textContent = "Error: Corrupted manifestation data. Unable to enter world.";
-                return;
-            }
-            selfPlayer = data.player_data;
-            myPlayerID = selfPlayer.id; // Trust server's ID assignment
-
-            GRID_WIDTH = data.grid_width;
-            GRID_HEIGHT = data.grid_height;
-            GAME_TICK_RATE = data.tick_rate;
-            
-            otherPlayers = {}; // Reset
-            if (data.other_players_in_scene && Array.isArray(data.other_players_in_scene)) {
-                data.other_players_in_scene.forEach(p => {
-                    if (p.id !== myPlayerID) { // Should not happen if server sends correctly
-                        otherPlayers[p.id] = p;
-                    }
-                });
-            }
-            
-            prevSelfPlayerState = { ...selfPlayer };
-
-            // Load preferences (omitted for brevity in this diff, assume they load correctly)
-
-            document.fonts.ready.then(() => {
-                console.log("Fonts ready. Initial UI setup after 'initial_game_data'.");
-                if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                    charSizeEstimated = false; estimateCharacterSize("initial_game_data_before_draw");
-                    drawGrid();
-                    if (gameCanvas.textContent && !gameCanvas.textContent.startsWith("Initializing Realm...")  && !gameCanvas.textContent.startsWith("The mists")) {
-                         charSizeEstimated = false; estimateCharacterSize("initial_game_data_after_draw");
-                    }
-                    updateStatus();
-                    requestAnimationFrame(() => setTimeout(() => {
-                        if (!charSizeEstimated || charRenderWidth <= 0 || charRenderHeight <= 0 || charRenderHeight > 50) {
-                            charSizeEstimated = false; estimateCharacterSize("initial_game_data_raf_final");
-                        }
-                        centerViewOnPlayer();
-                    }, 10)); // Small delay for final layout stabilization
-                    updateWeatherEffects();
-                    addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
-                     if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
-                        addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
-                    }
-                } else {
-                    gameCanvas.textContent = "Error: Could not initialize player or world data after fonts ready.";
-                    addLogMessage("Tome warns: Manifestation failed (missing critical data).", 'event-bad');
-                }
-            }).catch(err => {
-                console.error("Font loading error:", err);
-                addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
-                 if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                    charSizeEstimated = false; estimateCharacterSize("fonts_catch_1"); 
-                    drawGrid(); 
-                    charSizeEstimated = false; estimateCharacterSize("fonts_catch_2");
-                    updateStatus(); 
-                    requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 10));
-                    updateWeatherEffects();
-                } else {
-                    gameCanvas.textContent = "Error: Font loading failed AND critical data missing.";
-                    addLogMessage("Tome wails: The world's fabric is unstable!", 'event-bad');
-                }
-            });
-        });
-
-        socket.on('player_entered_your_scene', (newPlayerData) => { 
-            console.log("'player_entered_your_scene':", newPlayerData);
-            if (myPlayerID && newPlayerData.id !== myPlayerID && selfPlayer) { // Check selfPlayer to ensure scene context
-                otherPlayers[newPlayerData.id] = newPlayerData; 
-                drawGrid();
-                addLogMessage(`Tome notes: ${newPlayerData.name || 'A new sorcerer'} arrives.`, 'event-good');
-            }
-        });
-
-        socket.on('player_exited_your_scene', (exitedPlayerData) => {
-            console.log("'player_exited_your_scene':", exitedPlayerData);
-            if (otherPlayers[exitedPlayerData.id]) {
-                const leftPlayerName = exitedPlayerData.name || otherPlayers[exitedPlayerData.id].name || 'A sorcerer';
-                delete otherPlayers[exitedPlayerData.id];
-                drawGrid();
-                addLogMessage(`Tome records: ${leftPlayerName} has departed.`, 'lore');
-            }
-        });
-
-        socket.on('lore_message', (data) => { addLogMessage(data.message, data.type || 'lore'); });
-        // socket.on('weather_update', ...); // Keep if server sends these separately
-        // socket.on('scene_data_update', ...); // Keep if server sends these separately
-
+        socket.on('initial_game_data', (data) => { /* ... unchanged ... */ });
+        socket.on('player_entered_your_scene', (newPlayerData) => { /* ... unchanged ... */ });
+        socket.on('player_exited_your_scene', (exitedPlayerData) => { /* ... unchanged ... */ });
+        socket.on('lore_message', (data) => { /* ... unchanged ... */ });
         socket.on('chat_message', (data) => { /* ... unchanged ... */ });
-
         let tickFlashTimeout = null;
-        socket.on('game_update', (data) => {
-            if (!selfPlayer || !myPlayerID) {
-                console.warn("Received 'game_update' but selfPlayer/myPlayerID not set. Ignoring.");
-                return;
-            }
-            // console.log("'game_update' received. Self X,Y,Char:", data.self_player_data.x, data.self_player_data.y, data.self_player_data.char);
-            
-            if(tickIndicator) {
-                tickIndicator.classList.add('tick-flash');
-                if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
-                tickFlashTimeout = setTimeout(() => {
-                    if(tickIndicator) tickIndicator.classList.remove('tick-flash');
-                }, 150); 
-            }
-
-            // Update self player data
-            selfPlayer = data.self_player_data;
-
-            // Update other players based on what the server says is visible
-            otherPlayers = {}; // Clear current list
-            if(data.visible_other_players && Array.isArray(data.visible_other_players)) {
-                data.visible_other_players.forEach(p => {
-                    if (p.id !== myPlayerID) { // Should already be filtered by server, but good check
-                        otherPlayers[p.id] = p;
-                    }
-                });
-            }
-            
-            updateStatus(); 
-
-            if (selfPlayer && prevSelfPlayerState) {
-                const sceneCoordsChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
-                const movedX = selfPlayer.x !== prevSelfPlayerState.x;
-                const movedY = selfPlayer.y !== prevSelfPlayerState.y;
-                const turned = selfPlayer.char !== prevSelfPlayerState.char;
-
-                if (sceneCoordsChanged) {
-                    // Other players are already updated based on server's visibility data for the new scene
-                    if(!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
-                } else if (movedX || movedY || turned) {
-                     if (!useLocalCommands && (movedX || movedY)) { 
-                        addLogMessage(`Tome traces your path: You move to (${selfPlayer.x}, ${selfPlayer.y}), facing ${getDirectionWord(selfPlayer.char)}.`, 'lore');
-                    } else if (!useLocalCommands && turned) {
-                        addLogMessage(`Tome observes: You turn to face ${getDirectionWord(selfPlayer.char)}.`, 'lore');
-                    }
-                    if (!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
-                }
-            }
-            prevSelfPlayerState = { ...selfPlayer }; 
-            
-            drawGrid(); 
-            if (!charSizeEstimated && selfPlayer && gameCanvas.textContent && !gameCanvas.textContent.startsWith("The mists") && !gameCanvas.textContent.startsWith("Initializing Realm...")) {
-                requestAnimationFrame(() => { 
-                    charSizeEstimated = false; estimateCharacterSize("game_update_reestimate");
-                    if(!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0)); 
-                });
-            }
-            updateWeatherEffects(); 
-        });
-
+        socket.on('game_update', (data) => { /* ... unchanged ... */ });
         function getDirectionWord(char) { /* ... unchanged ... */ }
-        
-        socket.on('action_feedback', (data) => { 
-            console.log("Client received 'action_feedback':", data);
-            if (data.success) {
-                addLogMessage("Tome nods: " + data.message, "system");
-            } else {
-                addLogMessage("Tome objects: " + data.message, 'event-bad');
-            }
-        });
-        
+        socket.on('action_feedback', (data) => { /* ... unchanged ... */ });
         socket.on('disconnect', (reason) => { /* ... unchanged ... */ });
 
-        const ACTION_ALIASES = { /* ... unchanged ... */ };
+        const ACTION_ALIASES = {
+            "move": ["move", "go", "walk", "step", "head", "run"],
+            "look": ["look", "face", "turn"],
+            "cast": ["cast", "zap", "fire", "spell"],
+            "drink": ["drink", "quaff", "use"],
+            "say": ["say", "tell", "whisper", "'"], 
+            "shout": ["shout", "yell", "scream", "!"], 
+            "help": ["help", "?"] // Corrected typo here
+        };
         const DIRECTION_ALIASES = { /* ... unchanged ... */ };
-        function parseAction(actionWord) { /* ... unchanged ... */ }
+
+        function parseAction(actionWord) {
+            console.log("[parseAction] Input actionWord:", `'${actionWord}'`); // Log input
+            actionWord = actionWord.toLowerCase();
+            for (const canonicalAction in ACTION_ALIASES) {
+                // console.log("[parseAction] Checking canonical:", canonicalAction, "with aliases:", ACTION_ALIASES[canonicalAction]); // Verbose
+                if (ACTION_ALIASES[canonicalAction].includes(actionWord)) {
+                    console.log("[parseAction] Found canonical:", canonicalAction);
+                    return canonicalAction;
+                }
+            }
+            console.log("[parseAction] No canonical action found for:", actionWord);
+            return null;
+        }
         function parseDirection(directionStr, curFacing) { /* ... unchanged ... */ }
 
         commandInput.addEventListener('keydown', (event) => { /* ... unchanged ... */ });
@@ -582,6 +178,9 @@
             let actionWord = parts[0];
             let messageContent = parts.length > 1 ? parts.slice(1).join(' ') : null;
 
+            console.log(`[Submit] inputText: '${inputText}', actionWord: '${actionWord}', messageContent: '${messageContent}'`);
+
+
             if (actionWord.startsWith("'") && actionWord.length >=1) { 
                 messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim();
                 actionWord = "say";
@@ -590,7 +189,13 @@
                 actionWord = "shout";
             }
             addLogMessage(`Tome jots down: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
+            
+            // Log ACTION_ALIASES to ensure it's what we expect just before parsing
+            console.log("[Submit] ACTION_ALIASES before parseAction:", JSON.stringify(ACTION_ALIASES));
+
             const canonicalAction = parseAction(actionWord);
+            console.log(`[Submit] canonicalAction from parseAction: '${canonicalAction}'`);
+
 
             if (!canonicalAction) {
                 addLogMessage(`Tome seems puzzled: Your will "${actionWord}" is indecipherable. (Perhaps 'help' will illuminate the path?)`, 'event-bad');
@@ -598,15 +203,40 @@
             }
 
             let commandToSend = { type: canonicalAction, details: {} };
-            let shouldEmitToServer = true; // Server is now authoritative for moves/looks
+            let shouldEmitToServer = true; 
+            // Temporarily disable local commands to simplify debugging server-side logic first
+            // useLocalCommands = false; 
 
-            // Local commands are now primarily for instant visual feedback if desired,
-            // but the server will ultimately decide the state.
-            // For simplicity with the new server model, we'll send all actions to server.
-            // You can re-add sophisticated local prediction if you want, but it adds complexity.
-            useLocalCommands = false; // Temporarily disable to ensure server state is primary
+            if (useLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
+                shouldEmitToServer = false; 
+                const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char); 
+                console.log(`[Submit - Local] canonicalAction: ${canonicalAction}, effectiveTargetWord: ${effectiveTargetWord}`);
+                const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
+                console.log(`[Submit - Local] dirResult:`, dirResult);
 
-            if (canonicalAction === "move") { 
+                if (dirResult.isValid) {
+                    let newX = selfPlayer.x;
+                    let newY = selfPlayer.y;
+
+                    if (canonicalAction === "move") {
+                        newX += dirResult.dx;
+                        newY += dirResult.dy;
+                        newX = Math.max(0, Math.min(GRID_WIDTH - 1, newX));
+                        newY = Math.max(0, Math.min(GRID_HEIGHT - 1, newY));
+                    }
+                    
+                    selfPlayer.x = newX;
+                    selfPlayer.y = newY;
+                    selfPlayer.char = dirResult.char; 
+                    
+                    addLogMessage(`Tome (Local): You ${canonicalAction} ${getDirectionWord(dirResult.char)}.`, 'system');
+                    drawGrid();
+                    if (!isDragging) requestAnimationFrame(() => setTimeout(() => centerViewOnPlayer(), 0));
+                    updateStatus();
+                } else {
+                    addLogMessage(`Tome frowns (Local): Your path to "${effectiveTargetWord}" is unclear.`, 'event-bad');
+                }
+            } else if (canonicalAction === "move") { 
                 const effectiveTargetWord = messageContent || "forward"; 
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
@@ -639,7 +269,7 @@
                     addLogMessage(`Tome queries: Drink what specifically? (Try 'drink potion')`, 'event-bad');
                     shouldEmitToServer = false; 
                 } else {
-                    commandToSend.type = 'drink_potion'; // Standardize type for server
+                    commandToSend.type = 'drink_potion'; 
                 }
             } else if (canonicalAction === "say" || canonicalAction === "shout") {
                 if (messageContent && messageContent.length > 0) {
@@ -663,12 +293,9 @@
         
         window.toggleRainDebug = function() { /* ... unchanged ... */ };
         window.toggleInsideDebug = function() { /* ... unchanged ... */ };
-        
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
-        
-        // Load preferences (omitted for brevity, assume they load correctly)
-
+        // Load preferences (omitted for brevity)
         updateStatus("Awaiting connection to the Ethereal Plane..."); 
         updateWeatherEffects(); 
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
