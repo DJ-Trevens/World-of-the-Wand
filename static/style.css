@@ -1,55 +1,55 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    /* --- Dark Theme (Current Slate - Default) --- */
-    --bg-primary-dark: #4A5568;   /* Medium-dark slate gray */
-    --bg-secondary-dark: #2D3748; /* Darker slate gray for panels */
-    --bg-tome-dark: #fff9e6;      /* Tome page - keep light for readability */
-    --bg-tome-cover-dark: #5d4037;/* Tome cover - dark brown */
+    /* --- Dark Theme (Evoking original "slate" but refined) --- */
+    --bg-primary-dark: #1a202c;   /* Very dark, slightly desaturated blue (almost black) */
+    --bg-secondary-dark: #2d3748; /* Dark slate blue/grey for panels */
+    --bg-tome-dark: #f7fafc;      /* Off-white tome page for high contrast */
+    --bg-tome-cover-dark: #4a3b32;/* Darker, rich brown for tome cover */
     
-    --text-tome-ink-dark: #2c1f1a;    
-    --text-tome-mana-dark: #6947a1;   
-    --glow-tome-mana-dark: #c0a2f7;   
+    --text-tome-ink-dark: #1A202C; /* Very dark, near black for tome text */    
+    --text-tome-mana-dark: #805AD5; /* A richer purple for mana text */   
+    --glow-tome-mana-dark: #B794F4; /* Lighter purple for glow */   
     
-    --text-primary-dark: #E2E8F0; 
-    --text-game-dark: #F7FAFC;        
+    --text-primary-dark: #E2E8F0; /* Light grey/off-white for general UI text */
+    --text-game-dark: #F7FAFC;    /* Bright off-white for game grid characters */        
     
-    --border-color-dark: #718096;     
+    --border-color-dark: #4A5568; /* Mid-tone slate for borders */     
     
-    --highlight-blue-dark: #63B3ED;   
-    --highlight-green-dark: #68D391;  
-    --highlight-red-dark: #FC8181;
+    --highlight-blue-dark: #63B3ED;   /* Bright, clear blue */
+    --highlight-green-dark: #48BB78;  /* Clear, vibrant green */
+    --highlight-red-dark: #F56565;    /* Clear, noticeable red */
 
-    --tick-inactive-dark: #718096;
-    --tick-shadow-dark: #1A202C;
-    --command-text-focus-bg-dark: #4A5568;
-    --command-button-border-dark: #4A5568;
-    --raindrop-base-dark: 173, 181, 189; /* Light grey for dark bg */
+    --tick-inactive-dark: #4A5568; 
+    --tick-shadow-dark: #171923;  
+    --command-text-focus-bg-dark: #4A5568; 
+    --command-button-border-dark: #4A5568; 
+    --raindrop-base-dark: 160, 174, 192; 
 
-    /* --- Light Theme --- */
-    --bg-primary-light: #F7FAFC;   /* Very light grey / Off-white */
-    --bg-secondary-light: #E2E8F0; /* Light grey for panels */
-    --bg-tome-light: #FFFFFF;      /* Tome page - pure white */
-    --bg-tome-cover-light: #D2B48C;/* Tome cover - tan */
+    /* --- Light Theme (Clean, parchment-like, with classic accents) --- */
+    --bg-primary-light: #FDFBF6;   
+    --bg-secondary-light: #EFEAE2; 
+    --bg-tome-light: #FFFFFF;      
+    --bg-tome-cover-light: #8B4513;
     
-    --text-tome-ink-light: #3A3A3A;    
-    --text-tome-mana-light: #5A2A8C;   
-    --glow-tome-mana-light: #9D69D1;   
+    --text-tome-ink-light: #3A3226;       
+    --text-tome-mana-light: #5A0D6A;   
+    --glow-tome-mana-light: #A450A0;   
     
     --text-primary-light: #2D3748; 
     --text-game-light: #1A202C;        
     
-    --border-color-light: #CBD5E0;     
+    --border-color-light: #D1C7AC;     
     
     --highlight-blue-light: #3182CE;   
     --highlight-green-light: #38A169;  
-    --highlight-red-light: #E53E3E;
+    --highlight-red-light: #C53030;    
 
     --tick-inactive-light: #A0AEC0;
-    --tick-shadow-light: #718096;
-    --command-text-focus-bg-light: #E2E8F0;
-    --command-button-border-light: #A0AEC0;
-    --raindrop-base-light: 74, 85, 104; /* Darker grey for light bg */
+    --tick-shadow-light: #E2E8F0;   
+    --command-text-focus-bg-light: #E2E8F0; 
+    --command-button-border-light: #A0AEC0; 
+    --raindrop-base-light: 100, 116, 139; 
 
     /* --- Universal Fonts --- */
     --font-tome: 'EB Garamond', serif;
@@ -151,16 +151,14 @@ body.is-dragging, body.is-dragging * {
     min-width: 300px; 
     padding: 12px; 
     background-color: var(--bg-tome-cover); 
-    border: 3px solid #4a3b32; /* This border is tied to tome cover, might need theming if cover color changes drastically */
+    border: 3px solid #4a3b32; 
     border-radius: 10px 4px 4px 10px; 
     position: relative; 
     transition: background-color 0.3s ease, border-color 0.3s ease;
 }
-/* If tome cover border needs to change with theme:
-body.light-theme .left-panel {
-    border-color: #A0522D; /* Example: Sienna for light theme tome cover */
+body.light-theme .left-panel { 
+    border-color: #7A3D0D; 
 }
-*/
 
 
 .left-panel::before {
@@ -193,16 +191,21 @@ body.light-theme .left-panel {
     border-radius: 3px 6px 6px 3px; 
     overflow-y: auto;
     flex-grow: 1; 
-    border: 1px solid #d1c7ac; /* Tome page border, may need theming */
+    border: 1px solid #d1c7ac; 
     box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); 
     position: relative; 
     scrollbar-width: none; 
     -ms-overflow-style: none;  
-    transition: background-color 0.3s ease;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
+body.light-theme #commandLog { 
+    border-color: #E0D6B8; 
+}
+
 #commandLog::-webkit-scrollbar { 
     display: none;
 }
+
 
 .log-entry {
     margin-bottom: 10px; 
@@ -223,17 +226,24 @@ body.light-theme .left-panel {
 .log-style-mana {
     color: var(--text-tome-mana);
     font-weight: 700; 
-    text-shadow: 0 0 7px var(--glow-tome-mana), 
-                 0 0 12px var(--glow-tome-mana),
-                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 65%, transparent); 
+    text-shadow: 0 0 7px color-mix(in srgb, var(--glow-tome-mana) 80%, transparent), 
+                 0 0 12px color-mix(in srgb, var(--glow-tome-mana) 60%, transparent),
+                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 40%, transparent); 
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 
+.log-type-lore {} 
+.log-type-system { font-style: italic; } 
+.log-type-event-good {}
+.log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
     color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); 
     font-weight: 400; 
 }
+.log-type-chat-say {}
+.log-type-chat-shout { font-weight: bold; }
+.log-type-welcome-message {}
 
 
 #mainHeaderStatusContainer { 
@@ -265,7 +275,7 @@ body.light-theme .left-panel {
     align-items: center;
     white-space: nowrap;
 }
-#debugMenu input[type="checkbox"], #themeToggle { /* Apply to new toggle too */
+#debugMenu input[type="checkbox"], #themeToggle { 
     margin-right: 4px;
     vertical-align: middle;
     transform: scale(0.9); 
@@ -340,7 +350,6 @@ body.light-theme .left-panel {
     background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); 
     animation: fall linear infinite;
     opacity: 0.6; 
-    transition: background 0.3s ease;
 }
 
 @keyframes fall {
@@ -462,14 +471,14 @@ body.light-theme .left-panel {
         padding: 5px 10px;
         justify-content: flex-start; 
     }
-    #debugMenu { order: -1; margin-right: auto; } /* Keep toggle button in this menu */
+    #debugMenu { order: -1; margin-right: auto; } 
     #mainHeaderStatus { font-size: 0.9em; text-align: right; }
 }
 
-/* Style for the theme toggle button if you use one */
 #themeToggle {
     padding: 3px 6px;
-    font-size: 0.7em;
+    font-size: 1.2em; /* Adjusted for better emoji visibility */
+    line-height: 1; 
     cursor: pointer;
     border: 1px solid var(--border-color);
     background-color: var(--bg-secondary);
