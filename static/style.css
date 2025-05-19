@@ -1,8 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    --bg-primary: #232946; 
-    --bg-secondary: #2f385b; 
+    /* Updated background colors for a more slate/grey feel */
+    --bg-primary: #4A5568;   /* Was #232946 - Now a medium-dark slate gray */
+    --bg-secondary: #2D3748; /* Was #2f385b - Now a darker slate gray for panels */
+    
     --bg-tome: #fff9e6; 
     --bg-tome-cover: #5d4037;    
     
@@ -10,14 +12,14 @@
     --text-tome-mana: #6947a1;   
     --glow-tome-mana: #c0a2f7;   
     
-    --text-primary: #e0e0fc; 
-    --text-game: #f0f0ff;        
+    --text-primary: #E2E8F0; /* Adjusted for better contrast on new slate bg */
+    --text-game: #F7FAFC;    /* Adjusted for better contrast on new slate bg */        
     
-    --border-color: #4a4e69;     
+    --border-color: #718096; /* Lightened border for better visibility on slate */     
     
-    --highlight-blue: #7aa2f7;   
-    --highlight-green: #9ece6a;  
-    --highlight-red: #f7768e;    
+    --highlight-blue: #63B3ED;   /* Adjusted blue for slate */
+    --highlight-green: #68D391;  /* Adjusted green for slate */
+    --highlight-red: #FC8181;    /* Adjusted red for slate */
     
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
@@ -216,7 +218,7 @@ body.is-dragging, body.is-dragging * {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg-primary); 
+    background-color: var(--bg-primary); /* Uses the primary background */
     border-radius: 6px;
     overflow: hidden; 
     border: 1px solid var(--border-color);
@@ -255,7 +257,8 @@ body.is-dragging, body.is-dragging * {
     bottom: 100%;
     width: 1px; 
     height: 60px; 
-    background: linear-gradient(to bottom, rgba(150, 160, 230, 0), rgba(150, 160, 230, 0.3)); 
+    /* Adjusted raindrop color slightly for better visibility on new slate */
+    background: linear-gradient(to bottom, rgba(173, 181, 189, 0), rgba(173, 181, 189, 0.3)); 
     animation: fall linear infinite;
     opacity: 0.6; 
 }
@@ -281,12 +284,12 @@ body.is-dragging, body.is-dragging * {
 #tickIndicator {
     width: 14px; 
     height: 14px; 
-    background-color: #4a4e69; 
+    background-color: #718096; /* Darker slate for inactive tick */
     border-radius: 50%;
     margin-right: 12px; 
     display: inline-block;
     transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
-    box-shadow: 0 0 3px #222; 
+    box-shadow: 0 0 3px #1A202C;  /* Darker shadow for slate */
 }
 #tickIndicator.tick-flash {
     background-color: var(--highlight-green);
@@ -297,7 +300,7 @@ body.is-dragging, body.is-dragging * {
 #commandForm label { 
     color: var(--text-primary); 
     font-weight: 500;
-    text-shadow: none; /* Removed mana glow */
+    text-shadow: none;
     margin-right: 5px; 
     font-size: 0.9em;
     display: flex; 
@@ -318,14 +321,14 @@ body.is-dragging, body.is-dragging * {
 #commandText:focus {
     outline: none;
     border-color: var(--highlight-blue);
-    background-color: #3c3f56; 
-    box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.3); 
+    background-color: #4A5568; /* Slightly lighter slate for focus */
+    box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.3); 
 }
 
 #commandForm button { 
     background-color: var(--border-color); 
     color: var(--text-primary);
-    border: 1px solid #3a3d50; 
+    border: 1px solid #4A5568; /* Adjusted for slate */
     padding: 10px 20px;
     margin-left: 10px;
     cursor: pointer;
