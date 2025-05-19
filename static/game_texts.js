@@ -39,7 +39,7 @@ const GAME_TEXTS = {
             "The ethereal link solidifies. You are connected.",
             "A bridge forms across the aether. Connection successful."
         ],
-        WELCOME: ["Tome: You have materialized. Your essence is bound to ID: {playerId}. {fallback} {observer}"],
+        WELCOME: ["Tome: You have materialized. Your essence is bound to ID: {playerId}."], // Removed fallback/observer placeholders for simplicity if server controls this
         WELCOME_INITIAL: ["Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command."],
         INITIAL_RAIN: ["Tome notes: A chilling rain falls from the slate-grey sky."],
         POTION_DRINK_SUCCESS: [
@@ -53,34 +53,22 @@ const GAME_TEXTS = {
             "Alas, no potions remain."
         ],
         SCENE_TRANSITION_WEST: [
-            "Tome scribbles: You emerge on the western edge of a new area ({scene_x},{scene_y}).",
-            "The landscape shifts, revealing the western entry to area ({scene_x},{scene_y}).",
-            "Westward, the world changes. You are now in ({scene_x},{scene_y})."
+            "Tome scribbles: You emerge on the western edge of a new area ({scene_x},{scene_y})."
         ],
         SCENE_TRANSITION_EAST: [
-            "Tome scribbles: You emerge on the eastern edge of a new area ({scene_x},{scene_y}).",
-            "To the east, a new horizon: area ({scene_x},{scene_y}).",
-            "Eastward, the path unfolds into ({scene_x},{scene_y})."
+            "Tome scribbles: You emerge on the eastern edge of a new area ({scene_x},{scene_y})."
         ],
         SCENE_TRANSITION_NORTH: [
-            "Tome scribbles: You emerge on the northern edge of a new area ({scene_x},{scene_y}).",
-            "Northward you have traveled, to area ({scene_x},{scene_y}).",
-            "The northern winds carry you to ({scene_x},{scene_y})."
+            "Tome scribbles: You emerge on the northern edge of a new area ({scene_x},{scene_y})."
         ],
         SCENE_TRANSITION_SOUTH: [
-            "Tome scribbles: You emerge on the southern edge of a new area ({scene_x},{scene_y}).",
-            "The southern path leads you to area ({scene_x},{scene_y}).",
-            "South you venture, into the lands of ({scene_x},{scene_y})."
+            "Tome scribbles: You emerge on the southern edge of a new area ({scene_x},{scene_y})."
         ],
         VOICE_BOOM_SHOUT: [
-            "Tome notes: Your voice booms, costing {manaCost} mana!",
-            "The air trembles with your shout, draining {manaCost} mana.",
-            "A thundering call echoes, consuming {manaCost} of your essence."
+            "Tome notes: Your voice booms, costing {manaCost} mana!"
         ],
         LACK_MANA_SHOUT: [ 
-            "Tome warns: You lack the {manaCost} mana to project your voice so powerfully.",
-            "A mere whisper escapes; you need {manaCost} mana for such a shout.",
-            "Your throat strains, but the arcane energies are insufficient. ({manaCost} mana required)."
+            "Tome warns: You lack the {manaCost} mana to project your voice so powerfully."
         ],
         PLAYER_ARRIVES: ["Tome notes: {playerName} arrives in this area."],
         PLAYER_DEPARTS: ["Tome records: {playerName} has departed this area."],
@@ -93,92 +81,83 @@ const GAME_TEXTS = {
         CHAT_SAY: ["[ {senderName} says ]: "], 
         CHAT_SHOUT: ["[ SHOUT from {senderName} at {sceneCoords} ]: "],
         ACTION_BLOCKED_WALL: [
-            "Tome groans: You run face-first into a solid wall!",
-            "The way is blocked by an unyielding stone barrier.",
-            "Oof! That wall wasn't there a moment ago... or was it?"
+            "Tome groans: You run face-first into a solid wall!"
         ],
         BUILD_FAIL_OUT_OF_BOUNDS: [
-            "Tome advises: You cannot build beyond the known world.",
-            "The aether resists your construction at these coordinates."
+            "Tome advises: You cannot build beyond the known world."
         ],
         BUILD_FAIL_OBSTRUCTED: [
-            "Tome shakes its pages: You cannot build there, something is in the way.",
-            "The space is already occupied. Choose another location."
+            "Tome shakes its pages: You cannot build there, something is in the way."
         ],
         BUILD_FAIL_NO_MATERIALS: [
-            "Tome sighs: You lack the stone and mortar (wall items) to construct this.",
-            "Your satchel is empty of building supplies."
+            "Tome sighs: You lack the stone and mortar (wall items) to construct this."
         ],
         BUILD_SUCCESS: [
-            "Tome records: With effort, you erect a sturdy wall. ({walls} wall items remaining)",
-            "A new barrier rises from the ground at your command! ({walls} left)"
+            "Tome records: With effort, you erect a sturdy wall. ({walls} wall items remaining)"
         ],
         DESTROY_FAIL_OUT_OF_BOUNDS: [
-            "Tome queries: Destroy what? There is nothing but void there.",
-            "You reach into the unknown, but find no wall to dismantle."
+            "Tome queries: Destroy what? There is nothing but void there."
         ],
         DESTROY_FAIL_NO_WALL: [
-            "Tome seems confused: There is no wall there to destroy.",
-            "Your efforts are wasted on empty space."
+            "Tome seems confused: There is no wall there to destroy."
         ],
         DESTROY_FAIL_NO_MANA: [
-            "Tome warns: You lack the {manaCost} mana to deconstruct this barrier.",
-            "Your will is strong, but your essence is weak. ({manaCost} mana needed)"
+            "Tome warns: You lack the {manaCost} mana to deconstruct this barrier."
         ],
         DESTROY_SUCCESS: [
-            "Tome exclaims: The wall crumbles to dust! You reclaim its essence. ({walls} wall items, {manaCost} mana spent)",
-            "With a surge of power, the barrier is unmade. ({walls} items, {manaCost} mana)"
+            "Tome exclaims: The wall crumbles to dust! You reclaim its essence. ({walls} wall items, {manaCost} mana spent)"
         ],
         BECAME_WET_WATER: [
-            "Tome ripples: You step into the water, a chilling splash against your robes!",
-            "A shiver runs down your spine as you tread through the water.",
-            "The water soaks your boots and hem."
+            "Tome ripples: You step into the water, a chilling splash against your robes!"
         ],
         BECAME_WET_RAIN: [
-            "Tome dampens: The persistent rain has soaked you to the bone.",
-            "You feel the cold seep in as the rain continues its downpour.",
-            "Drenched by the rain, you long for shelter."
+            "Tome dampens: The persistent rain has soaked you to the bone."
         ],
         BECAME_DRY: [
-            "Tome feels lighter: You finally feel dry again.",
-            "The moisture evaporates from your robes, a welcome relief.",
-            "Warmth returns as the dampness leaves you."
+            "Tome feels lighter: You finally feel dry again."
         ],
-        // NPC Related Lore
         PIXIE_MOVED_AWAY: [
             "Tome observes: {pixieName} flits out of your path with a faint chime.",
             "The air shimmers as {pixieName} dodges your approach.",
             "{pixieName} zips aside, its wings a blur."
         ],
         PIXIE_BLOCKED_PATH: [
-            "Tome notes: {pixieName} hovers defiantly, somehow blocking your way.",
-            "Despite its size, {pixieName} holds its ground, and you cannot pass."
+            "Tome notes: {pixieName} hovers defiantly, somehow blocking your way."
         ],
         PIXIE_MANA_BOOST: [
             "Tome glows faintly: Nearby pixies hum, and you feel your mana replenish by {amount}!",
-            "A spark of aether from a pixie invigorates you, restoring {amount} mana.",
-            "The pixies' presence seems to quicken your mana regeneration by {amount}."
+            "A spark of aether from a pixie invigorates you, restoring {amount} mana."
         ],
-        SEES_PIXIE_NEARBY: [ // For the 'look' command
-            "Tome notes: A tiny, shimmering Mana Pixie ({pixieName}) darts nearby.",
-            "You catch a glimpse of {pixieName}, a Mana Pixie, flitting through the air.",
-            "The air around {pixieName}, a Mana Pixie, seems to crackle with faint energy."
+        SEES_PIXIE_NEARBY: [ 
+            "Tome notes: You spot {pixieName}, a Mana Pixie, shimmering faintly.",
+            "A Mana Pixie, {pixieName}, darts through your field of vision.",
+            "Your gaze catches upon {pixieName}, a playful Mana Pixie."
         ],
         LOOK_DIRECTION_EMPTY: [
             "Tome shows: You peer {direction}, but see nothing of particular interest.",
-            "Gazing {direction}, the area seems quiet.",
-            "The way {direction} appears clear."
+            "Gazing {direction}, the area seems quiet."
         ],
         LOOK_AROUND_EMPTY: [
-            "Tome reflects: You survey your immediate surroundings. Nothing seems out of the ordinary.",
-            "A quick scan reveals no immediate points of interest."
+            "Tome reflects: You survey your immediate surroundings. Nothing seems out of the ordinary."
         ]
+    },
+    SENSORY: { // New main key for sensory cues
+        PIXIE_SIGHT_SHIMMER: ["You catch a brief, iridescent shimmer, like that of {npcName}."],
+        PIXIE_SIGHT_DART: ["A fleeting movement in the corner of your eye suggests {npcName} is near."],
+        PIXIE_SOUND_CHIME: ["A faint, melodic chime echoes from {direction}, perhaps from {npcName}."],
+        PIXIE_SOUND_WINGS: ["You hear the delicate thrum of tiny wings somewhere {direction}, like those of {npcName}."],
+        PIXIE_SMELL_OZONE: ["A faint scent of ozone, tinged with sweetness, drifts from {direction}. Could it be {npcName}?"],
+        PIXIE_MAGIC_AURA: ["You sense a playful, tingling magical aura emanating from {direction}, a signature of {npcName}."]
     },
     GENERIC: { 
         LORE: ["{message}"], 
         SYSTEM: ["{message}"], 
         EVENT_GOOD: ["{message}"], 
-        EVENT_BAD: ["{message}"]
+        EVENT_BAD: ["{message}"],
+        SENSORY_SIGHT: ["{message}"], // Fallbacks for sensory types
+        SENSORY_SOUND: ["{message}"],
+        SENSORY_SMELL: ["{message}"],
+        SENSORY_MAGIC: ["{message}"]
     }
 };
 
@@ -198,8 +177,8 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
         if (mainKey && GAME_TEXTS.GENERIC && GAME_TEXTS.GENERIC[mainKey.toUpperCase()] && Array.isArray(GAME_TEXTS.GENERIC[mainKey.toUpperCase()])) {
             textsArray = GAME_TEXTS.GENERIC[mainKey.toUpperCase()];
             if (!(placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "")) {
-                console.warn(`Generic key ${mainKey.toUpperCase()} used, but no valid 'message' in placeholders:`, placeholders);
-                return `Text error for generic type ${mainKey.toUpperCase()} (message content missing/empty)`;
+                // console.warn(`Generic key ${mainKey.toUpperCase()} used, but no valid 'message' in placeholders:`, placeholders);
+                // return `Text error for generic type ${mainKey.toUpperCase()} (message content missing/empty)`;
             }
         } 
         else if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
@@ -213,6 +192,9 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
     
     if (!textsArray || textsArray.length === 0) { 
         console.warn(`Empty text array for key: ${actualKeyForLog}`);
+        if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
+            return placeholders.message; // Fallback to raw message if array is empty
+        }
         return `No text variants for: ${actualKeyForLog}`;
     }
 
@@ -221,18 +203,11 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
 
     for (const placeholder in placeholders) {
         if (placeholders.hasOwnProperty(placeholder) && typeof placeholders[placeholder] !== 'undefined') {
-             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), placeholders[placeholder]);
+             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), String(placeholders[placeholder])); // Ensure string conversion
         }
     }
     
-    if (selectedText.includes("{") && selectedText.includes("}")) { 
-        selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, (match) => {
-            if (match === "{message}" && textsArray === GAME_TEXTS.GENERIC[mainKey.toUpperCase()]) {
-                return ""; 
-            }
-            return ""; 
-        }).trim();
-    }
+    selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, "").trim(); // Remove unfilled placeholders more aggressively
     
     return selectedText;
 }

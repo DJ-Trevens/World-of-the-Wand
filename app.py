@@ -31,10 +31,11 @@ PIXIE_PROXIMITY_FOR_BOOST = 3
 BASE_MANA_REGEN_PER_TICK = 0.5 
 TICKS_PER_MANA_REGEN_CYCLE = 3
 
-SENSE_SIGHT_RANGE = MAX_VIEW_DISTANCE
-SENSE_SOUND_RANGE_MAX = 8
+# Sensory System Constants (can be tuned)
+# SENSE_SIGHT_RANGE is effectively MAX_VIEW_DISTANCE due to current visibility checks
+SENSE_SOUND_RANGE_MAX = 8 
 SENSE_SMELL_RANGE_MAX = 6
-SENSE_MAGIC_RANGE_MAX = 5
+SENSE_MAGIC_RANGE_MAX = 5 
 
 def get_player_name(sid): return f"Wizard-{sid[:4]}"
 
@@ -47,23 +48,36 @@ class ManaPixie:
         self.x = initial_x if initial_x is not None else random.randint(0, GRID_WIDTH - 1)
         self.y = initial_y if initial_y is not None else random.randint(0, GRID_HEIGHT - 1)
         self.name = f"Pixie-{self.id[:4]}"
+        
         self.sensory_cues = {
-            'sight': [('SENSORY.PIXIE_SIGHT_SHIMMER', 0.8, SENSE_SIGHT_RANGE), ('SENSORY.PIXIE_SIGHT_DART', 0.6, SENSE_SIGHT_RANGE)],
-            'sound': [('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5), ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)],
-            'smell': [('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2)],
-            'magic': [('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4)]
+            'sight': [ # (description_key, relevance, effective_range - range usually MAX_VIEW_DISTANCE for sight)
+                ('SENSORY.PIXIE_SIGHT_SHIMMER', 0.8, MAX_VIEW_DISTANCE),
+                ('SENSORY.PIXIE_SIGHT_DART', 0.6, MAX_VIEW_DISTANCE)
+            ],
+            'sound': [
+                ('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5), 
+                ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)
+            ],
+            'smell': [
+                ('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2) 
+            ],
+            'magic': [
+                ('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4) 
+            ]
         }
-        self.is_hidden = False
+        self.is_hidden = False 
 
     def get_public_data(self):
         return {'id': self.id, 'name': self.name, 'char': self.char, 'x': self.x, 'y': self.y, 
                 'scene_x': self.scene_x, 'scene_y': self.scene_y}
 
     def wander(self, scene):
-        if random.random() < 0.3:
+        if random.random() < 0.3: # 30% chance to attempt a move
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
+
             new_x, new_y = self.x + dx, self.y + dy
+
             if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
                 tile_type = scene.get_tile_type(new_x, new_y)
                 if tile_type != TILE_WALL and not scene.is_npc_at(new_x, new_y, exclude_id=self.id):
@@ -299,9 +313,10 @@ class GameManager:
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return abs(obs_p.x - target_p.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_p.y) <= MAX_VIEW_DISTANCE
     
-    def is_npc_visible_to_observer(self, obs_p, target_npc):
+    def is_npc_visible_to_observer(self, obs_p, target_npc): # Placeholder for true FOV
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
+        # For now, simple distance. A real FOV algorithm would go here.
         return abs(obs_p.x - target_npc.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_npc.y) <= MAX_VIEW_DISTANCE
 
     def get_visible_players_for_observer(self, observer_player):
@@ -346,16 +361,18 @@ class GameManager:
             distance = abs(player.x - npc.x) + abs(player.y - npc.y)
 
             if is_visible_flag:
+                # For 'look' command, client will primarily use visible_npcs.
+                # For passive perception, we might still add a very strong/obvious sight cue.
                 for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
-                    if random.random() < (relevance * 0.15) and cue_key not in perceived_cues_this_tick:
+                    if random.random() < (relevance * 0.05) and cue_key not in perceived_cues_this_tick: # Very low chance for passive "noticing" visual
                         self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
                         perceived_cues_this_tick.add(cue_key)
                         break 
-            else: 
+            else: # Not directly visible, process other senses
                 for sense_type in ['sound', 'smell', 'magic']:
                     for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
                         if distance <= cue_range:
-                            perception_chance = relevance * (1 - (distance / (cue_range + 1))) * 0.6 
+                            perception_chance = relevance * (1 - (distance / (cue_range + 1.0))) * 0.5 # Base 50% chance at point blank for relevance 1
                             if random.random() < perception_chance and cue_key not in perceived_cues_this_tick:
                                 self.socketio.emit('lore_message', 
                                                    {'messageKey': cue_key, 
@@ -395,10 +412,12 @@ class GameManager:
                     if can_move_to_tile: player.update_position(dx, dy, new_char_for_player, self, self.socketio)
                     elif player.char != new_char_for_player : player.char = new_char_for_player 
                 else: 
-                    player.update_position(dx, dy, new_char_for_player, self, self.socketio)
+                    player.update_position(dx, dy, new_char_for_player, self, self.socketio) # This will update char
                     if action_type == 'look': 
                         scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
+                        # Server-side sensory for non-visuals on 'look' action
                         self.process_sensory_perception(player, scene_of_player) 
+                        # Client will also do its own "you see X" based on visible_npcs and direction
 
             elif action_type == 'build_wall':
                 dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
@@ -433,32 +452,25 @@ class GameManager:
                 if message_text:
                     if player.spend_mana(SHOUT_MANA_COST):
                         chat_data = { 
-                            'sender_id': player.id, 
-                            'sender_name': player.name, 
-                            'message': message_text, 
-                            'type': 'shout', 
-                            'scene_coords': f"({player.scene_x},{player.scene_y})" 
+                            'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 
+                            'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" 
                         }
                         for target_player_obj in list(self.players.values()):
                             if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
                                abs(target_player_obj.scene_y - player.scene_y) <= 1:
                                 self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                        
                         self.socketio.emit('lore_message', {
                             'messageKey': 'LORE.VOICE_BOOM_SHOUT', 
-                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
-                            'type': 'system',
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system',
                             'message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!"
                         }, room=player.id)
                     else:
                         self.socketio.emit('lore_message', {
                             'messageKey': 'LORE.LACK_MANA_SHOUT', 
-                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
-                            'type': 'event-bad',
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad',
                             'message': f"You need {SHOUT_MANA_COST} mana to shout."
                         }, room=player.id)
             processed_sids.add(sid_action)
-
 
 # --- App Setup & SocketIO ---
 app = Flask(__name__)
@@ -514,7 +526,7 @@ def game_loop():
                     if not player_scene.is_indoors: 
                         if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
             
-            if loop_count % 5 == 0: 
+            if loop_count % 5 == 0: # Passive sensory perception check (less frequent)
                 for player_obj in list(game_manager.players.values()):
                     scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                     game_manager.process_sensory_perception(player_obj, scene_of_player)

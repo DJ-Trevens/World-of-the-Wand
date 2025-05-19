@@ -2,7 +2,7 @@
 <html lang = "en">
 <head>
     <meta charset = "UTF-8">
-    <meta name = "viewport" content = "width = device-width, initial-scale = 1.0">
+    <meta name = "viewport" content = "width = device-width, initial-scale = 1.0, user-scalable=no">
     <title>World of the Wand - Tome of Echoes</title>
     <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
 
@@ -105,21 +105,18 @@
         const PIXIE_CHAR_CLIENT = '*';
         const AURA_VISION_RANGE = 1;
 
-        let currentGameZoomFactor = 1.4; // Renamed from GAME_ZOOM_FACTOR
+        let currentGameZoomFactor = 1.4; 
         const MIN_ZOOM = 0.5;
         const MAX_ZOOM = 3.0;
         const ZOOM_INCREMENT = 0.1;
 
         function updateGameZoomCSS() {
             document.documentElement.style.setProperty('--game-zoom', currentGameZoomFactor);
-            // After zoom, character size relative to viewport changes, so re-center if not dragging
             if (selfPlayer && charSizeEstimatedAtLeastOnce && !isDragging) {
-                // Canvas dimensions themselves don't change with CSS zoom, but their apparent size does.
-                // Recalculate pan based on new apparent size.
                 centerViewOnPlayer("zoom_change_recenter");
             }
         }
-        updateGameZoomCSS(); // Set initial zoom
+        updateGameZoomCSS(); 
 
 
         function applyTheme(theme) {
@@ -213,9 +210,8 @@
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
                 let baseStatus = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana`;
                 if (showDebugInfo) { 
-                     baseStatus += `/${selfPlayer.max_mana}`; // Show max mana only in debug
+                     baseStatus += `/${selfPlayer.max_mana}`;
                 }
-                // Always show walls and potions
                 baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
                 
                 if (showDebugInfo) {
@@ -457,29 +453,32 @@
             gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
         }
 
-        // --- Zoom Logic ---
         gameCanvasContainer.addEventListener('wheel', function(event) {
             event.preventDefault();
             const delta = Math.sign(event.deltaY);
-            if (delta < 0) { // Zoom in (scroll up)
-                currentGameZoomFactor = Math.min(MAX_ZOOM, currentGameZoomFactor + ZOOM_INCREMENT);
-            } else { // Zoom out (scroll down)
-                currentGameZoomFactor = Math.max(MIN_ZOOM, currentGameZoomFactor - ZOOM_INCREMENT);
+            let newZoom = currentGameZoomFactor;
+            if (delta < 0) { 
+                newZoom = Math.min(MAX_ZOOM, currentGameZoomFactor + ZOOM_INCREMENT);
+            } else { 
+                newZoom = Math.max(MIN_ZOOM, currentGameZoomFactor - ZOOM_INCREMENT);
             }
-            updateGameZoomCSS();
+            if (newZoom !== currentGameZoomFactor) {
+                currentGameZoomFactor = newZoom;
+                updateGameZoomCSS();
+            }
         }, { passive: false });
 
         let initialPinchDistance = null;
-        let lastZoomFactor = currentGameZoomFactor;
+        let lastZoomFactorOnPinchStart = currentGameZoomFactor;
 
         gameCanvasContainer.addEventListener('touchstart', function(event) {
             if (event.touches.length === 2) {
-                event.preventDefault();
+                event.preventDefault(); // Prevent page scroll/zoom on pinch
                 initialPinchDistance = Math.hypot(
                     event.touches[0].clientX - event.touches[1].clientX,
                     event.touches[0].clientY - event.touches[1].clientY
                 );
-                lastZoomFactor = currentGameZoomFactor;
+                lastZoomFactorOnPinchStart = currentGameZoomFactor; // Store zoom factor at pinch start
             }
         }, { passive: false });
 
@@ -490,15 +489,22 @@
                     event.touches[0].clientX - event.touches[1].clientX,
                     event.touches[0].clientY - event.touches[1].clientY
                 );
-                const zoomRatio = currentPinchDistance / initialPinchDistance;
-                currentGameZoomFactor = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, lastZoomFactor * zoomRatio));
-                updateGameZoomCSS();
+                if (initialPinchDistance > 0) { // Avoid division by zero
+                    const zoomRatio = currentPinchDistance / initialPinchDistance;
+                    let newZoom = lastZoomFactorOnPinchStart * zoomRatio;
+                    newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+                    
+                    if (newZoom !== currentGameZoomFactor) {
+                         currentGameZoomFactor = newZoom;
+                         updateGameZoomCSS();
+                    }
+                }
             }
         }, { passive: false });
 
         gameCanvasContainer.addEventListener('touchend', function(event) {
             if (event.touches.length < 2) {
-                initialPinchDistance = null; // Reset if one or both fingers are lifted
+                initialPinchDistance = null; 
             }
         });
 
@@ -824,15 +830,12 @@
 
                 if (shouldEmitToServer) { 
                     let foundSomethingVisible = false;
-                    // Check for NPCs in LoS of the new facing direction
                     if (visibleNPCs) {
                         for(const npc of visibleNPCs) {
-                            // Check visibility based on the *new* facing direction (dR.char)
                             if (isVisible(selfPlayer.x, selfPlayer.y, dR.char, npc.x, npc.y)) {
                                 if(npc.char === PIXIE_CHAR_CLIENT) { 
                                      logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: npc.name || "a pixie"}, 'sensory-sight');
                                      foundSomethingVisible = true;
-                                     // break; // Could break if you only want to report the first thing seen
                                 }
                             }
                         }
@@ -845,6 +848,7 @@
                         }
                     }
                     if (!foundSomethingVisible) {
+                        // If player explicitly typed a direction like 'look n' vs just 'look'
                         if (messageContent && messageContent.toLowerCase() !== selfPlayer.char.toLowerCase()) { 
                             logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
                         } else { 
@@ -915,8 +919,6 @@
         
         if (commandInput) { commandInput.focus(); }
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-        // globalWeather.intensity is now set from initial_game_data
-        // rainIntensitySlider.value = globalWeather.intensity; // This will be set in initial_game_data handler
         updateStatus("Awaiting connection to the Ethereal Plane..."); 
         updateWeatherEffects(); 
         logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
