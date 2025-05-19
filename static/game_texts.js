@@ -1,7 +1,6 @@
 // static/game_texts.js
 
 const GAME_TEXTS = {
-    // For successful player actions derived from server game_update
     PLAYER_MOVE: [
         "Tome traces your path: You move to ({x}, {y}), now facing {direction}.",
         "The weave shifts as you step to ({x}, {y}), oriented {direction}.",
@@ -13,23 +12,24 @@ const GAME_TEXTS = {
         "Your gaze shifts {direction} from your position at ({x},{y}).",
         "Oriented {direction}, you survey your surroundings from ({x},{y})."
     ],
-    // For client-side feedback when an action is sent to the server
-    ACTION_SENT_FEEDBACK: { // Used by 'action_feedback' from server if 'messageKey' matches
-        ACTION_QUEUED: [ // Server would send messageKey: "ACTION_QUEUED"
+    ACTION_SENT_FEEDBACK: {
+        ACTION_QUEUED: [
             "Tome confirms: Your will has been noted. Awaiting cosmic alignment...",
             "The Ethereal Plane acknowledges your intent. Processing...",
             "Your command is recorded in the echoes of time.",
             "Patience, wizard. The threads of fate are being woven..."
         ],
-        ACTION_FAILED_UNKNOWN_COMMAND: [ // Server would send messageKey: "ACTION_FAILED_UNKNOWN_COMMAND", placeholders: {actionWord: "..."}
+        ACTION_FAILED_UNKNOWN_COMMAND: [
             "Tome seems puzzled: Your will \"{actionWord}\" is indecipherable. (Perhaps 'help' will illuminate the path?)",
             "The ancient script offers no translation for \"{actionWord}\". Try 'help'.",
             "Confusion clouds the Tome's pages. The command \"{actionWord}\" is not recognized."
-        ],
-        // Add more specific failure keys if needed
+        ]
+        // Add more specific keys from server if needed, e.g., ACTION_FAILED_NO_MANA
     },
-    // Specific lore/event messages triggered by server (server sends messageKey)
     LORE: {
+        WELCOME: ["Tome: You have materialized. Your essence is bound to ID: {playerId}. {fallback} {observer}"],
+        WELCOME_INITIAL: ["Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command."],
+        INITIAL_RAIN: ["Tome notes: A chilling rain falls from the slate-grey sky."],
         POTION_DRINK_SUCCESS: [
             "Tome notes: You drink a potion, feeling invigorated!",
             "A warmth spreads through you as the potion takes effect.",
@@ -63,59 +63,68 @@ const GAME_TEXTS = {
         LACK_MANA_SHOUT: [
             "Tome warns: You lack the {manaCost} mana to project your voice so powerfully.",
             "A mere whisper escapes; you need {manaCost} mana for such a shout."
-        ]
+        ],
+        PLAYER_ARRIVES: ["Tome notes: {playerName} arrives in this area."],
+        PLAYER_DEPARTS: ["Tome records: {playerName} has departed this area."],
+        DISCONNECTED: ["Tome wails: Disconnected! Reason: {reason}. The weave unravels!"],
+        CORRUPT_MANIFESTATION_SERVER: ["Tome warns: Corrupted manifestation data from the server."],
+        MANIFESTATION_FAILED_NO_PLAYER_DATA: ["Tome warns: Manifestation failed (missing player data)."],
+        FONT_SORCERY_FAILED: ["Tome sighs: Font sorcery failed. Visuals may be askew."],
+        CENTERING_ERROR: ["Tome struggles: The world's perspective is lost! (Centering Error)"],
+        FONT_AND_DATA_ERROR: ["Tome wails: The world's very fabric is unstable! (Font & Data Error)"],
+        CHAT_SAY: ["[ {senderName} says ]: "],
+        CHAT_SHOUT: ["[ SHOUT from {senderName} at {sceneCoords} ]: "]
     },
-    // Fallbacks for generic messages from server (if server sends a direct message instead of a key)
-    // The 'message' placeholder will be filled by the server's direct message.
-    GENERIC: {
-        LORE: ["{message}"],
-        SYSTEM: ["{message}"],
-        EVENT_GOOD: ["{message}"],
+    GENERIC: { // These are used if a direct message comes from server via 'lore_message' without a specific key
+        LORE: ["{message}"], 
+        SYSTEM: ["{message}"], 
+        EVENT_GOOD: ["{message}"], 
         EVENT_BAD: ["{message}"]
     }
 };
 
-/**
- * Selects a random text string for a given event key and fills placeholders.
- * @param {String} mainKey - The main category in GAME_TEXTS (e.g., 'PLAYER_MOVE', 'LORE', 'ACTION_SENT_FEEDBACK').
- * @param {String} [subKey] - Optional sub-category (e.g., 'POTION_DRINK_SUCCESS' if mainKey is 'LORE').
- * @param {Object} [placeholders] - An object with key-value pairs for placeholder replacement (e.g., {x: 10, y: 5}).
- * @returns {String} The formatted, randomized text string.
- */
 function getRandomGameText(mainKey, subKey, placeholders = {}) {
     let textsArray;
+    let actualKeyForLog = mainKey + (subKey ? "." + subKey : "");
 
     if (mainKey && GAME_TEXTS[mainKey]) {
         if (subKey && typeof GAME_TEXTS[mainKey] === 'object' && GAME_TEXTS[mainKey][subKey] && Array.isArray(GAME_TEXTS[mainKey][subKey])) {
             textsArray = GAME_TEXTS[mainKey][subKey];
         } else if (Array.isArray(GAME_TEXTS[mainKey])) {
-            textsArray = GAME_TEXTS[mainKey]; // mainKey itself is the array (e.g., PLAYER_MOVE)
+            textsArray = GAME_TEXTS[mainKey];
         }
     }
 
     if (!textsArray) {
-        // Fallback if the specific key isn't found, try a generic message within the mainKey category
-        if (mainKey && GAME_TEXTS.GENERIC && GAME_TEXTS.GENERIC[mainKey.toUpperCase()]) {
+        if (mainKey && GAME_TEXTS.GENERIC && GAME_TEXTS.GENERIC[mainKey.toUpperCase()] && Array.isArray(GAME_TEXTS.GENERIC[mainKey.toUpperCase()])) {
             textsArray = GAME_TEXTS.GENERIC[mainKey.toUpperCase()];
-        } else if (placeholders && placeholders.message) { // If a raw message was passed
+             // For generic, the server MUST send placeholders.message
+            if (!(placeholders && typeof placeholders.message === 'string')) {
+                console.warn(`Generic key ${mainKey.toUpperCase()} used, but no 'message' in placeholders:`, placeholders);
+                return `Text error for generic ${mainKey.toUpperCase()} (no message)`;
+            }
+        } else if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
+             // If no key matched at all, but a raw message was provided in placeholders, use that.
             return placeholders.message;
         } else {
-            console.warn(`No texts found for key: ${mainKey}${subKey ? '.'+subKey : ''}. Using raw input or default error.`);
-            return `Missing text for: ${mainKey}${subKey ? '.'+subKey : ''}` + (placeholders.message ? `: ${placeholders.message}` : '');
+            console.warn(`No texts found for key: ${actualKeyForLog}. Placeholders:`, placeholders);
+            return `Missing text definition for: ${actualKeyForLog}`;
         }
     }
-
+    
     if (!textsArray || textsArray.length === 0) {
-        console.warn(`Empty text array for key: ${mainKey}${subKey ? '.'+subKey : ''}`);
-        return `No text variants for: ${mainKey}${subKey ? '.'+subKey : ''}`;
+        console.warn(`Empty text array for key: ${actualKeyForLog}`);
+        return `No text variants for: ${actualKeyForLog}`;
     }
 
     const randomIndex = Math.floor(Math.random() * textsArray.length);
     let selectedText = textsArray[randomIndex];
 
-    // Replace placeholders like {x}, {y}, {direction}, {message}
     for (const placeholder in placeholders) {
-        selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), placeholders[placeholder]);
+        if (placeholders.hasOwnProperty(placeholder) && typeof placeholders[placeholder] !== 'undefined') {
+             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), placeholders[placeholder]);
+        }
     }
+    selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, '').trim(); // Remove unfilled placeholders
     return selectedText;
 }
