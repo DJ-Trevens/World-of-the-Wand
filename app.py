@@ -601,15 +601,37 @@ def game_loop():
                 traceback.print_exc()
             
             # Section 6: Sleep
-            elapsed_time = time.time() - loop_start_time
-            sleep_duration = GAME_TICK_RATE - elapsed_time
-            # print(f"[{my_pid}] Tick {loop_count}: Elapsed {elapsed_time:.4f}s, Sleep duration: {sleep_duration:.4f}s") # Verbose
-            if sleep_duration > 0: 
-                sio.sleep(sleep_duration)
-            elif sleep_duration < -0.1: # Increased threshold for overrun warning
-                print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s.")
-            
-            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Very visible end of tick
+            print(f"[{my_pid}] Tick {loop_count}: Preparing for sleep. loop_start_time = {loop_start_time}")
+            elapsed_time = -1.0 # Initialize to an obviously wrong value
+            sleep_duration = -1.0 # Initialize
+
+            try:
+                current_time_before_elapsed = time.time()
+                print(f"[{my_pid}] Tick {loop_count}: Current time before elapsed calc: {current_time_before_elapsed}")
+                elapsed_time = current_time_before_elapsed - loop_start_time
+                print(f"[{my_pid}] Tick {loop_count}: Calculated elapsed_time: {elapsed_time:.4f}s")
+                
+                sleep_duration = GAME_TICK_RATE - elapsed_time
+                print(f"[{my_pid}] Tick {loop_count}: Calculated sleep_duration: {sleep_duration:.4f}s")
+
+                if sleep_duration > 0: 
+                    print(f"[{my_pid}] Tick {loop_count}: Attempting to sio.sleep({sleep_duration:.4f}s)")
+                    sio.sleep(sleep_duration)
+                    print(f"[{my_pid}] Tick {loop_count}: Successfully returned from sio.sleep()")
+                elif sleep_duration < -0.1: 
+                    print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Tick {loop_count} took {elapsed_time:.4f}s.")
+                else:
+                    print(f"[{my_pid}] Tick {loop_count}: Sleep duration is not positive ({sleep_duration:.4f}s), skipping sio.sleep().")
+
+            except TypeError as e_sleep_type:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic: {e_sleep_type} !!!!!!")
+                print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}")
+                traceback.print_exc()
+            except Exception as e_sleep_generic:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic: {e_sleep_generic} !!!!!!")
+                traceback.print_exc()
+
+            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n")
 
     except Exception as e_loop_main: 
         print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
