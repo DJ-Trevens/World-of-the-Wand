@@ -22,7 +22,7 @@ TILE_WALL = 1
 TILE_WATER = 2
 
 SERVER_IS_RAINING = True 
-DEFAULT_RAIN_INTENSITY = 0.25 # New default for client
+DEFAULT_RAIN_INTENSITY = 0.25
 
 PIXIE_CHAR = '*'
 PIXIE_MANA_REGEN_BOOST = 1 
@@ -30,11 +30,10 @@ PIXIE_PROXIMITY_FOR_BOOST = 3
 BASE_MANA_REGEN_PER_TICK = 0.5 
 TICKS_PER_MANA_REGEN_CYCLE = 3
 
-# Sensory System Constants
-SENSE_SIGHT_RANGE = MAX_VIEW_DISTANCE # How far visual cues can be perceived if in LoS
-SENSE_SOUND_RANGE_MAX = 8 # Max range for sounds
-SENSE_SMELL_RANGE_MAX = 6 # Max range for smells
-SENSE_MAGIC_RANGE_MAX = 5 # Max range for magic auras
+SENSE_SIGHT_RANGE = MAX_VIEW_DISTANCE
+SENSE_SOUND_RANGE_MAX = 8
+SENSE_SMELL_RANGE_MAX = 6
+SENSE_MAGIC_RANGE_MAX = 5
 
 def get_player_name(sid): return f"Wizard-{sid[:4]}"
 
@@ -47,39 +46,36 @@ class ManaPixie:
         self.x = initial_x if initial_x is not None else random.randint(0, GRID_WIDTH - 1)
         self.y = initial_y if initial_y is not None else random.randint(0, GRID_HEIGHT - 1)
         self.name = f"Pixie-{self.id[:4]}"
-        
-        # Sensory Cues: [description_key, relevance (0-1), effective_range]
-        # Description keys will map to game_texts.js
         self.sensory_cues = {
             'sight': [
                 ('SENSORY.PIXIE_SIGHT_SHIMMER', 0.8, SENSE_SIGHT_RANGE),
                 ('SENSORY.PIXIE_SIGHT_DART', 0.6, SENSE_SIGHT_RANGE)
             ],
             'sound': [
-                ('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5), # Pixie chimes are not super loud
-                ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)  # Wing beats are very quiet
+                ('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5),
+                ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)
             ],
             'smell': [
-                ('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2) # Faint ozone
+                ('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2)
             ],
             'magic': [
-                ('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4) # Strong magical presence
+                ('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4)
             ]
         }
-        self.is_hidden = False # Could be used for stealth later
+        self.is_hidden = False
 
     def get_public_data(self):
         return {'id': self.id, 'name': self.name, 'char': self.char, 'x': self.x, 'y': self.y, 
                 'scene_x': self.scene_x, 'scene_y': self.scene_y}
 
-    def wander(self, scene):
+    def wander(self, scene): # scene is a Scene object
         if random.random() < 0.3:
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
             new_x, new_y = self.x + dx, self.y + dy
             if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
                 tile_type = scene.get_tile_type(new_x, new_y)
-                if tile_type != TILE_WALL and not scene.is_npc_at(new_x, new_y, exclude_id=self.id): # Checks game_manager.npcs
+                if tile_type != TILE_WALL and not scene.is_npc_at(new_x, new_y, exclude_id=self.id):
                     self.x, self.y = new_x, new_y
     
     def attempt_evade(self, player_x, player_y, scene):
@@ -92,14 +88,13 @@ class ManaPixie:
                     tile_type = scene.get_tile_type(evade_x, evade_y)
                     if tile_type != TILE_WALL and \
                        not scene.is_npc_at(evade_x, evade_y, exclude_id=self.id) and \
-                       not scene.is_player_at(evade_x, evade_y, player_id_to_check=None): # Check against all players
+                       not scene.is_player_at(evade_x, evade_y, player_id_to_check=None):
                         possible_moves.append((evade_x, evade_y))
         if possible_moves:
             self.x, self.y = random.choice(possible_moves); return True
         return False
 
 class Player:
-    # ... (init and other methods mostly same as before) ...
     def __init__(self, sid, name):
         self.id = sid; self.name = name; self.scene_x = 0; self.scene_y = 0
         self.x = GRID_WIDTH // 2; self.y = GRID_HEIGHT // 2
@@ -109,19 +104,13 @@ class Player:
         self.potions = 7; self.gold = 0; self.walls = INITIAL_WALL_ITEMS
         self.is_wet = False; self.time_became_wet = 0
         self.mana_regen_accumulator = 0.0
-        # Player specific perception modifiers (future enhancement)
-        # self.perception_mods = {'sight': 1.0, 'sound': 1.0, 'smell': 1.0, 'magic': 1.0}
 
     def update_position(self, dx, dy, new_char, game_manager, socketio_instance):
         old_scene_x, old_scene_y = self.scene_x, self.scene_y
         original_x_tile, original_y_tile = self.x, self.y
-
-        scene_changed_flag = False
-        transition_key = None
-
+        scene_changed_flag = False; transition_key = None
         nx, ny = self.x + dx, self.y + dy
 
-        # Handle X-axis movement and scene transitions
         if nx < 0:
             self.scene_x -= 1
             self.x = GRID_WIDTH - 1
@@ -135,38 +124,27 @@ class Player:
         else:
             self.x = nx
 
-        # Handle Y-axis movement and scene transitions
         if ny < 0:
             self.scene_y -= 1
             self.y = GRID_HEIGHT - 1
             scene_changed_flag = True
-            if not transition_key: # This check is part of the "if ny < 0" block
+            if not transition_key: 
                 transition_key = 'LORE.SCENE_TRANSITION_NORTH'
         elif ny >= GRID_HEIGHT:
             self.scene_y += 1
             self.y = 0
             scene_changed_flag = True
-            if not transition_key: # This check is part of the "elif ny >= GRID_HEIGHT" block
+            if not transition_key: 
                 transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
         else:
-            # This 'else' corresponds to the Y-axis checks.
-            # If neither vertical scene transition occurred, update y based on movement.
             self.y = ny
-
-        self.char = new_char # Update character facing direction
-
+            
+        self.char = new_char
         if scene_changed_flag:
             game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
-            if transition_key: # If a transition key was set (implies scene changed)
-                socketio_instance.emit('lore_message', {
-                    'messageKey': transition_key,
-                    'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y},
-                    'type': 'system'
-                }, room=self.id)
-        
-        # Return true if tile position or scene changed. Char change alone (look) doesn't count as "moved".
+            if transition_key: socketio_instance.emit('lore_message', {'messageKey': transition_key, 'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y}, 'type': 'system'}, room=self.id)
         return scene_changed_flag or (self.x != original_x_tile or self.y != original_y_tile)
-    
+
     def drink_potion(self, socketio_instance):
         if self.potions > 0: self.potions -= 1; self.current_health = min(self.max_health, self.current_health + 15); socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_SUCCESS', 'type': 'event-good'}, room=self.id); return True
         else: socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_FAIL_EMPTY', 'type': 'event-bad'}, room=self.id); return False
@@ -218,7 +196,7 @@ class Scene:
         self.players_sids = set(); self.npc_ids = set()
         self.terrain_grid = [[TILE_FLOOR for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.is_indoors = False
-        self.game_manager_ref = None # Set by GameManager upon creation
+        self.game_manager_ref = None 
 
     def add_player(self, player_sid): self.players_sids.add(player_sid)
     def remove_player(self, player_sid): self.players_sids.discard(player_sid)
@@ -246,7 +224,7 @@ class Scene:
             npc = self.game_manager_ref.get_npc(npc_id_in_scene)
             if npc and npc.x == x and npc.y == y: return True
         return False
-    def is_player_at(self, x, y, player_id_to_check=None): # player_id_to_check is unused for now
+    def is_player_at(self, x, y, player_id_to_check=None): 
         if not self.game_manager_ref: return False
         for player_sid_in_scene in self.players_sids:
             player = self.game_manager_ref.get_player(player_sid_in_scene)
@@ -286,7 +264,7 @@ class GameManager:
     def get_or_create_scene(self, scene_x, scene_y):
         scene_coords = (scene_x, scene_y)
         if scene_coords not in self.scenes:
-            new_scene = Scene(scene_x, scene_y); new_scene.game_manager_ref = self # Give scene a ref back
+            new_scene = Scene(scene_x, scene_y); new_scene.game_manager_ref = self 
             if scene_x == 0 and scene_y == 0: self.setup_spawn_shrine(new_scene)
             self.scenes[scene_coords] = new_scene
         return self.scenes[scene_coords]
@@ -313,7 +291,7 @@ class GameManager:
     def get_player(self, sid): return self.players.get(sid)
     def get_npc(self, npc_id): return self.npcs.get(npc_id)
     def get_npc_at(self, x, y, scene_x, scene_y):
-        for npc_id, npc_obj in self.npcs.items(): # Check all NPCs
+        for npc_id, npc_obj in self.npcs.items():
             if npc_obj.scene_x == scene_x and npc_obj.scene_y == scene_y and npc_obj.x == x and npc_obj.y == y:
                 return npc_obj
         return None
@@ -322,7 +300,6 @@ class GameManager:
             if player_obj.scene_x == scene_x and player_obj.scene_y == scene_y and player_obj.x == x and player_obj.y == y:
                 return player_obj
         return None
-
 
     def handle_player_scene_change(self, player, old_scene_x, old_scene_y):
         old_scene_coords = (old_scene_x, old_scene_y); new_scene_coords = (player.scene_x, player.scene_y)
@@ -341,7 +318,7 @@ class GameManager:
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return abs(obs_p.x - target_p.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_p.y) <= MAX_VIEW_DISTANCE
     
-    def is_npc_visible_to_observer(self, obs_p, target_npc): # General visibility
+    def is_npc_visible_to_observer(self, obs_p, target_npc):
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
         return abs(obs_p.x - target_npc.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_npc.y) <= MAX_VIEW_DISTANCE
@@ -367,49 +344,45 @@ class GameManager:
     
     def get_target_coordinates(self, player, dx, dy): return player.x + dx, player.y + dy
 
+    def get_general_direction(self, observer, target):
+        dx = target.x - observer.x; dy = target.y - observer.y
+        if abs(dx) > abs(dy): return "to the east" if dx > 0 else "to the west"
+        else: return "to the south" if dy > 0 else "to the north"
+
     def process_sensory_perception(self, player, scene):
-        """Process non-visual sensory cues for a player in a given scene."""
-        perceived_cues = [] # To avoid spamming similar cues in one tick
+        perceived_cues_this_tick = set() 
         for npc_id in scene.get_npc_ids():
             npc = self.get_npc(npc_id)
             if not npc or npc.is_hidden: continue
 
-            # If NPC is visible, visual cues take precedence (handled by client look command)
-            if self.is_npc_visible_to_observer(player, npc): # Using is_player_visible logic for NPCs
-                # For "look" command, this info will be used. For passive, we might still add some strong sight cues.
-                # Example: if a pixie is shimmering brightly, even if not directly looked at.
-                for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
-                    if random.random() < (relevance * 0.2) and cue_key not in perceived_cues: # Lower chance for passive sight
-                        self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
-                        perceived_cues.append(cue_key)
-                continue # Skip other senses if directly visible for this passive check
-
-            # Process other senses if not directly visible
+            is_visible_flag = self.is_npc_visible_to_observer(player, npc)
             distance = abs(player.x - npc.x) + abs(player.y - npc.y)
-            
-            for sense_type in ['sound', 'smell', 'magic']:
-                for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
-                    if distance <= cue_range:
-                        # Diminishing returns with distance, higher relevance = higher chance
-                        perception_chance = relevance * (1 - (distance / (cue_range + 1))) * 0.7 # Base 70% chance at point blank for relevance 1
-                        if random.random() < perception_chance and cue_key not in perceived_cues:
-                            self.socketio.emit('lore_message', 
-                                               {'messageKey': cue_key, 
-                                                'placeholders': {'npcName': npc.name, 'direction': self.get_general_direction(player, npc)}, 
-                                                'type': f'sensory-{sense_type}'}, 
-                                               room=player.id)
-                            perceived_cues.append(cue_key)
-                            break # Only one cue of this type from this NPC per tick
 
-    def get_general_direction(self, observer, target):
-        dx = target.x - observer.x
-        dy = target.y - observer.y
-        if abs(dx) > abs(dy): return "to the east" if dx > 0 else "to the west"
-        else: return "to the south" if dy > 0 else "to the north"
-
+            if is_visible_flag:
+                # Prioritize sight if visible (for 'look' command, client handles detailed LoS text)
+                # This is for passive "you notice..." type messages
+                for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
+                    # Passive sight cues are less frequent unless very relevant/close
+                    if random.random() < (relevance * 0.15) and cue_key not in perceived_cues_this_tick:
+                        self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
+                        perceived_cues_this_tick.add(cue_key)
+                        break # One passive sight cue per visible NPC is enough
+            else: # Not visible, process other senses
+                for sense_type in ['sound', 'smell', 'magic']:
+                    for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
+                        if distance <= cue_range:
+                            perception_chance = relevance * (1 - (distance / (cue_range + 1))) * 0.6 # Base 60% chance at point blank for relevance 1
+                            if random.random() < perception_chance and cue_key not in perceived_cues_this_tick:
+                                self.socketio.emit('lore_message', 
+                                                   {'messageKey': cue_key, 
+                                                    'placeholders': {'npcName': npc.name, 'direction': self.get_general_direction(player, npc)}, 
+                                                    'type': f'sensory-{sense_type}'}, 
+                                                   room=player.id)
+                                perceived_cues_this_tick.add(cue_key)
+                                break # One cue of this type from this NPC per tick
+                        if cue_key in perceived_cues_this_tick: break # Move to next sense type if one was already perceived for this NPC
 
     def process_actions(self):
-        # ... (same loop start as before) ...
         current_actions_to_process = dict(self.queued_actions); self.queued_actions.clear(); processed_sids = set()
         for sid_action, action_data in current_actions_to_process.items():
             if sid_action in processed_sids : continue
@@ -436,15 +409,15 @@ class GameManager:
                         elif tile_type_at_target == TILE_WATER: player.set_wet_status(True, self.socketio, reason="water_tile")
                     
                     if can_move_to_tile: player.update_position(dx, dy, new_char_for_player, self, self.socketio)
-                    elif player.char != new_char_for_player : player.char = new_char_for_player
+                    elif player.char != new_char_for_player : player.char = new_char_for_player # Update char if only look changed
                 else: # Just a look or move with no displacement
                     player.update_position(dx, dy, new_char_for_player, self, self.socketio)
-                    if action_type == 'look': # Process sensory for look here
+                    if action_type == 'look': 
                         scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
-                        self.process_sensory_perception(player, scene_of_player) # Give general cues
-                        # Client side will handle specific "you see X in front of you" based on visible NPCs
+                        # For 'look', client will use visible_npcs data. Here we can add non-visual cues.
+                        self.process_sensory_perception(player, scene_of_player)
 
-            # ... (build_wall, destroy_wall, drink_potion, say, shout actions remain the same as previous full app.py) ...
+
             elif action_type == 'build_wall':
                 dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
                 scene = self.get_or_create_scene(player.scene_x, player.scene_y)
@@ -453,6 +426,7 @@ class GameManager:
                 elif self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y) or self.get_player_at(target_x, target_y, player.scene_x, player.scene_y): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
                 elif not player.has_wall_items(): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_NO_MATERIALS', 'type': 'event-bad'}, room=player.id)
                 else: player.use_wall_item(); scene.set_tile_type(target_x, target_y, TILE_WALL); self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good'}, room=player.id)
+            
             elif action_type == 'destroy_wall':
                 dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
                 scene = self.get_or_create_scene(player.scene_x, player.scene_y)
@@ -460,20 +434,47 @@ class GameManager:
                 elif scene.get_tile_type(target_x, target_y) != TILE_WALL: self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_WALL', 'type': 'event-bad'}, room=player.id)
                 elif not player.can_afford_mana(DESTROY_WALL_MANA_COST): self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_MANA', 'placeholders': {'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-bad'}, room=player.id)
                 else: player.spend_mana(DESTROY_WALL_MANA_COST); player.add_wall_item(); scene.set_tile_type(target_x, target_y, TILE_FLOOR); self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good'}, room=player.id)
+            
             elif action_type == 'drink_potion': player.drink_potion(self.socketio)
+            
             elif action_type == 'say':
                 message_text = details.get('message', '')
-                if message_text: chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'say', 'scene_coords': f"({player.scene_x},{player.scene_y})" }; player_scene_coords = (player.scene_x, player.scene_y)
-                if player_scene_coords in self.scenes: scene = self.scenes[player_scene_coords]; 
-                for target_sid in scene.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
+                if message_text: 
+                    chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'say', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
+                    player_scene_coords = (player.scene_x, player.scene_y)
+                    if player_scene_coords in self.scenes: 
+                        scene = self.scenes[player_scene_coords] 
+                        for target_sid in scene.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
+            
             elif action_type == 'shout':
                 message_text = details.get('message', '')
                 if message_text:
-                    if player.spend_mana(SHOUT_MANA_COST): chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" };
-                    for target_player_obj in list(self.players.values()):
-                        if abs(target_player_obj.scene_x - player.scene_x) <= 1 and abs(target_player_obj.scene_y - player.scene_y) <= 1: self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system'}, room=player.id)
-                    else: self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad'}, room=player.id)
+                    if player.spend_mana(SHOUT_MANA_COST):
+                        chat_data = { 
+                            'sender_id': player.id, 
+                            'sender_name': player.name, 
+                            'message': message_text, 
+                            'type': 'shout', 
+                            'scene_coords': f"({player.scene_x},{player.scene_y})" 
+                        }
+                        for target_player_obj in list(self.players.values()):
+                            if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
+                               abs(target_player_obj.scene_y - player.scene_y) <= 1:
+                                self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
+                        
+                        self.socketio.emit('lore_message', {
+                            'messageKey': 'LORE.VOICE_BOOM_SHOUT', 
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
+                            'type': 'system',
+                            'message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!"
+                        }, room=player.id)
+                    else:
+                        self.socketio.emit('lore_message', {
+                            'messageKey': 'LORE.LACK_MANA_SHOUT', 
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
+                            'type': 'event-bad',
+                            'message': f"You need {SHOUT_MANA_COST} mana to shout."
+                        }, room=player.id)
             processed_sids.add(sid_action)
 
 
@@ -531,9 +532,12 @@ def game_loop():
                     if not player_scene.is_indoors: 
                         if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
             
-            for player_obj in list(game_manager.players.values()):
-                player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                if player_scene.is_indoors and player_obj.is_wet: player_obj.set_wet_status(False, sio, reason="indoors")
+            # Passive sensory perception check (less frequent than actions)
+            if loop_count % 5 == 0: # Example: check every 5 ticks
+                for player_obj in list(game_manager.players.values()):
+                    scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+                    game_manager.process_sensory_perception(player_obj, scene_of_player)
+
 
             if game_manager.players:
                 current_players_snapshot = list(game_manager.players.values())
@@ -570,25 +574,15 @@ def handle_connect_event(auth=None):
     visible_to_new_player = game_manager.get_visible_players_for_observer(player)
     visible_npcs_to_new_player = game_manager.get_visible_npcs_for_observer(player)
     
-    # For conditional "You have materialized" message.
-    # If we had a server-side debug flag, we'd use it. For now, let's assume standard (less verbose) welcome.
-    # The client will show the verbose one if its own debug is on via game_texts.js.
-    # To make it truly conditional from server, we'd need to pass a debug_mode flag from client on connect.
-    
     emit_ctx('initial_game_data', {
         'player_data': player_full_data,
         'other_players_in_scene': visible_to_new_player,
         'visible_npcs': visible_npcs_to_new_player,
         'grid_width': GRID_WIDTH, 'grid_height': GRID_HEIGHT, 'tick_rate': GAME_TICK_RATE,
-        'default_rain_intensity': DEFAULT_RAIN_INTENSITY
+        'default_rain_intensity': DEFAULT_RAIN_INTENSITY # Send default rain intensity
     })
-    # Emit the "Welcome" and "Materialized" messages separately to control verbosity
     emit_ctx('lore_message', {'messageKey': "LORE.WELCOME_INITIAL", 'type': 'welcome-message'}, room=sid)
-    # The more detailed "materialized" message can be shown by client if its debug is on, using LORE.WELCOME
-    # Or, if you want server to control it:
-    # if player.some_debug_flag_from_auth_or_similar:
-    #      emit_ctx('lore_message', {'messageKey': "LORE.WELCOME", 'placeholders': {'playerId': player.id}, 'type': 'welcome-message'}, room=sid)
-
+    # The detailed "materialized" message (LORE.WELCOME) is handled by client if its debug is on.
     print(f"[{pid}] Connect: {player.name} ({sid}). Players: {len(game_manager.players)}")
 
 
