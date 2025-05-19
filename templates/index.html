@@ -160,9 +160,7 @@
             let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
             if (scry || manhattanDist <= AURA_VISION_RANGE) return true;
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            // OBSERVABLE_DEPTH is a client-side constant, server uses MAX_VIEW_DISTANCE
-            // This client-side isVisible is for rendering fog, server handles actual action visibility.
-            const clientObservableDepth = 10; // Or tie to MAX_VIEW_DISTANCE if desired.
+            const clientObservableDepth = 10; 
             const OBSERVABLE_WIDTH_CONST = 1.0;
             if (ry < 0 && -ry <= clientObservableDepth && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH_CONST )) return true;
             return false;
@@ -194,8 +192,6 @@
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
                 let baseStatus = `Health: ${healthPercentage}% | Mana: ${selfPlayer.current_mana}/${selfPlayer.max_mana} | Gold: ${selfPlayer.gold || 0} | Potions: ${selfPlayer.potions}`;
                 if (showDebugInfo) {
-                    // Client-side currentSceneData.InsideID is a GUESS or debug toggle, not authoritative.
-                    // Authoritative indoor status comes from server's scene data if implemented.
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; 
                      baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | Walls: ${selfPlayer.walls !== undefined ? selfPlayer.walls : 'N/A'} | ${baseStatus}`;
                 }
@@ -278,7 +274,6 @@
             const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other').trim();
             const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint').trim();
 
-
             let displayLayer = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(null).map(() => ({ char: FLOOR_CHAR, color: floorColor, type: 'floor' })));
 
             if (visibleTerrain && visibleTerrain.water) {
@@ -358,8 +353,6 @@
             rainOverlay.innerHTML = ''; 
         }
         function updateWeatherEffects() { 
-             // Check client-side 'currentSceneData.InsideID' for rain effect.
-             // Server authoritative 'is_indoors' on scene object determines actual wetness from rain.
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
                 if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
                     globalWeather.intensity = rainIntensitySlider.valueAsNumber; 
@@ -581,7 +574,7 @@
         socket.on('player_event', (data) => { 
             if (data.type === 'stepped_in_water' && data.sid === myPlayerID) { 
                 console.log("Client: Received stepped_in_water event. Playing sound (placeholder)... SPLASH!");
-                // Example: playWaterStepSound(); 
+                // playWaterStepSound(); // Future: Call actual sound function here
             }
         });
         
@@ -636,10 +629,15 @@
         }
         socket.on('action_feedback', (data) => { 
             console.log("Client received 'action_feedback':", data);
-            const messageKey = data.messageKey || (data.success ? 'ACTION_QUEUED' : 'ACTION_FAILED_UNKNOWN_COMMAND');
+            // CORRECTED KEY LOGIC:
+            const baseKey = 'ACTION_SENT_FEEDBACK';
+            const subKey = data.messageKey ? data.messageKey.substring(baseKey.length + 1) : (data.success ? 'ACTION_QUEUED' : 'ACTION_FAILED_UNKNOWN_COMMAND');
+
             const placeholders = data.placeholders || { actionWord: data.actionWordAttempted || "", message: data.message };
             const messageType = data.success ? 'system' : 'event-bad';
-            let textToLog = getRandomGameText('ACTION_SENT_FEEDBACK', messageKey, placeholders);
+            
+            let textToLog = getRandomGameText(baseKey, subKey, placeholders);
+
             if (textToLog.startsWith("Missing text for:") || textToLog.startsWith("No text variants for:") || textToLog.includes("{message}")) { 
                 if (data.message && data.message.trim() !== "") {
                     textToLog = (data.success ? "Tome nods: " : "Tome objects: ") + data.message;
