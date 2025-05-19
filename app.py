@@ -94,12 +94,16 @@ def game_loop():
                         if new_x_local < 0: player_ref['scene_x'] -= 1; player_ref['x'] = GRID_WIDTH - 1; scene_changed = True; transition_message = f"Emerged west ({player_ref['scene_x']},{player_ref['scene_y']})."
                         elif new_x_local >= GRID_WIDTH: player_ref['scene_x'] += 1; player_ref['x'] = 0; scene_changed = True; transition_message = f"Emerged east ({player_ref['scene_x']},{player_ref['scene_y']})."
                         else: player_ref['x'] = new_x_local
-                        if new_y_local < 0: player_ref['scene_y'] -= 1; player_ref['y'] = GRID_HEIGHT - 1; scene_changed = True;
-                            if not transition_message: transition_message = f"Emerged north ({player_ref['scene_x']},{player_ref['scene_y']})."
-                        elif new_y_local >= GRID_HEIGHT: player_ref['scene_y'] += 1; player_ref['y'] = 0; scene_changed = True;
-                            if not transition_message: transition_message = f"Emerged south ({player_ref['scene_x']},{player_ref['scene_y']})."
+                        if new_y_local < 0: 
+                            player_ref['scene_y'] -= 1; player_ref['y'] = GRID_HEIGHT - 1; scene_changed = True; # OK
+                            # THIS IS LIKELY THE PROBLEM AREA (AROUND LINE 98)
+                            if not transition_message: transition_message = f"Emerged north ({player_ref['scene_x']},{player_ref['scene_y']})." # THIS LINE
+                        elif new_y_local >= GRID_HEIGHT: 
+                            player_ref['scene_y'] += 1; player_ref['y'] = 0; scene_changed = True; # OK
+                            if not transition_message: transition_message = f"Emerged south ({player_ref['scene_x']},{player_ref['scene_y']})." # AND THIS ONE
                         else:
-                            if not (new_x_local < 0 or new_x_local >= GRID_WIDTH): player_ref['y'] = new_y_local
+                            if not (new_x_local < 0 or new_x_local >= GRID_WIDTH): player_ref['y'] = new_y_local # OK
+                        
                         if scene_changed: socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
                 # ... (other actions: drink_potion, say, shout - make sure they modify players[sid])
 
