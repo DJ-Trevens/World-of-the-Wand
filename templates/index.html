@@ -72,7 +72,7 @@
         let showDebugInfo = false; 
         let selfPlayer = null;
         let otherPlayers = {}; 
-        let visibleNPCs = []; // To store NPC data from server
+        let visibleNPCs = [];
         let visibleTerrain = { walls: [], water: [] }; 
         let myPlayerID = null; 
         let GRID_WIDTH = 20; 
@@ -80,7 +80,7 @@
         let GAME_TICK_RATE = 0.75;
         let prevSelfPlayerState = null;
         let currentSceneData = { InsideID: 0, name: "The Whispering Plains" }; 
-        let globalWeather = { isRaining: true, intensity: 0.1 }; 
+        let globalWeather = { isRaining: true, intensity: 0.25 }; 
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50; 
         let isDragging = false;
@@ -88,9 +88,10 @@
         let currentPanX = 0, currentPanY = 0; 
         let targetPanX = 0, targetPanY = 0;   
         const DEFAULT_FONT_SIZE_PX = 18;
-        const DEFAULT_LINE_HEIGHT_MULTIPLIER = 0.9;
-        const DEFAULT_CHAR_WIDTH_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.6;
-        const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * DEFAULT_LINE_HEIGHT_MULTIPLIER;
+        const X_STRETCH_FACTOR = 1.15; 
+        const DEFAULT_CHAR_WIDTH_FALLBACK = (DEFAULT_FONT_SIZE_PX * 0.6) * X_STRETCH_FACTOR;
+        const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.9; 
+        
         let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
         let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
         let charSizeEstimatedAtLeastOnce = false;
@@ -101,11 +102,25 @@
         const FLOOR_CHAR = '·';  
         const WALL_CHAR = '▓';   
         const WATER_CHAR = '~'; 
-        const PIXIE_CHAR_CLIENT = '*'; // Consistent with server
+        const PIXIE_CHAR_CLIENT = '*';
         const AURA_VISION_RANGE = 1;
 
-        const GAME_ZOOM_FACTOR = 1.4; 
-        document.documentElement.style.setProperty('--game-zoom', GAME_ZOOM_FACTOR);
+        let currentGameZoomFactor = 1.4; // Renamed from GAME_ZOOM_FACTOR
+        const MIN_ZOOM = 0.5;
+        const MAX_ZOOM = 3.0;
+        const ZOOM_INCREMENT = 0.1;
+
+        function updateGameZoomCSS() {
+            document.documentElement.style.setProperty('--game-zoom', currentGameZoomFactor);
+            // After zoom, character size relative to viewport changes, so re-center if not dragging
+            if (selfPlayer && charSizeEstimatedAtLeastOnce && !isDragging) {
+                // Canvas dimensions themselves don't change with CSS zoom, but their apparent size does.
+                // Recalculate pan based on new apparent size.
+                centerViewOnPlayer("zoom_change_recenter");
+            }
+        }
+        updateGameZoomCSS(); // Set initial zoom
+
 
         function applyTheme(theme) {
             if (theme === 'light') {
@@ -175,7 +190,9 @@
             switch (type) {
                 case 'event-bad': case 'chat-shout': case 'server-major-event': 
                 case 'player-trade': case 'player-damage': case 'welcome-message': 
+                case 'sensory-magic': 
                     displayStyle = 'mana'; break;
+                case 'sensory-sound': case 'sensory-smell': case 'sensory-sight':
                 case 'system': case 'event-good': case 'spell-cast': 
                 case 'lore': case 'user-input': case 'chat-say':          
                 default: displayStyle = 'ink'; break;
@@ -194,16 +211,16 @@
                 mainHeaderStatus.textContent = statusText;
             } else if (selfPlayer) {
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
-                // New status bar format
                 let baseStatus = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana`;
-                if (showDebugInfo) { // Show max mana only in debug
-                     baseStatus += `/${selfPlayer.max_mana}`;
+                if (showDebugInfo) { 
+                     baseStatus += `/${selfPlayer.max_mana}`; // Show max mana only in debug
                 }
-                baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions`;
+                // Always show walls and potions
+                baseStatus += ` | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
                 
                 if (showDebugInfo) {
                     let locationType = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; 
-                     baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | Walls: ${selfPlayer.walls !== undefined ? selfPlayer.walls : 'N/A'} | ${baseStatus}`;
+                     baseStatus = `Scene: (${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name} [${locationType}] | ${selfPlayer.char}:(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.is_wet ? '(Wet)' : ''} | ${baseStatus}`;
                 }
                 mainHeaderStatus.textContent = baseStatus;
             } else {
@@ -220,7 +237,7 @@
             const tempSpan = document.createElement('span');
             tempSpan.style.fontFamily = fontFamily;
             tempSpan.style.fontSize = fontSize;
-            tempSpan.style.lineHeight = computedStyle.getPropertyValue('line-height') || String(DEFAULT_FONT_SIZE_PX * DEFAULT_LINE_HEIGHT_MULTIPLIER);
+            tempSpan.style.lineHeight = computedStyle.getPropertyValue('line-height') || String(DEFAULT_FONT_SIZE_PX * 0.9);
             tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
             tempSpan.style.position = 'absolute';
@@ -231,12 +248,14 @@
             document.body.removeChild(tempSpan);
 
             if (measuredWidth > 0 && measuredHeight > 0) {
-                charRenderWidth = measuredWidth; charRenderHeight = measuredHeight;
+                charRenderWidth = measuredWidth * X_STRETCH_FACTOR; 
+                charRenderHeight = measuredHeight;
             } else {
-                charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
+                charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
+                charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
                 console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions. Reverting to PREDEFINED FALLBACK.`);
             }
-            console.log(`[estimateCharacterSize context: ${context}] Char size (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)} based on '${testChar}'`);
+            console.log(`[estimateCharacterSize context: ${context}] Char size (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)} based on '${testChar}' (X-stretch applied)`);
             
             if (GRID_WIDTH > 0 && GRID_HEIGHT > 0 && charRenderWidth > 0 && charRenderHeight > 0) {
                 gameCanvas.width = GRID_WIDTH * charRenderWidth;
@@ -256,9 +275,13 @@
                 const canvasHeight = gameCanvas.height || (DEFAULT_CHAR_HEIGHT_FALLBACK * GRID_HEIGHT) || 200; 
                 ctx.clearRect(0, 0, canvasWidth, canvasHeight);
                 const tempFont = "16px 'Courier New', monospace";
-                const tempFill = getComputedStyle(document.body).getPropertyValue('--text-primary') || "#E2E8F0";
+                const tempFill = getComputedStyle(document.body).getPropertyValue('--text-primary') || "#E2E8F0"; 
                 ctx.font = tempFont; ctx.fillStyle = tempFill;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                const loadingBg = getComputedStyle(document.body).getPropertyValue('--bg-secondary') || '#2d3748';
+                ctx.fillStyle = loadingBg;
+                ctx.fillRect(0,0, canvasWidth, canvasHeight);
+                ctx.fillStyle = tempFill; 
                 ctx.fillText("The mists obscure your vision...", canvasWidth / 2, canvasHeight / 2 - 10);
                 ctx.fillText("(Awaiting server data or font readiness)", canvasWidth / 2, canvasHeight / 2 + 10);
                 if (!charSizeEstimatedAtLeastOnce) { 
@@ -292,10 +315,9 @@
             const fogColor = bodyStyle.getPropertyValue('--text-game-fog-consistent').trim();
             const selfPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-self-consistent').trim();
             const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other-consistent').trim();
-            const npcPixieColor = bodyStyle.getPropertyValue('--text-game-npc-pixie-consistent').trim() || otherPlayerBaseColor; // Fallback to other player color
+            const npcPixieColor = bodyStyle.getPropertyValue('--text-game-npc-pixie-consistent').trim() || otherPlayerBaseColor;
             const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint-consistent').trim();
 
-            // Draw terrain base (floor, water, walls)
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
                     let charToDraw = FLOOR_CHAR;
@@ -316,17 +338,15 @@
                 }
             }
             
-            // Draw NPCs
             if (visibleNPCs) {
                 visibleNPCs.forEach(npc => {
                     if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, npc.x, npc.y)) {
-                        ctx.fillStyle = npcPixieColor; // Use specific color if defined, else fallback
+                        ctx.fillStyle = npcPixieColor; 
                         ctx.fillText(npc.char || PIXIE_CHAR_CLIENT, npc.x * charRenderWidth, npc.y * charRenderHeight);
                     }
                 });
             }
 
-            // Draw other players
             for (const id in otherPlayers) {
                 const p = otherPlayers[id];
                 if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, p.x, p.y)) {
@@ -341,7 +361,6 @@
                 }
             }
             
-            // Draw self player
              if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, selfPlayer.x, selfPlayer.y, true )) { 
                 ctx.fillStyle = selfPlayerBaseColor;
                 ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
@@ -419,7 +438,6 @@
         function centerViewOnPlayer(context = "unknown") { 
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
-            const currentZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1");
             
             if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || 
                 containerHeight <= 0 || containerWidth <=0 || 
@@ -431,13 +449,60 @@
             }
             const playerVisualCenterX_unscaled = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
             const playerVisualCenterY_unscaled = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
-            targetPanX = (containerWidth / 2) - (playerVisualCenterX_unscaled * currentZoom);
-            targetPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentZoom);
+            targetPanX = (containerWidth / 2) - (playerVisualCenterX_unscaled * currentGameZoomFactor);
+            targetPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentGameZoomFactor);
             currentPanX = targetPanX; currentPanY = targetPanY;
             gameCanvas.style.transition = 'transform 0.3s ease-out'; 
             gameCanvas.style.setProperty('--pan-x', `${currentPanX}px`);
             gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
         }
+
+        // --- Zoom Logic ---
+        gameCanvasContainer.addEventListener('wheel', function(event) {
+            event.preventDefault();
+            const delta = Math.sign(event.deltaY);
+            if (delta < 0) { // Zoom in (scroll up)
+                currentGameZoomFactor = Math.min(MAX_ZOOM, currentGameZoomFactor + ZOOM_INCREMENT);
+            } else { // Zoom out (scroll down)
+                currentGameZoomFactor = Math.max(MIN_ZOOM, currentGameZoomFactor - ZOOM_INCREMENT);
+            }
+            updateGameZoomCSS();
+        }, { passive: false });
+
+        let initialPinchDistance = null;
+        let lastZoomFactor = currentGameZoomFactor;
+
+        gameCanvasContainer.addEventListener('touchstart', function(event) {
+            if (event.touches.length === 2) {
+                event.preventDefault();
+                initialPinchDistance = Math.hypot(
+                    event.touches[0].clientX - event.touches[1].clientX,
+                    event.touches[0].clientY - event.touches[1].clientY
+                );
+                lastZoomFactor = currentGameZoomFactor;
+            }
+        }, { passive: false });
+
+        gameCanvasContainer.addEventListener('touchmove', function(event) {
+            if (event.touches.length === 2 && initialPinchDistance !== null) {
+                event.preventDefault();
+                const currentPinchDistance = Math.hypot(
+                    event.touches[0].clientX - event.touches[1].clientX,
+                    event.touches[0].clientY - event.touches[1].clientY
+                );
+                const zoomRatio = currentPinchDistance / initialPinchDistance;
+                currentGameZoomFactor = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, lastZoomFactor * zoomRatio));
+                updateGameZoomCSS();
+            }
+        }, { passive: false });
+
+        gameCanvasContainer.addEventListener('touchend', function(event) {
+            if (event.touches.length < 2) {
+                initialPinchDistance = null; // Reset if one or both fingers are lifted
+            }
+        });
+
+
         debugInfoToggle.addEventListener('change', (event) => { 
             showDebugInfo = event.target.checked;
             localStorage.setItem('showDebugInfo', JSON.stringify(showDebugInfo)); 
@@ -466,7 +531,7 @@
                         initialCenteringDone = true; 
                         if (!initialUIDone) {
                             updateStatus(); updateWeatherEffects(); 
-                            logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
+                            if(showDebugInfo) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
                             initialUIDone = true;
                         }
@@ -499,11 +564,13 @@
             GRID_WIDTH = data.grid_width; GRID_HEIGHT = data.grid_height; GAME_TICK_RATE = data.tick_rate;
             otherPlayers = {}; 
             visibleTerrain = { walls: [], water: [] }; 
-            visibleNPCs = data.visible_npcs || []; // Initialize NPCs
+            visibleNPCs = data.visible_npcs || []; 
+            globalWeather.intensity = data.default_rain_intensity || 0.25; 
+            rainIntensitySlider.value = globalWeather.intensity;
+
             if (data.other_players_in_scene) data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
             prevSelfPlayerState = { ...selfPlayer };
             const savedDebugInfo = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-            const savedRainIntensity = localStorage.getItem('rainIntensity'); globalWeather.intensity = savedRainIntensity !== null ? parseFloat(savedRainIntensity) : 0.1; rainIntensitySlider.value = globalWeather.intensity;
             
             if (!charSizeEstimatedAtLeastOnce) { 
                 estimateCharacterSize("initial_data_pre_font_ready");
@@ -519,7 +586,9 @@
                         initialCenteringDone = true;
                         if(!initialUIDone){
                              updateWeatherEffects(); 
-                             logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
+                             if(showDebugInfo) {
+                                logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
+                             }
                              if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
                              initialUIDone = true;
                         }
@@ -530,10 +599,10 @@
                                 if (!charSizeEstimatedAtLeastOnce) estimateCharacterSize("initial_data_timeout_fallback_estimate");
                                 centerViewOnPlayer("initial_data_timeout_fallback_center");
                                 initialCenteringDone = true;
-                                if (!initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message'); if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
+                                if (!initialUIDone) { updateWeatherEffects(); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
                             } else if (!initialCenteringDone) { console.error("Container height still 0 after fallback timeout. Centering failed."); logRandomizedEvent('LORE', 'CENTERING_ERROR', {}, 'event-bad'); }
                         }, 300); 
-                    } else if (initialCenteringDone && !initialUIDone) { updateWeatherEffects(); logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message'); if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
+                    } else if (initialCenteringDone && !initialUIDone) { updateWeatherEffects(); if(showDebugInfo){logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');} if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system'); initialUIDone = true; }
                 } else { logRandomizedEvent('LORE', 'MANIFESTATION_FAILED_NO_PLAYER_DATA', {}, 'event-bad'); }
             }).catch(err => { 
                 console.error("Font loading error:", err);
@@ -567,7 +636,7 @@
         });
         socket.on('lore_message', (data) => { 
             let mainKeyToUse = 'GENERIC';
-            let subKeyToUse = (data.type || 'lore').toUpperCase();
+            let subKeyToUse = (data.type || 'lore').toUpperCase(); 
             let placeholdersToUse = { message: data.message || "An unknown lore event occurred." }; 
             if (data.messageKey) {
                 const keys = data.messageKey.split('.');
@@ -581,7 +650,7 @@
                             subKeyToUse = mainKeyToUse.toUpperCase(); mainKeyToUse = 'GENERIC'; 
                             placeholdersToUse = { message: data.message || `Content for ${data.messageKey} missing.`};
                         }
-                    } else { subKeyToUse = null; }
+                    } else { subKeyToUse = null; } 
                     if(data.placeholders) placeholdersToUse = {...placeholdersToUse, ...data.placeholders};
                 } else { placeholdersToUse = { message: data.message || `Unknown event key: ${data.messageKey}` }; }
             }
@@ -600,7 +669,6 @@
         socket.on('player_event', (data) => { 
             if (data.type === 'stepped_in_water' && data.sid === myPlayerID) { 
                 console.log("Client: Received stepped_in_water event. Playing sound (placeholder)... SPLASH!");
-                // playWaterStepSound(); 
             }
         });
         
@@ -616,7 +684,7 @@
             otherPlayers = {}; 
             if(data.visible_other_players) data.visible_other_players.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; }); 
             visibleTerrain = data.visible_terrain || { walls: [], water: [] }; 
-            visibleNPCs = data.visible_npcs || []; // Update NPCs
+            visibleNPCs = data.visible_npcs || []; 
 
             updateStatus(); 
             
@@ -749,31 +817,39 @@
                 if (dR.isValid) commandToSend.details = { dx: dR.dx, dy: dR.dy, newChar: dR.char };
                 else { addLogMessage(`Tome frowns: Cannot move towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
             } else if (canonicalAction === "look") {
-                const eTW = messageContent || selfPlayer.char; const dR = parseDirection(eTW, selfPlayer.char);
-                if (dR.isValid) commandToSend.details = { dx: 0, dy: 0, newChar: dR.char };
+                const eTW = messageContent || selfPlayer.char; 
+                const dR = parseDirection(eTW, selfPlayer.char);
+                if (dR.isValid) commandToSend.details = { dx: 0, dy: 0, newChar: dR.char }; 
                 else { addLogMessage(`Tome squints: Cannot look towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
 
-                // Look command enhancement for pixies
-                if (shouldEmitToServer && visibleNPCs) {
-                    let foundPixie = false;
-                    const lookTargetX = selfPlayer.x + dR.dx; // If looking forward after turning
-                    const lookTargetY = selfPlayer.y + dR.dy;
-
-                    for(const npc of visibleNPCs) {
-                        if(npc.char === PIXIE_CHAR_CLIENT) { // Check if it's a pixie
-                            // Check if pixie is generally in the direction player is now looking or very close
-                            // This is a simple check, could be more sophisticated (e.g. isVisible from player's new facing)
-                            if (manhattanDistance(selfPlayer.x, selfPlayer.y, npc.x, npc.y) <= 3) {
-                                logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: npc.name || "a pixie"}, 'system');
-                                foundPixie = true;
-                                break; 
+                if (shouldEmitToServer) { 
+                    let foundSomethingVisible = false;
+                    // Check for NPCs in LoS of the new facing direction
+                    if (visibleNPCs) {
+                        for(const npc of visibleNPCs) {
+                            // Check visibility based on the *new* facing direction (dR.char)
+                            if (isVisible(selfPlayer.x, selfPlayer.y, dR.char, npc.x, npc.y)) {
+                                if(npc.char === PIXIE_CHAR_CLIENT) { 
+                                     logRandomizedEvent('LORE', 'SEES_PIXIE_NEARBY', {pixieName: npc.name || "a pixie"}, 'sensory-sight');
+                                     foundSomethingVisible = true;
+                                     // break; // Could break if you only want to report the first thing seen
+                                }
                             }
                         }
                     }
-                    if (!foundPixie && (dR.dx !==0 || dR.dy !==0) ) { // if looked in a specific direction and no pixie
-                        logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
-                    } else if (!foundPixie) {
-                         logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
+                    for(const id in otherPlayers) {
+                        const otherP = otherPlayers[id];
+                         if (isVisible(selfPlayer.x, selfPlayer.y, dR.char, otherP.x, otherP.y)) {
+                            logRandomizedEvent('LORE', 'PLAYER_ARRIVES', {playerName: otherP.name}, 'system'); 
+                            foundSomethingVisible = true;
+                        }
+                    }
+                    if (!foundSomethingVisible) {
+                        if (messageContent && messageContent.toLowerCase() !== selfPlayer.char.toLowerCase()) { 
+                            logRandomizedEvent('LORE', 'LOOK_DIRECTION_EMPTY', {direction: getDirectionWord(dR.char)}, 'system');
+                        } else { 
+                            logRandomizedEvent('LORE', 'LOOK_AROUND_EMPTY', {}, 'system');
+                        }
                     }
                 }
 
@@ -839,7 +915,8 @@
         
         if (commandInput) { commandInput.focus(); }
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
-        const savedRainIntensityOnLoad = localStorage.getItem('rainIntensity'); globalWeather.intensity = savedRainIntensityOnLoad !== null ? parseFloat(savedRainIntensityOnLoad) : 0.1; rainIntensitySlider.value = globalWeather.intensity;
+        // globalWeather.intensity is now set from initial_game_data
+        // rainIntensitySlider.value = globalWeather.intensity; // This will be set in initial_game_data handler
         updateStatus("Awaiting connection to the Ethereal Plane..."); 
         updateWeatherEffects(); 
         logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
