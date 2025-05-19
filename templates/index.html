@@ -94,13 +94,12 @@
         const rainOverlay = document.getElementById('rainOverlay');
         const mainHeaderStatus = document.getElementById('mainHeaderStatus');
         
-        const commandLogContainer = document.getElementById('commandLogContainer'); // Wrapper for commandLog
+        const commandLogContainer = document.getElementById('commandLogContainer');
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
 
-        const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator');
-        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator'); // Still needed for display
+        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const themeToggleButton = document.getElementById('themeToggle');
@@ -111,7 +110,6 @@
         const dbgOtherPlayersCount = document.getElementById('dbgOtherPlayersCount');
         const dbgNpcsCount = document.getElementById('dbgNpcsCount');
         const dbgLastUpdate = document.getElementById('dbgLastUpdate');
-        // const dbgSimulating = document.getElementById('dbgSimulating'); // This element was removed, use simulateServerHeartbeatEnabled
 
         const dbgContextInfo = document.getElementById('dbgContextInfo');
         const dbgPlayerPos = document.getElementById('dbgPlayerPos');
@@ -119,83 +117,89 @@
         const dbgPlayerStatus = document.getElementById('dbgPlayerStatus');
         const dbgLocationType = document.getElementById('dbgLocationType');
 
+        const EMOJI = {
+            MOON: '🌙',
+            SUN: '☀️'
+        }
 
-        const MOON_EMOJI = '🌙';
-        const SUN_EMOJI = '☀️';
-
-        let showDebugInfoState = false; // Default to false (log shown)
-        let selfPlayer = null;
-        let otherPlayers = {};
-        let visibleNPCs = [];
-        let visibleTerrain = { walls: [], water: [] }; // Still stores only visible walls/water
+        let showDebugInfoState = false
+        let selfPlayer = null
+        let otherPlayers = {}
+        let visibleNPCs = []
+        let visibleTerrain = {
+            walls: [],
+            water: []
+        }
         let serverVisibleTiles = new Set(); // Stores all (x,y) tuples visible from server FOV
 
-        let myPlayerID = null;
-        let GRID_WIDTH = 20;
-        let GRID_HEIGHT = 15;
-        let GAME_HEARTBEAT_RATE = 0.75;
-        let prevSelfPlayerState = null;
-        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" };
-        let globalWeather = { isRaining: true, intensity: 0.25 }; // Defaults for rain
-        let rainInterval = null;
-        const RAIN_INTERVAL_DELAY = 50;
-        let isDragging = false;
+        let myPlayerID = null
+        let GRID_WIDTH = 20
+        let GRID_HEIGHT = 15
+        let GAME_HEARTBEAT_RATE = 0.75
+        let prevSelfPlayerState = null
+        let currentSceneData = {
+            name: "The Whispering Plains",
+            InsideID: 0
+        };
+        let globalWeather = {
+            isRaining: true,
+            intensity: 0.25
+        }
+        let rainInterval = null
+        const RAIN_INTERVAL_DELAY = 50
+        let isDragging = false
         let startDragX, startDragY;
-        let currentPanX = 0;
-        let currentPanY = 0;
+        let currentPanX = 0
+        let currentPanY = 0
 
-        const DEFAULT_FONT_SIZE_PX = 18;
-        const X_STRETCH_FACTOR = 1.15;
-        const DEFAULT_CHAR_WIDTH_FALLBACK = (DEFAULT_FONT_SIZE_PX * 0.6) * X_STRETCH_FACTOR;
-        const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.9;
+        const DEFAULT_FONT_SIZE_PX = 18
+        const X_STRETCH_FACTOR = 1.15
+        const DEFAULT_CHAR_WIDTH_FALLBACK = (DEFAULT_FONT_SIZE_PX * 0.6) * X_STRETCH_FACTOR
+        const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.9
 
-        let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
-        let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
-        let charSizeEstimatedAtLeastOnce = false;
-        let initialCenteringDone = false;
-        let initialUIDone = false;
+        let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK
+        let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK
+        let charSizeEstimatedAtLeastOnce = false
+        let initialCenteringDone = false
+        let initialUIDone = false
 
-        const FOG_CHAR = '▒';
-        const FLOOR_CHAR = '·';
-        const WALL_CHAR = '▓';
-        const WATER_CHAR = '~';
-        const PIXIE_CHAR_CLIENT = '*';
+        const FOG_CHAR = '▒'
+        const FLOOR_CHAR = '·'
+        const WALL_CHAR = '▓'
+        const WATER_CHAR = '~'
+        const PIXIE_CHAR_CLIENT = '*'
         // AURA_VISION_RANGE is no longer used for primary visibility, server FOV dictates.
         // Client 'isVisible' can be removed or simplified if only for minor effects.
 
-        let currentGameZoomFactor = 1.4;
-        const MIN_ZOOM = 0.5;
-        const MAX_ZOOM = 3.0;
-        const ZOOM_INCREMENT = 0.05;
-
-        let simulateServerHeartbeatEnabled = false; // Still used for client-side simulation if enabled
-        let simulatedHeartbeatInterval = null;
-        let serverHeartbeatFlashTimeout = null;
-        let simulatedHeartbeatFlashTimeout = null;
+        let currentGameZoomFactor = 1.4
+        const MIN_ZOOM = 0.7
+        const MAX_ZOOM = 3.0
+        const ZOOM_INCREMENT = 0.05
 
 
         function updateGameTransform() {
-            // Ensure gameCanvas is available
             if (gameCanvas) {
-                gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${currentGameZoomFactor})`;
+                gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${currentGameZoomFactor})`
             }
         }
 
 
         function applyTheme(theme) {
             if (theme === 'light') {
-                document.body.classList.add('light-theme');
-                document.body.classList.remove('dark-theme');
-                themeToggleButton.textContent = MOON_EMOJI;
-                themeToggleButton.title = "Switch to Dark Mode";
+                document.body.classList.add('light-theme')
+                document.body.classList.remove('dark-theme')
+                themeToggleButton.textContent = EMOJI.MOON
+                themeToggleButton.title = "Switch to Dark Mode"
             } else {
-                document.body.classList.add('dark-theme');
-                document.body.classList.remove('light-theme');
-                themeToggleButton.textContent = SUN_EMOJI;
-                themeToggleButton.title = "Switch to Light Mode";
+                document.body.classList.add('dark-theme')
+                document.body.classList.remove('light-theme')
+                themeToggleButton.textContent = EMOJI.SUN
+                themeToggleButton.title = "Switch to Light Mode"
             }
-            localStorage.setItem('worldOfTheWandTheme', theme);
-            if(selfPlayer && charSizeEstimatedAtLeastOnce) drawGrid();
+            localStorage.setItem('worldOfTheWandTheme', theme)
+            if(selfPlayer && charSizeEstimatedAtLeastOnce){
+                drawGrid()
+            }
         }
 
         function toggleTheme() {
@@ -206,8 +210,11 @@
 
         function initializeTheme() {
             const savedTheme = localStorage.getItem('worldOfTheWandTheme');
-            if (savedTheme) { applyTheme(savedTheme); }
-            else { applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
+            if (savedTheme) {
+                applyTheme(savedTheme)
+            } else {
+                applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            }
         }
 
         function addLogMessage(message, type = 'lore') {
@@ -217,11 +224,14 @@
                 case 'event-bad': case 'chat-shout': case 'server-major-event':
                 case 'player-trade': case 'player-damage': case 'welcome-message':
                 case 'sensory-magic':
-                    displayStyle = 'mana'; break;
+                    displayStyle = 'mana'
+                    break
                 case 'sensory-sound': case 'sensory-smell': case 'sensory-sight':
                 case 'system': case 'event-good': case 'spell-cast':
                 case 'lore': case 'user-input': case 'chat-say':
-                default: displayStyle = 'ink'; break;
+                default:
+                    displayStyle = 'ink'
+                    break
             }
             logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
             logEntry.textContent = message;
@@ -238,12 +248,10 @@
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
                 mainHeaderStatus.textContent = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
 
-                // Update debug context panel
                 if (dbgPlayerPos) dbgPlayerPos.textContent = `(${selfPlayer.x},${selfPlayer.y}) Facing: ${selfPlayer.char}`;
-                if (dbgSceneInfo) dbgSceneInfo.textContent = `(${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name || 'Unknown Area'}`;
+                if (dbgSceneInfo) dbgSceneInfo.textContent = `(${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name || 'Unexplored Area'}`;
                 if (dbgPlayerStatus) dbgPlayerStatus.textContent = `${selfPlayer.is_wet ? 'Wet' : 'Dry'}`;
                 if (dbgLocationType) dbgLocationType.textContent = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
-
             } else {
                 mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
                 if (dbgPlayerPos) dbgPlayerPos.textContent = "N/A";
@@ -252,7 +260,6 @@
                 if (dbgLocationType) dbgLocationType.textContent = "N/A";
             }
         }
-
 
         function estimateCharacterSize(context = "unknown") {
             const testChar = 'M';
