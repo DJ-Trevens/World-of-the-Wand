@@ -420,12 +420,35 @@ class GameManager:
                 for target_sid in scene.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
             elif action_type == 'shout':
                 message_text = details.get('message', '')
-                if message_text:
-                    if player.spend_mana(SHOUT_MANA_COST): chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" };
-                    for target_player_obj in list(self.players.values()):
-                        if abs(target_player_obj.scene_x - player.scene_x) <= 1 and abs(target_player_obj.scene_y - player.scene_y) <= 1: self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system','message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!"}, room=player.id)
-                    else: self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad','message': f"You need {SHOUT_MANA_COST} mana to shout."}, room=player.id)
+                if message_text: # This is the first 'if' for the shout action
+                    if player.spend_mana(SHOUT_MANA_COST):
+                        # This block executes if player HAS enough mana
+                        chat_data = { 
+                            'sender_id': player.id, 
+                            'sender_name': player.name, 
+                            'message': message_text, 
+                            'type': 'shout', 
+                            'scene_coords': f"({player.scene_x},{player.scene_y})" 
+                        }
+                        for target_player_obj in list(self.players.values()):
+                            if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
+                               abs(target_player_obj.scene_y - player.scene_y) <= 1:
+                                self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
+                        
+                        self.socketio.emit('lore_message', {
+                            'messageKey': 'LORE.VOICE_BOOM_SHOUT', 
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
+                            'type': 'system',
+                            'message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!" # Fallback message
+                        }, room=player.id)
+                    else:
+                        # This block executes if player does NOT have enough mana
+                        self.socketio.emit('lore_message', {
+                            'AhmessageKey': 'LORE.LACK_MANA_SHOUT', 
+                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 
+                            'type': 'event-bad',
+                            'message': f"You need {SHOUT_MANA_COST} mana to shout." # Fallback message
+                        }, room=player.id)
             processed_sids.add(sid_action)
 
 # --- App Setup & SocketIO ---
