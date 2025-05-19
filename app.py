@@ -24,8 +24,8 @@ TILE_FLOOR = 0
 TILE_WALL = 1
 TILE_WATER = 2
 
-SERVER_IS_RAINING = True
-DEFAULT_RAIN_INTENSITY = 0.25
+SERVER_IS_RAINING = True # Defaulting to raining for testing
+DEFAULT_RAIN_INTENSITY = 0.25 # Default rain intensity
 
 PIXIE_CHAR = '*'
 PIXIE_MANA_REGEN_BOOST = 1
@@ -116,7 +116,7 @@ class Player:
         self.potions = INITIAL_POTIONS; self.gold = 0; self.walls = INITIAL_WALL_ITEMS
         self.is_wet = False; self.time_became_wet = 0
         self.mana_regen_accumulator = 0.0
-        self.visible_tiles_cache = set() # Cache for FOV results
+        self.visible_tiles_cache = set()
 
     def update_position(self, dx, dy, new_char, game_manager, socketio_instance):
         old_scene_x, old_scene_y = self.scene_x, self.scene_y
@@ -142,11 +142,9 @@ class Player:
 
         self.char = new_char
         if scene_changed_flag:
-            game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
+            game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y) # This will also update FOV
             if transition_key: socketio_instance.emit('lore_message', {'messageKey': transition_key, 'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y}, 'type': 'system'}, room=self.id)
-        
-        # FOV needs to be recalculated if position or scene changes
-        if scene_changed_flag or self.x != original_x_tile or self.y != original_y_tile:
+        elif self.x != original_x_tile or self.y != original_y_tile or self.char != new_char: # Position or facing changed within same scene
             current_scene = game_manager.get_or_create_scene(self.scene_x, self.scene_y)
             self.visible_tiles_cache = game_manager.calculate_fov(self.x, self.y, current_scene, SENSE_SIGHT_RANGE)
 
@@ -212,44 +210,41 @@ class Scene:
     def add_npc(self, npc_id): self.npc_ids.add(npc_id)
     def remove_npc(self, npc_id): self.npc_ids.discard(npc_id)
     def get_npc_ids(self): return list(self.npc_ids)
-    
+
     def get_tile_type(self, x, y):
         if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH: return self.terrain_grid[y][x]
-        return TILE_WALL # Treat out-of-bounds as opaque walls for FOV
+        return TILE_WALL
 
     def is_transparent(self, x, y):
-        """Checks if a tile at (x,y) allows light to pass through."""
-        if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
-            return False # Out of bounds blocks light
-        tile_type = self.terrain_grid[y][x]
-        return tile_type == TILE_FLOOR or tile_type == TILE_WATER # Example: Walls block light
-
-    def is_walkable(self, x, y):
-        """Checks if a tile at (x,y) can be walked on."""
         if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
             return False
         tile_type = self.terrain_grid[y][x]
         return tile_type == TILE_FLOOR or tile_type == TILE_WATER
 
+    def is_walkable(self, x, y):
+        if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT):
+            return False
+        tile_type = self.get_tile_type(x,y) # Use get_tile_type to handle bounds implicitly
+        return tile_type == TILE_FLOOR or tile_type == TILE_WATER
+
+
     def set_tile_type(self, x, y, tile_type):
         if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH: self.terrain_grid[y][x] = tile_type; return True
         return False
-    
-    def get_terrain_for_payload(self, visible_tiles=None):
+
+    def get_terrain_for_payload(self, visible_tiles_set): # Expects a set of (x,y) tuples
         terrain_data = {'walls': [], 'water': []}
-        # If visible_tiles is provided, only include terrain within that set
-        if visible_tiles:
-            for r_idx, row in enumerate(self.terrain_grid):
-                for c_idx, tile_type in enumerate(row):
-                    if (c_idx, r_idx) in visible_tiles:
-                        if tile_type == TILE_WALL: terrain_data['walls'].append({'x': c_idx, 'y': r_idx})
-                        elif tile_type == TILE_WATER: terrain_data['water'].append({'x': c_idx, 'y': r_idx})
-        else: # Fallback to sending all (e.g., for a map editor or admin view)
-            for r_idx, row in enumerate(self.terrain_grid):
-                for c_idx, tile_type in enumerate(row):
+        if not visible_tiles_set: # Should not happen if FOV is always calculated
+            app.logger.warning(f"Scene ({self.scene_x},{self.scene_y}) get_terrain_for_payload called with empty visible_tiles_set.")
+            return terrain_data
+
+        for r_idx, row in enumerate(self.terrain_grid):
+            for c_idx, tile_type in enumerate(row):
+                if (c_idx, r_idx) in visible_tiles_set: # Check against the provided set
                     if tile_type == TILE_WALL: terrain_data['walls'].append({'x': c_idx, 'y': r_idx})
                     elif tile_type == TILE_WATER: terrain_data['water'].append({'x': c_idx, 'y': r_idx})
         return terrain_data
+
 
     def is_npc_at(self, x, y, exclude_id=None):
         if not self.game_manager_ref: app.logger.warning(f"Scene ({self.scene_x},{self.scene_y}) checking is_npc_at without game_manager_ref!"); return False
@@ -274,7 +269,6 @@ class GameManager:
         self.loop_is_actually_running_flag = False
         self.game_loop_greenlet = None
         self.loop_iteration_count = 0
-        # Multipliers for transforming coordinates to octants for FOV
         self._fov_octant_transforms = [
             (1,  0,  0,  1), (0,  1,  1,  0), (0, -1,  1,  0), (-1,  0,  0,  1),
             (-1,  0,  0, -1), (0, -1, -1,  0), (0,  1, -1,  0), (1,  0,  0, -1)
@@ -282,9 +276,8 @@ class GameManager:
 
 
     def calculate_fov(self, observer_x, observer_y, scene, radius):
-        """Calculates Field of View using Recursive Shadowcasting for a given observer and scene."""
         visible_tiles = set()
-        visible_tiles.add((observer_x, observer_y)) # Observer's own tile is always visible
+        visible_tiles.add((observer_x, observer_y))
 
         for octant in range(8):
             self._cast_light_octant(observer_x, observer_y, radius, 1, 1.0, 0.0, octant, scene, visible_tiles)
@@ -299,49 +292,40 @@ class GameManager:
 
         for i in range(row_depth, radius + 1):
             blocked_for_row = False
-            dx, dy = -i, -i # Start at the top-left of the bounding box for the row in this octant
+            dx, dy = -i, -i
 
             while dx <= 0:
                 dx += 1
-                # Transform cell coordinates from relative to octant to absolute map coordinates
                 map_x = cx + dx * xx + dy * xy
                 map_y = cy + dx * yx + dy * yy
 
-                # Check if the cell is within bounds of the grid
                 if not (0 <= map_x < GRID_WIDTH and 0 <= map_y < GRID_HEIGHT):
                     continue
 
-                # Calculate slopes for the current cell
-                # Slopes are calculated from the perspective of the observer at (0,0)
-                # The dx, dy are relative to the observer within the transformed octant
-                # Using cell centers for more accuracy
-                left_slope = (dx - 0.5) / (dy + 0.5)
-                right_slope = (dx + 0.5) / (dy - 0.5)
+                left_slope = (dx - 0.5) / (dy + 0.5) if (dy + 0.5) != 0 else float('inf') * math.copysign(1, dx - 0.5)
+                right_slope = (dx + 0.5) / (dy - 0.5) if (dy - 0.5) != 0 else float('inf') * math.copysign(1, dx + 0.5)
 
-                if start_slope < right_slope: # If the start_slope is to the right of our cell's right_slope, skip
+
+                if start_slope < right_slope:
                     continue
-                elif end_slope > left_slope: # If the end_slope is to the left of our cell's left_slope, this row is done
+                elif end_slope > left_slope:
                     break
 
-                # Check if the tile is within the circular radius
                 if (dx * dx + dy * dy) < radius_squared:
                     visible_tiles.add((map_x, map_y))
 
-                if not scene.is_transparent(map_x, map_y): # Current cell blocks light
-                    if blocked_for_row: # Already in a shadow
-                        continue # Stay in shadow, don't recurse
-                    else: # Wall starts here
+                if not scene.is_transparent(map_x, map_y):
+                    if blocked_for_row:
+                        continue
+                    else:
                         blocked_for_row = True
-                        # Shadow begins to the right of this cell, recurse for the part of the row to the left
                         self._cast_light_octant(cx, cy, radius, i + 1, start_slope, left_slope, octant, scene, visible_tiles)
-                        # The new scan for the remainder of this shadow starts from the right of this cell
-                        start_slope = right_slope # Continue scan to the right of this shadow
-                else: # Current cell is transparent
-                    if blocked_for_row: # We were in a shadow, but this cell is clear
+                        start_slope = right_slope
+                else:
+                    if blocked_for_row:
                         blocked_for_row = False
-                        start_slope = right_slope # Start a new scan from this cell's right edge
-            
-            if blocked_for_row: # The entire rest of this row was blocked
+                        start_slope = right_slope
+            if blocked_for_row:
                 break
 
 
@@ -384,17 +368,13 @@ class GameManager:
         app.logger.info(f"GM Add Player: Creating player {name} ({sid}).")
         self.players[sid] = player
         scene = self.get_or_create_scene(player.scene_x, player.scene_y); scene.add_player(sid)
-        
-        # Initial FOV calculation for the new player
         player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene, SENSE_SIGHT_RANGE)
-        
         app.logger.info(f"GM Add Player: Added {name} to scene ({player.scene_x},{player.scene_y}). Total players: {len(self.players)}")
-
         new_player_public_data = player.get_public_data()
         for other_sid_in_scene in scene.get_player_sids():
             if other_sid_in_scene != sid:
                 other_player = self.get_player(other_sid_in_scene)
-                if other_player and self.is_player_visible_to_observer(other_player, player): # Check if new player is visible to existing
+                if other_player and self.is_player_visible_to_observer(other_player, player):
                      self.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
         return player
 
@@ -407,7 +387,7 @@ class GameManager:
                 scene = self.scenes[old_scene_coords]; scene.remove_player(sid)
                 app.logger.info(f"Removed {player.name} from scene {old_scene_coords}. Players in scene: {len(scene.get_player_sids())}")
                 for other_sid_in_scene in scene.get_player_sids():
-                     self.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene) # No visibility check needed for exit
+                     self.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene)
             return player
         return None
 
@@ -432,10 +412,8 @@ class GameManager:
                 app.logger.info(f"Player {player.name} left scene {old_scene_coords}.")
                 for other_sid in old_scene_obj.get_player_sids():
                     self.socketio.emit('player_exited_your_scene', {'id': player.id, 'name': player.name}, room=other_sid)
-
             new_scene_obj = self.get_or_create_scene(player.scene_x, player.scene_y); new_scene_obj.add_player(player.id)
-            player.visible_tiles_cache = self.calculate_fov(player.x, player.y, new_scene_obj, SENSE_SIGHT_RANGE) # Update FOV for new scene
-            
+            player.visible_tiles_cache = self.calculate_fov(player.x, player.y, new_scene_obj, SENSE_SIGHT_RANGE)
             app.logger.info(f"Player {player.name} entered scene {new_scene_coords}. Terrain: {new_scene_obj.name}")
             player_public_data_for_new_scene = player.get_public_data()
             for other_sid in new_scene_obj.get_player_sids():
@@ -449,22 +427,16 @@ class GameManager:
         if not obs_p or not target_p: return False
         if obs_p.id == target_p.id: return False
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
-        # Use FOV cache of the observer
         return (target_p.x, target_p.y) in obs_p.visible_tiles_cache
 
     def is_npc_visible_to_observer(self, obs_p, target_npc):
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
-        # Use FOV cache of the observer
         return (target_npc.x, target_npc.y) in obs_p.visible_tiles_cache
 
 
     def get_visible_players_for_observer(self, observer_player):
         visible_others = []
-        # FOV is already calculated and cached on player move/scene change.
-        # If not, it should be calculated here or ensured it's up-to-date.
-        # For simplicity, assume player.visible_tiles_cache is current.
-        
         scene = self.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
         for target_sid in scene.get_player_sids():
             if target_sid == observer_player.id: continue
@@ -475,7 +447,6 @@ class GameManager:
 
     def get_visible_npcs_for_observer(self, observer_player):
         visible_npcs_data = []
-        # Assume player.visible_tiles_cache is current.
         scene = self.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
         for npc_id in scene.get_npc_ids():
             npc = self.get_npc(npc_id)
@@ -499,23 +470,17 @@ class GameManager:
 
     def process_sensory_perception(self, player, scene):
         perceived_cues_this_tick = set()
-        # Ensure player's FOV cache is up-to-date if it wasn't updated by a move.
-        # For a 'look' action, this might be the place to explicitly recalculate.
-        # player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene, SENSE_SIGHT_RANGE)
-
         for npc_id in scene.get_npc_ids():
             npc = self.get_npc(npc_id)
             if not npc or npc.is_hidden: continue
-
             is_visible_flag = (npc.x, npc.y) in player.visible_tiles_cache
             distance = abs(player.x - npc.x) + abs(player.y - npc.y)
-
             if is_visible_flag:
                 for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
                     if random.random() < (relevance * 0.05) and cue_key not in perceived_cues_this_tick:
                         self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
                         perceived_cues_this_tick.add(cue_key); break
-            else: # NPC not in FOV, rely on other senses
+            else:
                 for sense_type in ['sound', 'smell', 'magic']:
                     for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
                         if distance <= cue_range:
@@ -531,52 +496,47 @@ class GameManager:
             if sid_action in processed_sids : continue
             player = self.get_player(sid_action);
             if not player: app.logger.warning(f"Action from non-existent player SID {sid_action}"); continue
-
             action_type = action_data.get('type'); details = action_data.get('details', {})
             app.logger.debug(f"Processing action for {player.name}: {action_type} with details {details}")
-            scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y) # Get current scene for player
+            scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
 
             if action_type == 'move' or action_type == 'look':
                 dx, dy = details.get('dx', 0), details.get('dy', 0)
                 new_char_for_player = details.get('newChar', player.char)
-                
                 position_or_char_changed = False
-                if action_type == 'move' and (dx != 0 or dy != 0):
+
+                if action_type == 'move':
                     target_x, target_y = player.x + dx, player.y + dy
                     can_move_to_tile = True
-                    
-                    if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT:
-                        tile_type_at_target = scene_of_player.get_tile_type(target_x, target_y)
-                        npc_at_target = self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
-                        
-                        if not scene_of_player.is_walkable(target_x, target_y): # Check general walkability first
+                    if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT: # Check within current scene bounds first
+                        if not scene_of_player.is_walkable(target_x, target_y):
                             self.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False
-                        elif npc_at_target and isinstance(npc_at_target, ManaPixie):
-                            if npc_at_target.attempt_evade(player.x, player.y, scene_of_player):
-                                self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_MOVED_AWAY', 'type': 'system', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id)
-                            else:
-                                self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
-                        elif tile_type_at_target == TILE_WATER:
-                            player.set_wet_status(True, self.socketio, reason="water_tile")
-                            
-                    if can_move_to_tile:
-                        if player.update_position(dx, dy, new_char_for_player, self, self.socketio):
-                            position_or_char_changed = True
-                    elif player.char != new_char_for_player :
+                        else: # Walkable, check for NPCs or special tiles
+                            npc_at_target = self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
+                            if npc_at_target and isinstance(npc_at_target, ManaPixie):
+                                if npc_at_target.attempt_evade(player.x, player.y, scene_of_player):
+                                    self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_MOVED_AWAY', 'type': 'system', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id)
+                                else:
+                                    self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
+                            elif scene_of_player.get_tile_type(target_x, target_y) == TILE_WATER:
+                                player.set_wet_status(True, self.socketio, reason="water_tile")
+                    # For moves that would go off-map (dx,dy lead outside 0..GRID_WIDTH-1), player.update_position handles scene transition
+                    # For moves within map bounds, can_move_to_tile determines if position updates.
+                    if can_move_to_tile: # This includes valid scene transitions or valid intra-scene moves
+                         if player.update_position(dx, dy, new_char_for_player, self, self.socketio): # update_position now updates FOV
+                             position_or_char_changed = True # FOV already updated by update_position
+                    elif player.char != new_char_for_player: # Allow turning even if move is blocked
+                        player.char = new_char_for_player
+                        player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE) # Recalculate FOV on turn
+                        position_or_char_changed = True
+
+                elif action_type == 'look':
+                    if player.char != new_char_for_player: # If 'look' involves a turn
                         player.char = new_char_for_player
                         position_or_char_changed = True
-                
-                elif action_type == 'look': # Or move with dx=0, dy=0 but char changes
-                    if player.char != new_char_for_player:
-                        player.char = new_char_for_player # Just update char, position update not needed for turn only
-                        position_or_char_changed = True
-                    # For 'look', explicitly recalculate FOV and process sensory perception
+                    # For 'look', always recalculate FOV and process sensory perception
                     player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
                     self.process_sensory_perception(player, scene_of_player)
-                
-                if position_or_char_changed and action_type != 'look': # FOV is updated in player.update_position for move
-                    # For 'look' with char change, FOV also needs update if not done by explicit look logic
-                    player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
 
 
             elif action_type == 'build_wall':
@@ -588,7 +548,6 @@ class GameManager:
                 else:
                     player.use_wall_item(); scene_of_player.set_tile_type(target_x, target_y, TILE_WALL)
                     self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good'}, room=player.id)
-                    # Re-calculate FOV for all players in scene after terrain change
                     for p_sid in scene_of_player.get_player_sids():
                         p = self.get_player(p_sid)
                         if p: p.visible_tiles_cache = self.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
@@ -601,19 +560,17 @@ class GameManager:
                 else:
                     player.spend_mana(DESTROY_WALL_MANA_COST); player.add_wall_item(); scene_of_player.set_tile_type(target_x, target_y, TILE_FLOOR)
                     self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good'}, room=player.id)
-                    for p_sid in scene_of_player.get_player_sids(): # Re-calculate FOV for all players in scene
+                    for p_sid in scene_of_player.get_player_sids():
                         p = self.get_player(p_sid)
                         if p: p.visible_tiles_cache = self.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
 
             elif action_type == 'drink_potion': player.drink_potion(self.socketio)
-
             elif action_type == 'say':
                 message_text = details.get('message', '');
                 if message_text:
                     chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'say', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
                     if (player.scene_x, player.scene_y) in self.scenes:
                         for target_sid in scene_of_player.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
-
             elif action_type == 'shout':
                 message_text = details.get('message', '')
                 if message_text:
@@ -626,7 +583,6 @@ class GameManager:
                         self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system'}, room=player.id)
                     else:
                         self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad'}, room=player.id)
-
             processed_sids.add(sid_action)
 
 
@@ -666,11 +622,10 @@ def _game_loop_iteration_content():
                  player_obj.set_wet_status(False, sio, reason="indoors_or_dry_weather")
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in rain/wetness: {e}", exc_info=True)
     try:
-        if loop_count % 5 == 0: # Less frequent sensory perception updates for non-look actions
+        if loop_count % 5 == 0:
             for player_obj in list(game_manager.players.values()):
                 scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                # Ensure FOV is current before general sensory perception if player hasn't moved/looked
-                if not player_obj.visible_tiles_cache: # Or if a timer indicates cache is stale
+                if not player_obj.visible_tiles_cache: # Ensure FOV cache is populated if somehow missed
                      player_obj.visible_tiles_cache = game_manager.calculate_fov(player_obj.x, player_obj.y, scene_of_player, SENSE_SIGHT_RANGE)
                 game_manager.process_sensory_perception(player_obj, scene_of_player)
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in sensory processing: {e}", exc_info=True)
@@ -687,18 +642,15 @@ def _game_loop_iteration_content():
             for recipient_player in current_players_snapshot:
                 if recipient_player.id not in game_manager.players: continue
                 
-                # Ensure player's FOV is up-to-date before sending data
-                # This is crucial if FOV isn't recalculated elsewhere every tick
-                # For now, assume it's updated on move/look/terrain change.
-                # If not, uncomment:
-                # current_player_scene = game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y)
-                # recipient_player.visible_tiles_cache = game_manager.calculate_fov(recipient_player.x, recipient_player.y, current_player_scene, SENSE_SIGHT_RANGE)
+                # Convert set of (x,y) tuples to list of dicts for JSON serialization
+                all_visible_tiles_list = [{'x': tile[0], 'y': tile[1]} for tile in recipient_player.visible_tiles_cache]
 
                 payload_for_client = {
                     'self_player_data': recipient_player.get_full_data(),
                     'visible_other_players': game_manager.get_visible_players_for_observer(recipient_player),
                     'visible_npcs': game_manager.get_visible_npcs_for_observer(recipient_player),
                     'visible_terrain': game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y).get_terrain_for_payload(recipient_player.visible_tiles_cache),
+                    'all_visible_tiles': all_visible_tiles_list, # Added for client-side fog of war
                 }
                 sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_this_heartbeat +=1
             if num_updates_sent_this_heartbeat > 0 and loop_count % 20 == 1:
@@ -775,15 +727,15 @@ def handle_connect_event(auth=None):
     with app.app_context():
         player = game_manager.add_player(request.sid)
         app.logger.info(f"Connect: {player.name} ({request.sid}). Total players: {len(game_manager.players)}")
-        
-        # Initial FOV calculation already done in add_player
         current_scene = game_manager.get_or_create_scene(player.scene_x, player.scene_y)
+        all_visible_tiles_list = [{'x': tile[0], 'y': tile[1]} for tile in player.visible_tiles_cache]
 
         emit_ctx('initial_game_data', {
             'player_data': player.get_full_data(),
-            'other_players_in_scene': game_manager.get_visible_players_for_observer(player), # Uses FOV
-            'visible_npcs': game_manager.get_visible_npcs_for_observer(player), # Uses FOV
-            'visible_terrain': current_scene.get_terrain_for_payload(player.visible_tiles_cache), # Send only visible terrain
+            'other_players_in_scene': game_manager.get_visible_players_for_observer(player),
+            'visible_npcs': game_manager.get_visible_npcs_for_observer(player),
+            'visible_terrain': current_scene.get_terrain_for_payload(player.visible_tiles_cache),
+            'all_visible_tiles': all_visible_tiles_list, # Send initial complete FOV
             'grid_width': GRID_WIDTH, 'grid_height': GRID_HEIGHT,
             'tick_rate': GAME_HEARTBEAT_RATE, 'default_rain_intensity': DEFAULT_RAIN_INTENSITY
         })

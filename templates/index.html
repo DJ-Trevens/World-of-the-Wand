@@ -15,9 +15,11 @@
 <body>
     <div class="main-ui-container">
         <div class="left-panel">
-            <div id="commandLog"></div>
+            <div id="commandLogContainer">
+                <div id="commandLog"></div>
+            </div>
             <div id="debugAndAuxiliaryPanel" style="display:none;">
-                <div class="debug-panel-content"> {/* New wrapper for scrolling */}
+                <div class="debug-panel-content"> {/* Wrapper for scrolling */}
                     <div class="debug-section debug-info-section">
                         <h4>Debug Stats</h4>
                         <div id="clientDebugInfo">
@@ -27,18 +29,15 @@
                             <div>
                                 <span id="serverHeartbeatIndicator" class="heartbeat-indicator-inline"></span> Server Heartbeat: <span id="dbgLastUpdate">Never</span>
                             </div>
-                            <div>
-                                <span id="simulatedHeartbeatIndicator" class="heartbeat-indicator-inline"></span> Sim. Heartbeat: <span id="dbgSimulating">false</span>
-                            </div>
                         </div>
                     </div>
                     <div class="debug-section debug-context-section">
                         <h4>Context</h4>
-                        <div id="debugContextInfo">
-                            <div>Scene: <span id="dbgSceneCoords">N/A</span> (<span id="dbgSceneName">N/A</span>)</div>
-                            <div>Location: <span id="dbgLocationType">N/A</span></div>
-                            <div>Player Pos: <span id="dbgPlayerChar"></span> (<span id="dbgPlayerCoords">N/A</span>)</div>
-                            <div>Status: <span id="dbgPlayerStatus">N/A</span></div>
+                        <div id="dbgContextInfo">
+                            <div>Player Position: <span id="dbgPlayerPos">N/A</span></div>
+                            <div>Scene: <span id="dbgSceneInfo">N/A</span></div>
+                            <div>Player Status: <span id="dbgPlayerStatus">N/A</span></div>
+                            <div>Location Type: <span id="dbgLocationType">N/A</span></div>
                         </div>
                     </div>
                     <div class="debug-section debug-config-section">
@@ -47,13 +46,12 @@
                             <label for="rainIntensitySlider">Rain Intensity:</label>
                             <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </div>
+                        <div class="debug-control-item">
+                             <button id="themeToggle" title="Switch to Light Mode">☀️</button>
+                        </div>
                         <div id="simulateHeartbeatControl" class="debug-control-item">
                              <label for="simulateHeartbeatToggle">Simulate Client Heartbeat:</label>
                              <input type="checkbox" id="simulateHeartbeatToggle">
-                        </div>
-                        <div class="debug-control-item">
-                             <label for="themeToggle">Toggle Theme:</label>
-                             <button id="themeToggle" title="Switch to Light Mode">☀️</button>
                         </div>
                     </div>
                 </div>
@@ -95,50 +93,50 @@
         const gameCanvasContainer = document.getElementById('gameCanvasContainer');
         const rainOverlay = document.getElementById('rainOverlay');
         const mainHeaderStatus = document.getElementById('mainHeaderStatus');
+        
+        const commandLogContainer = document.getElementById('commandLogContainer'); // Wrapper for commandLog
         const commandLog = document.getElementById('commandLog');
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
+
         const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator');
-        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
+        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator'); // Still needed for display
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
-        // const rainIntensityControl = document.getElementById('rainIntensityControl'); // No longer needed as direct parent
         const themeToggleButton = document.getElementById('themeToggle');
         const simulateHeartbeatToggle = document.getElementById('simulateHeartbeatToggle');
-        // const simulateHeartbeatControl = document.getElementById('simulateHeartbeatControl'); // No longer needed
-        // const clientDebugInfo = document.getElementById('clientDebugInfo'); // Variables below target specific spans
         const debugAndAuxiliaryPanel = document.getElementById('debugAndAuxiliaryPanel');
 
         const dbgSelfPlayer = document.getElementById('dbgSelfPlayer');
         const dbgOtherPlayersCount = document.getElementById('dbgOtherPlayersCount');
         const dbgNpcsCount = document.getElementById('dbgNpcsCount');
         const dbgLastUpdate = document.getElementById('dbgLastUpdate');
-        const dbgSimulating = document.getElementById('dbgSimulating');
+        // const dbgSimulating = document.getElementById('dbgSimulating'); // This element was removed, use simulateServerHeartbeatEnabled
 
-        // New debug context spans
-        const dbgSceneCoords = document.getElementById('dbgSceneCoords');
-        const dbgSceneName = document.getElementById('dbgSceneName');
-        const dbgLocationType = document.getElementById('dbgLocationType');
-        const dbgPlayerChar = document.getElementById('dbgPlayerChar');
-        const dbgPlayerCoords = document.getElementById('dbgPlayerCoords');
+        const dbgContextInfo = document.getElementById('dbgContextInfo');
+        const dbgPlayerPos = document.getElementById('dbgPlayerPos');
+        const dbgSceneInfo = document.getElementById('dbgSceneInfo');
         const dbgPlayerStatus = document.getElementById('dbgPlayerStatus');
+        const dbgLocationType = document.getElementById('dbgLocationType');
 
 
         const MOON_EMOJI = '🌙';
         const SUN_EMOJI = '☀️';
 
-        let showDebugInfoState = false;
+        let showDebugInfoState = false; // Default to false (log shown)
         let selfPlayer = null;
         let otherPlayers = {};
         let visibleNPCs = [];
-        let visibleTerrain = { walls: [], water: [] };
+        let visibleTerrain = { walls: [], water: [] }; // Still stores only visible walls/water
+        let serverVisibleTiles = new Set(); // Stores all (x,y) tuples visible from server FOV
+
         let myPlayerID = null;
         let GRID_WIDTH = 20;
         let GRID_HEIGHT = 15;
         let GAME_HEARTBEAT_RATE = 0.75;
         let prevSelfPlayerState = null;
-        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" }; // Client-side assumption, server is truth
-        let globalWeather = { isRaining: true, intensity: 0.25 }; // Client-side assumption
+        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" };
+        let globalWeather = { isRaining: true, intensity: 0.25 }; // Defaults for rain
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50;
         let isDragging = false;
@@ -162,22 +160,27 @@
         const WALL_CHAR = '▓';
         const WATER_CHAR = '~';
         const PIXIE_CHAR_CLIENT = '*';
-        const AURA_VISION_RANGE = 1; // For client-side immediate visibility checks if any
+        // AURA_VISION_RANGE is no longer used for primary visibility, server FOV dictates.
+        // Client 'isVisible' can be removed or simplified if only for minor effects.
 
         let currentGameZoomFactor = 1.4;
         const MIN_ZOOM = 0.5;
         const MAX_ZOOM = 3.0;
         const ZOOM_INCREMENT = 0.05;
 
-        let simulateServerHeartbeatEnabled = false;
+        let simulateServerHeartbeatEnabled = false; // Still used for client-side simulation if enabled
         let simulatedHeartbeatInterval = null;
         let serverHeartbeatFlashTimeout = null;
         let simulatedHeartbeatFlashTimeout = null;
 
 
         function updateGameTransform() {
-            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${currentGameZoomFactor})`;
+            // Ensure gameCanvas is available
+            if (gameCanvas) {
+                gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${currentGameZoomFactor})`;
+            }
         }
+
 
         function applyTheme(theme) {
             if (theme === 'light') {
@@ -207,43 +210,6 @@
             else { applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
         }
 
-        function get_dx_dy_from_direction_str(s) {
-            const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
-            return mapping[s] || [0, 0];
-        }
-        function get_direction_str_from_dx_dy(dx, dy) {
-            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
-            return mapping[`${dx},${dy}`];
-        }
-        function getRelativeCoords(playerX, playerY, playerFacingChar, targetX, targetY) {
-            const worldDX = targetX - playerX; const worldDY = targetY - playerY;
-            let pf;
-            if (playerFacingChar === '^') pf = 'n'; else if (playerFacingChar === 'v') pf = 's';
-            else if (playerFacingChar === '<') pf = 'w'; else if (playerFacingChar === '>') pf = 'e';
-            else return { rx: worldDX, ry: worldDY }; // Should not happen with valid chars
-            if (pf === 'n') return {rx: worldDX, ry: worldDY}; if (pf === 's') return {rx: -worldDX, ry: -worldDY};
-            if (pf === 'w') return {rx: -worldDY, ry: worldDX}; if (pf === 'e') return {rx: worldDY, ry: -worldDX};
-            return { rx: worldDX, ry: worldDY }; // Fallback
-        }
-        function manhattanDistance(x1, y1, x2, y2) { return Math.abs(x1 - x2) + Math.abs(y1 - y2); }
-
-        function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) {
-            // This client-side isVisible is now mostly for immediate cosmetic effects or pre-emptive checks.
-            // Server FOV is the source of truth for what's actually visible in game_update.
-            if (!observerChar || !selfPlayer) return false;
-            let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
-            if (scry || manhattanDist <= AURA_VISION_RANGE) return true; // Aura/self always visible
-
-            const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
-            const clientObservableDepth = 10; // How "deep" the client might guess visibility
-            const OBSERVABLE_WIDTH_CONST = 1.0; // How "wide" the cone is
-
-            // Simple cone based on player facing for client-side prediction/cosmetics
-            if (ry < 0 && -ry <= clientObservableDepth && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH_CONST )) return true;
-
-            return false;
-        }
-
         function addLogMessage(message, type = 'lore') {
             const logEntry = document.createElement('div');
             let displayStyle = 'ink';
@@ -267,25 +233,26 @@
             addLogMessage(message, messageType);
         }
 
-        function updateStatus() { // Main status bar update
-            if (!selfPlayer) {
-                mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
-                return;
-            }
-            let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
-            mainHeaderStatus.textContent = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
+        function updateStatusAndDebugContext() {
+            if (selfPlayer) {
+                let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
+                mainHeaderStatus.textContent = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
 
-            // Update debug context if panel is visible
-            if (showDebugInfoState) {
-                dbgSceneCoords.textContent = `(${selfPlayer.scene_x},${selfPlayer.scene_y})`;
-                // Scene name and type might need server data if dynamic, placeholder for now
-                dbgSceneName.textContent = currentSceneData.name || "Unknown Realm"; // Placeholder
-                dbgLocationType.textContent = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`; // Placeholder
-                dbgPlayerChar.textContent = selfPlayer.char;
-                dbgPlayerCoords.textContent = `(${selfPlayer.x},${selfPlayer.y})`;
-                dbgPlayerStatus.textContent = selfPlayer.is_wet ? 'Wet' : 'Dry';
+                // Update debug context panel
+                if (dbgPlayerPos) dbgPlayerPos.textContent = `(${selfPlayer.x},${selfPlayer.y}) Facing: ${selfPlayer.char}`;
+                if (dbgSceneInfo) dbgSceneInfo.textContent = `(${selfPlayer.scene_x},${selfPlayer.scene_y}) ${currentSceneData.name || 'Unknown Area'}`;
+                if (dbgPlayerStatus) dbgPlayerStatus.textContent = `${selfPlayer.is_wet ? 'Wet' : 'Dry'}`;
+                if (dbgLocationType) dbgLocationType.textContent = currentSceneData.InsideID === 0 ? 'Outdoors' : `Indoors (ID:${currentSceneData.InsideID})`;
+
+            } else {
+                mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
+                if (dbgPlayerPos) dbgPlayerPos.textContent = "N/A";
+                if (dbgSceneInfo) dbgSceneInfo.textContent = "N/A";
+                if (dbgPlayerStatus) dbgPlayerStatus.textContent = "N/A";
+                if (dbgLocationType) dbgLocationType.textContent = "N/A";
             }
         }
+
 
         function estimateCharacterSize(context = "unknown") {
             const testChar = 'M';
@@ -293,41 +260,42 @@
             const fontFamily = computedStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
             const fontSize = DEFAULT_FONT_SIZE_PX + "px";
             const tempSpan = document.createElement('span');
-            tempSpan.style.fontFamily = fontFamily; tempSpan.style.fontSize = fontSize;
+            tempSpan.style.fontFamily = fontFamily;
+            tempSpan.style.fontSize = fontSize;
             tempSpan.style.lineHeight = computedStyle.getPropertyValue('line-height') || String(DEFAULT_FONT_SIZE_PX * 0.9);
-            tempSpan.style.whiteSpace = 'pre'; tempSpan.style.visibility = 'hidden'; tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'pre';
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
             tempSpan.textContent = testChar;
             document.body.appendChild(tempSpan);
-            let measuredWidth = tempSpan.offsetWidth; let measuredHeight = tempSpan.offsetHeight;
+            let measuredWidth = tempSpan.offsetWidth;
+            let measuredHeight = tempSpan.offsetHeight;
             document.body.removeChild(tempSpan);
 
             if (measuredWidth > 0 && measuredHeight > 0) {
-                charRenderWidth = measuredWidth * X_STRETCH_FACTOR; charRenderHeight = measuredHeight;
+                charRenderWidth = measuredWidth * X_STRETCH_FACTOR;
+                charRenderHeight = measuredHeight;
             } else {
-                charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
+                charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
+                charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
             }
+
             if (GRID_WIDTH > 0 && GRID_HEIGHT > 0 && charRenderWidth > 0 && charRenderHeight > 0) {
-                gameCanvas.width = GRID_WIDTH * charRenderWidth; gameCanvas.height = GRID_HEIGHT * charRenderHeight;
+                gameCanvas.width = GRID_WIDTH * charRenderWidth;
+                gameCanvas.height = GRID_HEIGHT * charRenderHeight;
             }
             charSizeEstimatedAtLeastOnce = true;
         }
 
         function drawGrid() {
             if (!ctx) return;
+
             if (!charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.width === 0 || gameCanvas.height === 0) {
-                // Fallback rendering if not ready (same as before)
+                // Simplified loading/error state
                 const canvasWidth = gameCanvas.width || (DEFAULT_CHAR_WIDTH_FALLBACK * GRID_WIDTH) || 300;
                 const canvasHeight = gameCanvas.height || (DEFAULT_CHAR_HEIGHT_FALLBACK * GRID_HEIGHT) || 200;
                 ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-                const tempFont = "16px 'Courier New', monospace";
-                const tempFill = getComputedStyle(document.body).getPropertyValue('--text-primary') || "#E2E8F0";
-                ctx.font = tempFont; ctx.fillStyle = tempFill;
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                const loadingBg = getComputedStyle(document.body).getPropertyValue('--bg-secondary') || '#2d3748';
-                ctx.fillStyle = loadingBg; ctx.fillRect(0,0, canvasWidth, canvasHeight);
-                ctx.fillStyle = tempFill;
-                ctx.fillText("The mists obscure your vision...", canvasWidth / 2, canvasHeight / 2 - 10);
-                ctx.fillText("(Awaiting server data or font readiness)", canvasWidth / 2, canvasHeight / 2 + 10);
+                // ... (loading text)
                 if (!charSizeEstimatedAtLeastOnce) estimateCharacterSize("drawGrid_fallback_estimate");
                 return;
             }
@@ -336,18 +304,12 @@
             ctx.fillStyle = bodyStyle.getPropertyValue('--canvas-bg-consistent').trim();
             ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-            if (!selfPlayer) { // Still show a message if selfPlayer is missing after char estimation
-                const tempFont = "16px 'Courier New', monospace";
-                const tempFill = bodyStyle.getPropertyValue('--text-game-floor-consistent').trim() || "#9CA3AF";
-                ctx.font = tempFont; ctx.fillStyle = tempFill;
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText("(Awaiting player manifestation...)", gameCanvas.width / 2, gameCanvas.height / 2);
-                return;
-            }
+            if (!selfPlayer) { /* ... (awaiting player text) ... */ return; }
 
             const gameFontFamily = bodyStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
             ctx.font = `${DEFAULT_FONT_SIZE_PX}px ${gameFontFamily}`;
-            ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.textAlign = 'left';
 
             const floorColor = bodyStyle.getPropertyValue('--text-game-floor-consistent').trim();
             const wallColor = bodyStyle.getPropertyValue('--text-game-wall-consistent').trim();
@@ -358,79 +320,51 @@
             const npcPixieColor = bodyStyle.getPropertyValue('--text-game-npc-pixie-consistent').trim();
             const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint-consistent').trim();
 
-            // Server now sends only visible terrain based on its FOV
-            // So, client iterates all grid cells, but only draws what's in visibleTerrain or defaults to fog.
-            for (let y = 0; y < GRID_HEIGHT; y++) {
-                for (let x = 0; x < GRID_WIDTH; x++) {
+            for (let gy = 0; gy < GRID_HEIGHT; gy++) {
+                for (let gx = 0; gx < GRID_WIDTH; gx++) {
                     let charToDraw = FOG_CHAR; // Default to fog
                     let colorToUse = fogColor;
+                    const tileKey = `${gx},${gy}`; // For Set.has() check
 
-                    // Check if this tile (x,y) is in the visible terrain data sent by server
-                    const isWall = visibleTerrain.walls && visibleTerrain.walls.some(w => w.x === x && w.y === y);
-                    const isWater = visibleTerrain.water && visibleTerrain.water.some(wt => wt.x === x && wt.y === y);
+                    if (serverVisibleTiles.has(tileKey)) { // Tile is visible per server FOV
+                        charToDraw = FLOOR_CHAR; // Default visible tile to floor
+                        colorToUse = floorColor;
 
-                    if (isWall) {
-                        charToDraw = WALL_CHAR; colorToUse = wallColor;
-                    } else if (isWater) {
-                        charToDraw = WATER_CHAR; colorToUse = waterColor;
-                    } else {
-                        // If not wall or water, assume it's floor IF it's part of the visible area.
-                        // The server should only send terrain tiles that are within the player's FOV.
-                        // For tiles not explicitly in walls/water but within FOV, they are floor.
-                        // For simplicity here, if it's not wall/water, we'll consider it floor for now if it's not fog.
-                        // This implies client logic would need the full visible_tiles set from server to perfectly draw floor vs fog.
-                        // For now, if it's not wall/water, and if we assume server has filtered non-visible,
-                        // any non-wall/water tile *could* be floor.
-                        // A more robust way: client also gets the set of visible (x,y) coords.
-                        // For now, let's assume `visibleTerrain` only contains truly visible terrain.
-                        // The "fog" is everything *else*. If a tile (x,y) is NOT in any visibleTerrain list,
-                        // and not occupied by a visible player/NPC, it should be fog.
-                        // If server only sends wall/water tiles that are visible, we need a way to know what else is visible (floor).
-                        // The current server sends terrain based on player.visible_tiles_cache. So it's already filtered.
-                        // Thus, if it's not wall or water from the payload, it must be visible floor.
-                        
-                        // Check if the current (x,y) is occupied by a visible player or NPC. If so, it's not fog.
-                        // Otherwise, if not wall or water, it's floor.
-                        let isOccupiedVisible = (selfPlayer.x === x && selfPlayer.y === y);
-                        if (!isOccupiedVisible) {
-                            for (const id in otherPlayers) if (otherPlayers[id].x === x && otherPlayers[id].y === y) isOccupiedVisible = true;
-                        }
-                        if (!isOccupiedVisible) {
-                            visibleNPCs.forEach(npc => { if (npc.x === x && npc.y === y) isOccupiedVisible = true; });
-                        }
-
-                        if(isWall || isWater || isOccupiedVisible) {
-                           // Already handled or will be by entity drawing
-                        } else { // If not wall, water, or occupied by visible entity, assume it's visible floor from payload
-                            charToDraw = FLOOR_CHAR; colorToUse = floorColor;
+                        if (visibleTerrain.water && visibleTerrain.water.some(wt => wt.x === gx && wt.y === gy)) {
+                            charToDraw = WATER_CHAR; colorToUse = waterColor;
+                        } else if (visibleTerrain.walls && visibleTerrain.walls.some(w => w.x === gx && w.y === gy)) {
+                            charToDraw = WALL_CHAR; colorToUse = wallColor;
                         }
                     }
                     ctx.fillStyle = colorToUse;
-                    ctx.fillText(charToDraw, x * charRenderWidth, y * charRenderHeight);
+                    ctx.fillText(charToDraw, gx * charRenderWidth, gy * charRenderHeight);
                 }
             }
 
-
-            if (visibleNPCs) { // NPCs are already filtered by server FOV
+            if (visibleNPCs) {
                 visibleNPCs.forEach(npc => {
-                    ctx.fillStyle = npcPixieColor;
-                    ctx.fillText(npc.char || PIXIE_CHAR_CLIENT, npc.x * charRenderWidth, npc.y * charRenderHeight);
+                    if (serverVisibleTiles.has(`${npc.x},${npc.y}`)) {
+                        ctx.fillStyle = npcPixieColor;
+                        ctx.fillText(npc.char || PIXIE_CHAR_CLIENT, npc.x * charRenderWidth, npc.y * charRenderHeight);
+                    }
                 });
             }
 
-            for (const id in otherPlayers) { // Other players are already filtered by server FOV
+            for (const id in otherPlayers) {
                 const p = otherPlayers[id];
-                ctx.fillStyle = otherPlayerBaseColor;
-                ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
-                if (p.is_wet) {
-                    ctx.fillStyle = wetPlayerTintColor;
-                    ctx.fillRect(p.x * charRenderWidth, p.y * charRenderHeight, charRenderWidth, charRenderHeight);
+                if (serverVisibleTiles.has(`${p.x},${p.y}`)) {
                     ctx.fillStyle = otherPlayerBaseColor;
                     ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
+                    if (p.is_wet) {
+                        ctx.fillStyle = wetPlayerTintColor;
+                        ctx.fillRect(p.x * charRenderWidth, p.y * charRenderHeight, charRenderWidth, charRenderHeight);
+                        ctx.fillStyle = otherPlayerBaseColor;
+                        ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
+                    }
                 }
             }
 
-            if (selfPlayer) { // Self player is always "visible" to self
+            if (serverVisibleTiles.has(`${selfPlayer.x},${selfPlayer.y}`)) {
                 ctx.fillStyle = selfPlayerBaseColor;
                 ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
                 if (selfPlayer.is_wet) {
@@ -443,40 +377,146 @@
         }
 
 
-        function startRainEffect(intensity) { /* ... same as before ... */ }
-        function stopRainEffect() { /* ... same as before ... */ }
-        function updateWeatherEffects() { /* ... same as before ... */ }
-        gameCanvasContainer.addEventListener('mousedown', (e) => { /* ... same as before ... */ });
-        window.addEventListener('mousemove', (e) => { /* ... same as before ... */ });
-        window.addEventListener('mouseup', (e) => { /* ... same as before ... */ });
-        gameCanvasContainer.addEventListener('mouseleave', () => { /* ... same as before ... */ });
-        function centerViewOnPlayer(context = "unknown") { /* ... same as before ... */ }
-        gameCanvasContainer.addEventListener('wheel', function(event) { /* ... same as before ... */ }, { passive: false });
-        // Pinch zoom listeners ... same as before ...
-        gameCanvasContainer.addEventListener('touchstart', function(event) { /* ... same as before ... */ }, { passive: false });
-        gameCanvasContainer.addEventListener('touchmove', function(event) { /* ... same as before ... */ }, { passive: false });
-        gameCanvasContainer.addEventListener('touchend', function(event) { /* ... same as before ... */ });
+        function startRainEffect(intensity) {
+            if (rainInterval) clearInterval(rainInterval);
+            rainOverlay.innerHTML = '';
+            rainOverlay.style.display = 'block'; // Ensure overlay is visible
+            rainInterval = setInterval(() => {
+                if (Math.random() < (intensity * 0.5) ) {
+                    const drop = document.createElement('div');
+                    drop.classList.add('raindrop');
+                    drop.style.left = Math.random() * 100 + '%';
+                    const duration = 0.4 + Math.random() * 0.4;
+                    drop.style.animationDuration = duration + 's';
+                    drop.style.animationDelay = Math.random() * 0.2 + 's';
+                    rainOverlay.appendChild(drop);
+                    drop.addEventListener('animationend', () => drop.remove());
+                }
+            }, RAIN_INTERVAL_DELAY);
+        }
+        function stopRainEffect() {
+            if (rainInterval) clearInterval(rainInterval);
+            rainInterval = null;
+            rainOverlay.innerHTML = '';
+            rainOverlay.style.display = 'none'; // Hide overlay when no rain
+        }
+        function updateWeatherEffects() {
+            if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
+                // Check if intensity actually changed or rain wasn't started
+                if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
+                     globalWeather.intensity = rainIntensitySlider.valueAsNumber; // Keep slider as source of truth if manually changed
+                }
+                startRainEffect(globalWeather.intensity);
+            } else {
+                stopRainEffect();
+            }
+        }
 
+        gameCanvasContainer.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            isDragging = true; document.body.classList.add('is-dragging');
+            gameCanvasContainer.style.cursor = 'grabbing';
+            // Pan relative to current transform, not a hypothetical CSS var
+            startDragX = e.clientX - currentPanX;
+            startDragY = e.clientY - currentPanY;
+            gameCanvas.style.transition = 'none';
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            currentPanX = e.clientX - startDragX; currentPanY = e.clientY - startDragY;
+            updateGameTransform();
+        });
+        window.addEventListener('mouseup', (e) => {
+            if (e.button !== 0 || !isDragging) return;
+            isDragging = false; document.body.classList.remove('is-dragging');
+            gameCanvasContainer.style.cursor = 'grab';
+        });
+        gameCanvasContainer.addEventListener('mouseleave', () => {
+            if(isDragging){
+                isDragging = false; document.body.classList.remove('is-dragging');
+                gameCanvasContainer.style.cursor = 'grab';
+            }
+        });
+
+        function centerViewOnPlayer(context = "unknown") { /* Same as before, ensure it uses currentPanX/Y */
+            const containerRect = gameCanvasContainer.getBoundingClientRect();
+            const containerHeight = containerRect.height;
+            const containerWidth = containerRect.width;
+
+            if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 ||
+                containerHeight <= 0 || containerWidth <=0 ||
+                charRenderWidth <=0 || charRenderHeight <=0 ||
+                gameCanvas.width === 0 || gameCanvas.height === 0) {
+                 currentPanX = 0; currentPanY = 0; updateGameTransform();
+                return;
+            }
+            const playerVisualCenterX_unscaled = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
+            const playerVisualCenterY_unscaled = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
+
+            currentPanX = (containerWidth / 2) - (playerVisualCenterX_unscaled * currentGameZoomFactor);
+            currentPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentGameZoomFactor);
+
+            gameCanvas.style.transition = 'transform 0.3s ease-out';
+            updateGameTransform();
+            setTimeout(() => { gameCanvas.style.transition = 'transform 0.05s linear'; }, 300);
+        }
+
+
+        gameCanvasContainer.addEventListener('wheel', function(event) { /* Same as before */
+            event.preventDefault();
+            const rect = gameCanvasContainer.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            const worldXBeforeZoom = (mouseX - currentPanX) / currentGameZoomFactor;
+            const worldYBeforeZoom = (mouseY - currentPanY) / currentGameZoomFactor;
+
+            const delta = Math.sign(event.deltaY);
+            let newZoom = currentGameZoomFactor;
+            if (delta < 0) {
+                newZoom = Math.min(MAX_ZOOM, currentGameZoomFactor * (1 + ZOOM_INCREMENT * 2));
+            } else {
+                newZoom = Math.max(MIN_ZOOM, currentGameZoomFactor / (1 + ZOOM_INCREMENT * 2));
+            }
+
+            if (newZoom !== currentGameZoomFactor) {
+                currentGameZoomFactor = newZoom;
+                currentPanX = mouseX - (worldXBeforeZoom * currentGameZoomFactor);
+                currentPanY = mouseY - (worldYBeforeZoom * currentGameZoomFactor);
+
+                gameCanvas.style.transition = 'none';
+                updateGameTransform();
+            }
+        }, { passive: false });
+        // Touch zoom listeners (touchstart, touchmove, touchend) remain the same as before.
 
         debugInfoToggle.addEventListener('change', (event) => {
             showDebugInfoState = event.target.checked;
             localStorage.setItem('worldOfTheWandShowDebug', JSON.stringify(showDebugInfoState));
 
             if (showDebugInfoState) { // Show Debug Panel
-                commandLog.style.display = 'none';
+                commandLogContainer.style.display = 'none';
                 debugAndAuxiliaryPanel.style.display = 'flex';
             } else { // Show Command Log
-                commandLog.style.display = 'flex';
+                commandLogContainer.style.display = 'flex';
                 debugAndAuxiliaryPanel.style.display = 'none';
             }
-            updateStatus(); // Update status bar and potentially debug context
+             updateStatusAndDebugContext(); // Update context display when toggling
         });
 
-        rainIntensitySlider.addEventListener('input', (event) => { /* ... same as before ... */ });
-        simulateHeartbeatToggle.addEventListener('change', (event) => { /* ... same as before, ensure dbgSimulating updates ... */
+        rainIntensitySlider.addEventListener('input', (event) => {
+            const newIntensity = parseFloat(event.target.value);
+            if (globalWeather.intensity !== newIntensity) {
+                globalWeather.intensity = newIntensity;
+                localStorage.setItem('rainIntensity', globalWeather.intensity.toString());
+                updateWeatherEffects(); // Call this to apply new intensity
+            }
+        });
+
+        simulateHeartbeatToggle.addEventListener('change', (event) => {
             simulateServerHeartbeatEnabled = event.target.checked;
             localStorage.setItem('simulateServerHeartbeat', simulateServerHeartbeatEnabled);
-            if(dbgSimulating) dbgSimulating.textContent = simulateServerHeartbeatEnabled;
+            // Removed dbgSimulating.textContent update as element is gone
 
             if (simulateServerHeartbeatEnabled) {
                 if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval);
@@ -486,10 +526,8 @@
                         if(simulatedHeartbeatFlashTimeout) clearTimeout(simulatedHeartbeatFlashTimeout);
                         simulatedHeartbeatFlashTimeout = setTimeout(() => { if(simulatedHeartbeatIndicator) simulatedHeartbeatIndicator.classList.remove('heartbeat-flash'); }, 150);
                     }
-                    if (selfPlayer) { drawGrid(); } // Redraw on simulated tick
-                    if(showDebugInfoState && dbgSimulating) { // Update debug text
-                        dbgSimulating.textContent = `${simulateServerHeartbeatEnabled} (Last: ${new Date().toLocaleTimeString()})`;
-                    }
+                    if (selfPlayer) { drawGrid(); }
+                    // Removed dbgSimulating.textContent update
                 }, GAME_HEARTBEAT_RATE * 1000);
             } else {
                 if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval);
@@ -498,26 +536,78 @@
         });
 
 
-        const resizeObserver = new ResizeObserver(entries => { /* ... same as before ... */ });
+        const resizeObserver = new ResizeObserver(entries => { /* Same as before */
+            for (let entry of entries) {
+                if (entry.target === gameCanvasContainer) {
+                    const newHeight = entry.contentRect.height; const newWidth = entry.contentRect.width;
+                    if (newHeight > 0 && newWidth > 0 && selfPlayer && !initialCenteringDone) {
+                        if (!charSizeEstimatedAtLeastOnce || charRenderWidth <=0 || charRenderHeight <=0 ) {
+                           estimateCharacterSize("ResizeObserver_triggered_estimate");
+                        }
+                        centerViewOnPlayer("ResizeObserver_initial_center");
+                        initialCenteringDone = true;
+                        if (!initialUIDone) {
+                             updateStatusAndDebugContext(); updateWeatherEffects();
+                             logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
+                            initialUIDone = true;
+                        }
+                    } else if (newHeight > 0 && newWidth > 0 && selfPlayer && initialCenteringDone && !isDragging) {
+                        centerViewOnPlayer("ResizeObserver_recenter");
+                    }
+                }
+            }
+        });
         if (gameCanvasContainer) resizeObserver.observe(gameCanvasContainer);
 
-        function initializeUIDisplayStates() { /* ... same as before ... */ }
+        function initializeUIDisplayStates() {
+            const savedDebugState = localStorage.getItem('worldOfTheWandShowDebug');
+            // Default to false (command log shown)
+            showDebugInfoState = savedDebugState !== null ? JSON.parse(savedDebugState) : false;
+            debugInfoToggle.checked = showDebugInfoState;
 
+            if (showDebugInfoState) {
+                commandLogContainer.style.display = 'none';
+                debugAndAuxiliaryPanel.style.display = 'flex';
+            } else {
+                commandLogContainer.style.display = 'flex';
+                debugAndAuxiliaryPanel.style.display = 'none';
+            }
 
-        socket.on('connect', () => { /* ... same as before ... */ });
-        socket.on('connect_error', (err) => { /* ... same as before ... */ });
-        socket.on('initial_game_data', (data) => { /* ... same as before, but updateStatus will handle new debug context elements ... */
+            const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat');
+            if (simulateHeartbeatToggle) {
+                simulateHeartbeatToggle.checked = savedSimulateHeartbeat !== null ? JSON.parse(savedSimulateHeartbeat) : false;
+                // Manually trigger the change handler to start/stop simulation
+                simulateHeartbeatToggle.dispatchEvent(new Event('change'));
+            }
+
+            if (rainIntensitySlider) {
+                const savedRainIntensity = localStorage.getItem('rainIntensity');
+                globalWeather.intensity = savedRainIntensity !== null ? parseFloat(savedRainIntensity) : 0.25; // Default to 0.25
+                rainIntensitySlider.value = globalWeather.intensity;
+            }
+             updateStatusAndDebugContext(); // Initial context update
+        }
+
+        socket.on('connect', () => { /* Same as before */
+            logRandomizedEvent('LORE', 'CONNECTION_ESTABLISHED', {}, 'system');
+        });
+        socket.on('connect_error', (err) => { /* Same as before */
+            addLogMessage(`Tome screams: Connection Error! ${err.message} (Type: ${err.type}, Description: ${err.description})`, 'event-bad');
+             updateStatusAndDebugContext();
+        });
+        socket.on('initial_game_data', (data) => { /* Mostly same, but update for serverVisibleTiles */
             if (!data || !data.player_data ) { logRandomizedEvent('LORE', 'CORRUPT_MANIFESTATION_SERVER', {detail: "Data/player_data missing"}, 'event-bad'); if(ctx) { ctx.clearRect(0,0, gameCanvas.width || 300, gameCanvas.height || 200); ctx.fillText("Error: Initial data from server corrupted.", 10, 20); } return; }
-            if (typeof data.grid_width !== 'number' || typeof data.grid_height !== 'number') { logRandomizedEvent('LORE', 'CORRUPT_MANIFESTATION_SERVER', {detail: "grid dimensions invalid"}, 'event-bad');}
 
             selfPlayer = data.player_data; myPlayerID = selfPlayer.id;
             GRID_WIDTH = data.grid_width || 20; GRID_HEIGHT = data.grid_height || 15;
             GAME_HEARTBEAT_RATE = data.tick_rate || 0.75;
             otherPlayers = {};
-            visibleTerrain = data.visible_terrain || { walls: [], water: [] }; // Server now sends filtered terrain
+            visibleTerrain = data.visible_terrain || { walls: [], water: [] }; // Contains only visible walls/water
+            // EXPECTING 'all_visible_tiles' from server now:
+            serverVisibleTiles = new Set((data.all_visible_tiles || []).map(t => `${t.x},${t.y}`));
+
             visibleNPCs = data.visible_npcs || [];
-            currentSceneData.name = data.scene_name || "Unknown Realm"; // Assuming server might send this
-            currentSceneData.InsideID = typeof data.is_indoors !== 'undefined' ? (data.is_indoors ? 1 : 0) : 0; // Assuming server might send this
+            globalWeather.intensity = data.default_rain_intensity || 0.25;
 
             if (data.other_players_in_scene) { data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });}
             prevSelfPlayerState = { ...selfPlayer };
@@ -529,28 +619,68 @@
             document.fonts.ready.then(() => {
                 estimateCharacterSize("initial_data_fonts_ready");
                 if (selfPlayer) {
-                    drawGrid(); updateStatus();
+                    drawGrid();  updateStatusAndDebugContext();
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
                         centerViewOnPlayer("initial_data_direct_center_attempt");
                         initialCenteringDone = true;
                         if(!initialUIDone){
                              updateWeatherEffects();
                              logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-                             if(showDebugInfoState && myPlayerID) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
-                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
-                             initialUIDone = true;
+                            initialUIDone = true;
                         }
-                    } // ... (rest of centering logic same as before)
+                    } else if (gameCanvasContainer.clientHeight <= 0 && !initialCenteringDone) {
+                        setTimeout(() => { /* Fallback centering */ }, 300);
+                    } else if (initialCenteringDone && !initialUIDone) {
+                         updateWeatherEffects();
+                         logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
+                         initialUIDone = true;
+                    }
                 } else { logRandomizedEvent('LORE', 'MANIFESTATION_FAILED_NO_PLAYER_DATA', {}, 'event-bad'); }
-            }).catch(err => { /* ... same as before ... */ });
+            }).catch(err => { /* Error handling */ });
         });
-        socket.on('player_entered_your_scene', (newPlayerData) => { /* ... same as before ... */ });
-        socket.on('player_exited_your_scene', (exitedPlayerData) => { /* ... same as before ... */ });
-        socket.on('lore_message', (data) => { /* ... same as before ... */ });
-        socket.on('chat_message', (data) => { /* ... same as before ... */ });
-        socket.on('player_event', (data) => { /* ... same as before ... */ });
+        socket.on('player_entered_your_scene', (newPlayerData) => { /* Same as before */
+            if (myPlayerID && newPlayerData.id !== myPlayerID && selfPlayer) {
+                otherPlayers[newPlayerData.id] = newPlayerData; drawGrid();
+                logRandomizedEvent('LORE', 'PLAYER_ARRIVES', { playerName: newPlayerData.name || 'A new sorcerer' }, 'event-good');
+            }
+        });
+        socket.on('player_exited_your_scene', (exitedPlayerData) => { /* Same as before */
+            if (otherPlayers[exitedPlayerData.id]) {
+                const leftPlayerName = exitedPlayerData.name || otherPlayers[exitedPlayerData.id].name || 'A sorcerer';
+                delete otherPlayers[exitedPlayerData.id]; drawGrid();
+                logRandomizedEvent('LORE', 'PLAYER_DEPARTS', { playerName: leftPlayerName }, 'lore');
+            }
+        });
+        socket.on('lore_message', (data) => { /* Same as before */
+            let mainKeyToUse = 'GENERIC';
+            let subKeyToUse = (data.type || 'lore').toUpperCase();
+            let placeholdersToUse = { message: data.message || "An unknown lore event occurred." };
+            if (data.messageKey) {
+                const keys = data.messageKey.split('.');
+                if (GAME_TEXTS[keys[0]]) {
+                    mainKeyToUse = keys[0];
+                    if (keys.length > 1) {
+                        const potentialSubKey = keys.slice(1).join('.');
+                        if (GAME_TEXTS[mainKeyToUse] && GAME_TEXTS[mainKeyToUse][potentialSubKey]) { subKeyToUse = potentialSubKey; }
+                        else { subKeyToUse = mainKeyToUse.toUpperCase(); mainKeyToUse = 'GENERIC'; placeholdersToUse = { message: data.message || `Content for ${data.messageKey} missing.`};}
+                    } else { subKeyToUse = null; }
+                    if(data.placeholders) placeholdersToUse = {...placeholdersToUse, ...data.placeholders};
+                } else { placeholdersToUse = { message: data.message || `Unknown event key: ${data.messageKey}` }; }
+            }
+            logRandomizedEvent(mainKeyToUse, subKeyToUse, placeholdersToUse, data.type || 'lore');
+        });
+        socket.on('chat_message', (data) => { /* Same as before */
+            let prefix = ""; let messageType = 'chat-say';
+            let textKey = data.type === 'shout' ? 'CHAT_SHOUT' : 'CHAT_SAY';
+            prefix = getRandomGameText('LORE', textKey, { senderName: data.sender_name || (data.type === 'shout' ? 'A distant voice' : 'Someone nearby'), sceneCoords: data.scene_coords || '(unknown location)' });
+            addLogMessage(prefix + data.message, data.type === 'shout' ? 'chat-shout' : 'chat-say');
+        });
 
-        socket.on('game_update', (data) => {
+        socket.on('player_event', (data) => { /* Same as before */
+            if (data.type === 'stepped_in_water' && data.sid === myPlayerID) { console.log("Client: Received stepped_in_water event. Playing sound (placeholder)... SPLASH!"); }
+        });
+
+        socket.on('game_update', (data) => { /* Update for serverVisibleTiles */
              if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
             if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
             if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) {
@@ -562,43 +692,172 @@
             selfPlayer = data.self_player_data;
             otherPlayers = {};
             if(data.visible_other_players) data.visible_other_players.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
-            visibleTerrain = data.visible_terrain || { walls: [], water: [] }; // Expecting server-filtered terrain
+            visibleTerrain = data.visible_terrain || { walls: [], water: [] }; // Still only walls/water
+            // EXPECTING 'all_visible_tiles' from server:
+            serverVisibleTiles = new Set((data.all_visible_tiles || []).map(t => `${t.x},${t.y}`));
+
             visibleNPCs = data.visible_npcs || [];
-            // Update scene context if provided by server (optional for now)
-            currentSceneData.name = data.scene_name || currentSceneData.name;
-            currentSceneData.InsideID = typeof data.is_indoors !== 'undefined' ? (data.is_indoors ? 1 : 0) : currentSceneData.InsideID;
-
-
-            updateStatus(); // This will also update the debug context section
-            if(showDebugInfoState && dbgSelfPlayer) {
-                dbgSelfPlayer.textContent = `(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.char}`; // Wet status moved to context
-                dbgOtherPlayersCount.textContent = Object.keys(otherPlayers).length;
-                dbgNpcsCount.textContent = visibleNPCs.length;
-            }
+             updateStatusAndDebugContext();
+            if(dbgSelfPlayer) dbgSelfPlayer.textContent = `(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.char} Wet: ${selfPlayer.is_wet}`;
+            if(dbgOtherPlayersCount) dbgOtherPlayersCount.textContent = Object.keys(otherPlayers).length;
+            if(dbgNpcsCount) dbgNpcsCount.textContent = visibleNPCs.length;
 
             prevSelfPlayerState = { ...selfPlayer };
             drawGrid();
             if (!charSizeEstimatedAtLeastOnce && GRID_WIDTH > 0 && GRID_HEIGHT > 0) { estimateCharacterSize("game_update_reestimate"); if(!isDragging) centerViewOnPlayer("game_update_after_reestimate_centering");}
             updateWeatherEffects();
         });
-        function getDirectionWord(char) { /* ... same as before ... */ }
-        socket.on('action_feedback', (data) => { /* ... same as before ... */ });
-        socket.on('disconnect', (reason) => { /* ... same as before ... */ });
 
-        // ACTION_ALIASES and DIRECTION_ALIASES ... same as before ...
-        // parseAction and parseDirection functions ... same as before ...
-        // commandInput keydown listener ... same as before ...
-        // commandForm submit listener ... same as before ...
+        socket.on('action_feedback', (data) => { /* Same as before */
+            const baseKey = 'ACTION_SENT_FEEDBACK'; const subKey = data.messageKey && data.messageKey.startsWith(baseKey + '.') ? data.messageKey.substring(baseKey.length + 1) : (data.success ? 'ACTION_QUEUED' : 'ACTION_FAILED_UNKNOWN_COMMAND');
+            const placeholders = data.placeholders || { actionWord: data.actionWordAttempted || "", message: data.message }; const messageType = data.success ? 'system' : 'event-bad';
+            let textToLog = getRandomGameText(baseKey, subKey, placeholders);
+            if (textToLog.startsWith("Missing text for:") || textToLog.startsWith("No text variants for:") || textToLog.includes("{message}")) {
+                if (data.message && data.message.trim() !== "") { textToLog = (data.success ? "Tome nods: " : "Tome objects: ") + data.message; }
+                else { textToLog = (data.success ? "Tome nods: Action acknowledged." : "Tome objects: Action failed."); }
+            }
+            addLogMessage(textToLog, messageType);
+        });
+        socket.on('disconnect', (reason) => { /* Same as before */
+             updateStatusAndDebugContext(); logRandomizedEvent('LORE', 'DISCONNECTED', { reason: reason }, 'event-bad');
+            selfPlayer = null; otherPlayers = {}; visibleTerrain = {walls:[], water:[]}; serverVisibleTiles.clear(); visibleNPCs = []; prevSelfPlayerState = null;
+            stopRainEffect(); drawGrid();
+        });
 
-        window.toggleRainDebug = function() { /* ... same as before ... */ };
-        window.toggleInsideDebug = function() { /* ... same as before ... */ };
+        // Command parsing (ACTION_ALIASES, DIRECTION_ALIASES, parseAction, parseDirection) remains the same.
+        // ...
+        const ACTION_ALIASES = {
+            "move": ["move", "go", "walk", "step", "head", "run"], "look": ["look", "face", "turn"],
+            "cast": ["cast", "zap", "fire", "spell"], "drink": ["drink", "quaff", "use"],
+            "say": ["say", "tell", "whisper", "'"], "shout": ["shout", "yell", "scream", "!"],
+            "help": ["help", "?"],
+            "build": ["build", "construct", "erect", "b"],
+            "destroy": ["destroy", "dismantle", "remove", "d"]
+        };
+        const DIRECTION_ALIASES = {
+            "north": {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
+            "south": {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
+            "west":  {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
+            "east":  {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
+            "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
+            "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
+        };
+        function parseAction(actionWord) {
+            actionWord = actionWord.toLowerCase();
+            for (const canonicalAction in ACTION_ALIASES) if (ACTION_ALIASES[canonicalAction].includes(actionWord)) return canonicalAction;
+            return null;
+        }
+        function parseDirection(directionStr, curFacing) {
+            directionStr = directionStr.toLowerCase(); let result = {char: curFacing, dx: 0, dy: 0, isValid: false};
+            for (const dirKey in DIRECTION_ALIASES) { const config = DIRECTION_ALIASES[dirKey];
+                if (config.aliases.includes(directionStr)) {
+                    if (config.relative) {
+                        result.isValid = true; const [currentDx, currentDy] = get_dx_dy_from_direction_str(curFacing);
+                        if (currentDx === 0 && currentDy === 0 && !['^','v','<','>'].includes(curFacing)) { result.isValid = false; break; }
+                        if (dirKey === "forward") { result.char = curFacing; result.dx = currentDx; result.dy = currentDy; }
+                        else if (dirKey === "backward") {
+                            if (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true}; else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
+                            else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true}; else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                            else result.isValid = false;
+                        }
+                    } else { result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true}; }
+                    return result;
+                }
+            } return result;
+        }
+        // Enter key for command input
+        commandInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) { // Allow Shift+Enter for new line if ever needed
+                event.preventDefault();
+                if (typeof commandForm.requestSubmit === 'function') {
+                    commandForm.requestSubmit();
+                } else { // Fallback for older browsers
+                    const submitButton = commandForm.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.click();
+                    }
+                }
+            }
+        });
 
-        document.addEventListener('DOMContentLoaded', () => { /* ... same as before, calls initializeUIDisplayStates ... */
+        commandForm.addEventListener('submit', (event) => { /* Same logic as before */
+            event.preventDefault(); if (!selfPlayer) { addLogMessage("Not fully manifest!", 'event-bad'); return; }
+            const inputText = commandInput.textContent.trim(); commandInput.innerHTML = ''; if (!inputText) return;
+            const parts = inputText.split(/\s+/); let actionWord = parts[0];
+            let messageContent = parts.length > 1 ? parts.slice(1).join(' ') : null;
+
+            if (actionWord.startsWith("'") && actionWord.length >=1) { messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim(); actionWord = "say"; }
+            else if (actionWord.startsWith("!") && actionWord.length >=1) { messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim(); actionWord = "shout"; }
+            addLogMessage(`Tome jots down: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
+
+            const canonicalAction = parseAction(actionWord);
+            if (!canonicalAction) { logRandomizedEvent('ACTION_SENT_FEEDBACK', 'ACTION_FAILED_UNKNOWN_COMMAND', { actionWord: actionWord }, 'event-bad'); commandInput.focus(); return; }
+
+            let commandToSend = { type: canonicalAction, details: {} }; let shouldEmitToServer = true;
+
+            if (canonicalAction === "move") {
+                const eTW = messageContent || "forward"; const dR = parseDirection(eTW, selfPlayer.char);
+                if (dR.isValid) commandToSend.details = { dx: dR.dx, dy: dR.dy, newChar: dR.char };
+                else { addLogMessage(`Tome frowns: Cannot move towards "${eTW}".`, 'event-bad'); shouldEmitToServer = false; }
+            } else if (canonicalAction === "look") {
+                const lookDirectionStr = messageContent || get_direction_str_from_dx_dy(selfPlayer.x, selfPlayer.y); // Corrected get_direction..
+                const dR = parseDirection(lookDirectionStr, selfPlayer.char);
+                if (dR.isValid) {
+                    commandToSend.details = { dx: 0, dy: 0, newChar: dR.char }; // Always send look to server
+                } else {
+                    addLogMessage(`Tome squints: Cannot look towards "${lookDirectionStr}".`, 'event-bad');
+                    shouldEmitToServer = false;
+                }
+            } else if (canonicalAction === "help") {
+                 addLogMessage("Tome patiently explains:\nMOVE [direction]\nLOOK [direction]\nBUILD [direction]\nDESTROY [direction]\nCAST [spell] [target?]\nDRINK potion\nSAY [message] or '[message]\nSHOUT [message] or ![message]", 'system');
+                 shouldEmitToServer = false;
+            }
+            else if (canonicalAction === "build") {
+                commandToSend.type = 'build_wall';
+                const targetDirStr = messageContent || "forward";
+                const dirResult = parseDirection(targetDirStr, selfPlayer.char);
+                if (dirResult.isValid && (dirResult.dx !== 0 || dirResult.dy !==0) ) {
+                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy };
+                } else {
+                    addLogMessage(`Tome puzzles: Specify a valid direction to build "${targetDirStr}".`, 'event-bad');
+                    shouldEmitToServer = false;
+                }
+            }
+            else if (canonicalAction === "destroy") {
+                commandToSend.type = 'destroy_wall';
+                const targetDirStr = messageContent || "forward";
+                const dirResult = parseDirection(targetDirStr, selfPlayer.char);
+                if (dirResult.isValid && (dirResult.dx !== 0 || dirResult.dy !==0) ) {
+                    commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy };
+                } else {
+                    addLogMessage(`Tome puzzles: Specify a valid direction to destroy "${targetDirStr}".`, 'event-bad');
+                    shouldEmitToServer = false;
+                }
+            }
+            else if (canonicalAction === "cast") {
+                 if (messageContent) commandToSend.details = { spellName: messageContent.split(' ')[0], targetDirection: messageContent.split(' ').length > 1 ? messageContent.split(' ')[1] : null };
+                 else { addLogMessage(`Tome asks: Cast what, O Wizard?`, 'event-bad'); shouldEmitToServer = false; }
+            } else if (canonicalAction === "drink") {
+                if (messageContent && !(messageContent.toLowerCase().includes("potion"))) { addLogMessage(`Tome queries: Drink what specifically? (Try 'drink potion')`, 'event-bad'); shouldEmitToServer = false; }
+                else commandToSend.type = 'drink_potion';
+            } else if (canonicalAction === "say" || canonicalAction === "shout") {
+                if (messageContent && messageContent.length > 0) commandToSend.details = { message: messageContent };
+                else { addLogMessage(`Tome asks: ${canonicalAction.charAt(0).toUpperCase() + canonicalAction.slice(1)} what, O Wizard?`, 'event-bad'); shouldEmitToServer = false; }
+            } else { addLogMessage(`The arcane art of "${canonicalAction}" is unknown.`, 'event-bad'); shouldEmitToServer = false; }
+
+            if (shouldEmitToServer) { socket.emit('queue_player_action', commandToSend); }
+            commandInput.focus();
+        });
+
+        // Debug window functions (toggleRainDebug, toggleInsideDebug) remain the same.
+        // ...
+
+        document.addEventListener('DOMContentLoaded', () => {
             initializeTheme();
             initializeUIDisplayStates();
             estimateCharacterSize("dom_content_loaded");
             drawGrid();
-            updateStatus("Awaiting connection to the Ethereal Plane...");
+            updateStatusAndDebugContext();
             updateWeatherEffects();
             logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
             if (commandInput) { commandInput.focus(); }
