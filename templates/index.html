@@ -11,7 +11,7 @@
         const socket = io({path: "/world-of-the-wand/socket.io"});
     </script>
 </head>
-<body>
+<body> {/* Theme class will be applied here by JS */}
     <div class="main-ui-container">
         <div class="left-panel">
             <div id="commandLog"></div>
@@ -31,6 +31,7 @@
                             Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
                         </label>
                     </div>
+                    <button id="themeToggle">Toggle Theme</button> {/* New Theme Toggle Button */}
                 </div>
                 <div id="mainHeaderStatus">Welcome to the World of the Wand!</div>
             </div>
@@ -53,6 +54,48 @@
     </div>
 
     <script>
+        // ... (all your existing consts and game logic variables) ...
+        const themeToggleButton = document.getElementById('themeToggle');
+
+        // --- Theme Management ---
+        function applyTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+                document.body.classList.remove('dark-theme'); // Ensure dark is removed
+            } else { // Default to dark
+                document.body.classList.add('dark-theme'); 
+                document.body.classList.remove('light-theme'); // Ensure light is removed
+            }
+            localStorage.setItem('worldOfTheWandTheme', theme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('worldOfTheWandTheme') || 'dark'; // Default to dark
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            applyTheme(newTheme);
+        }
+
+        themeToggleButton.addEventListener('click', toggleTheme);
+
+        // --- Initialize Theme on Load ---
+        function initializeTheme() {
+            const savedTheme = localStorage.getItem('worldOfTheWandTheme');
+            if (savedTheme) {
+                applyTheme(savedTheme);
+            } else {
+                // Optional: Check for prefers-color-scheme if no theme is saved
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    applyTheme('light');
+                } else {
+                    applyTheme('dark'); // Default
+                }
+            }
+        }
+        initializeTheme(); // Call this early
+
+        // ... (rest of your existing JavaScript, including game logic, Socket.IO handlers, etc.)
+        // Ensure this script block contains all your previous JavaScript,
+        // with the theme functions and initialization added.
         const gameCanvas = document.getElementById('gameCanvas');
         const gameCanvasContainer = document.getElementById('gameCanvasContainer');
         const rainOverlay = document.getElementById('rainOverlay');
@@ -155,35 +198,6 @@
             return false;
         }
 
-
-        function addLogMessage(message, type = 'lore') {
-            const logEntry = document.createElement('div');
-            let displayStyle = 'ink';
-            switch (type) {
-                case 'event-bad':         
-                case 'chat-shout':       
-                case 'server-major-event': 
-                case 'player-trade':       
-                case 'player-damage':
-                case 'welcome-message': 
-                    displayStyle = 'mana';
-                    break;
-                case 'system':            
-                case 'event-good':        
-                case 'spell-cast':        
-                case 'lore':              
-                case 'user-input':        
-                case 'chat-say':          
-                default:
-                    displayStyle = 'ink';
-                    break;
-            }
-            logEntry.classList.add('log-entry', `log-style-${displayStyle}`, `log-type-${type}`);
-            logEntry.textContent = message;
-            commandLog.appendChild(logEntry);
-            requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
-        }
-
         function updateStatus(statusText) {
             if (statusText) {
                 mainHeaderStatus.textContent = statusText;
@@ -218,7 +232,7 @@
             const tempSpan = document.createElement('span');
             tempSpan.style.fontFamily = computedStyle.fontFamily;
             tempSpan.style.fontSize = computedStyle.fontSize;
-            tempSpan.style.lineHeight = computedStyle.lineHeight; // Expect "0.9" from CSS
+            tempSpan.style.lineHeight = computedStyle.lineHeight; 
             tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
             tempSpan.style.position = 'absolute';
@@ -474,7 +488,7 @@
                          estimateCharacterSize("initial_state_fonts_ready_after_draw");   
                     }
                     updateStatus(); 
-                    setTimeout(() => { // Increased delay
+                    setTimeout(() => { 
                         console.log("Initial setup: delayed final estimate and centering.");
                         charSizeEstimated = false; 
                         estimateCharacterSize("initial_state_delayed_final_estimate");
@@ -497,7 +511,7 @@
                     drawGrid(); 
                     charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback_2");
                     updateStatus(); 
-                    setTimeout(() => centerViewOnPlayer("fonts_catch_centering"), 50); // Increased delay here too
+                    setTimeout(() => centerViewOnPlayer("fonts_catch_centering"), 50); 
                     updateWeatherEffects();
                     addLogMessage("Attempting to render world despite font issues...", 'system');
                 } else {
@@ -541,6 +555,7 @@
             addLogMessage(prefix + data.message, messageType);
         });
         
+        let tickFlashTimeout = null;
         socket.on('game_update', (data) => {
             if (!selfPlayer || !myPlayerID) { return; }
             
@@ -571,7 +586,6 @@
 
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
-                    // Defer centering slightly
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0);
                 }
             }
@@ -720,9 +734,11 @@
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmitToServer = true; 
-            useLocalCommands = false; // Force server authoritative for now to ensure consistency
+            // Forcing server authoritative for now for simplicity.
+            // Set useLocalCommands to false to ensure all actions go to server for state changes.
+            const currentUseLocalCommands = false; // Override the global useLocalCommands for this submit
 
-            if (useLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) { // This block will currently not run due to above line
+            if (currentUseLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
                 shouldEmitToServer = false; 
                 const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char); 
                 console.log(`[Submit - Local] canonicalAction: ${canonicalAction}, effectiveTargetWord: ${effectiveTargetWord}`);

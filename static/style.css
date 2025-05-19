@@ -1,29 +1,101 @@
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400&family=Roboto:wght@300;400;500&display=swap');
 
 :root {
-    /* Updated background colors for a more slate/grey feel */
-    --bg-primary: #4A5568;   /* Was #232946 - Now a medium-dark slate gray */
-    --bg-secondary: #2D3748; /* Was #2f385b - Now a darker slate gray for panels */
+    /* --- Dark Theme (Current Slate - Default) --- */
+    --bg-primary-dark: #4A5568;   /* Medium-dark slate gray */
+    --bg-secondary-dark: #2D3748; /* Darker slate gray for panels */
+    --bg-tome-dark: #fff9e6;      /* Tome page - keep light for readability */
+    --bg-tome-cover-dark: #5d4037;/* Tome cover - dark brown */
     
-    --bg-tome: #fff9e6; 
-    --bg-tome-cover: #5d4037;    
+    --text-tome-ink-dark: #2c1f1a;    
+    --text-tome-mana-dark: #6947a1;   
+    --glow-tome-mana-dark: #c0a2f7;   
     
-    --text-tome-ink: #2c1f1a;    
-    --text-tome-mana: #6947a1;   
-    --glow-tome-mana: #c0a2f7;   
+    --text-primary-dark: #E2E8F0; 
+    --text-game-dark: #F7FAFC;        
     
-    --text-primary: #E2E8F0; /* Adjusted for better contrast on new slate bg */
-    --text-game: #F7FAFC;    /* Adjusted for better contrast on new slate bg */        
+    --border-color-dark: #718096;     
     
-    --border-color: #718096; /* Lightened border for better visibility on slate */     
+    --highlight-blue-dark: #63B3ED;   
+    --highlight-green-dark: #68D391;  
+    --highlight-red-dark: #FC8181;
+
+    --tick-inactive-dark: #718096;
+    --tick-shadow-dark: #1A202C;
+    --command-text-focus-bg-dark: #4A5568;
+    --command-button-border-dark: #4A5568;
+    --raindrop-base-dark: 173, 181, 189; /* Light grey for dark bg */
+
+    /* --- Light Theme --- */
+    --bg-primary-light: #F7FAFC;   /* Very light grey / Off-white */
+    --bg-secondary-light: #E2E8F0; /* Light grey for panels */
+    --bg-tome-light: #FFFFFF;      /* Tome page - pure white */
+    --bg-tome-cover-light: #D2B48C;/* Tome cover - tan */
     
-    --highlight-blue: #63B3ED;   /* Adjusted blue for slate */
-    --highlight-green: #68D391;  /* Adjusted green for slate */
-    --highlight-red: #FC8181;    /* Adjusted red for slate */
+    --text-tome-ink-light: #3A3A3A;    
+    --text-tome-mana-light: #5A2A8C;   
+    --glow-tome-mana-light: #9D69D1;   
     
+    --text-primary-light: #2D3748; 
+    --text-game-light: #1A202C;        
+    
+    --border-color-light: #CBD5E0;     
+    
+    --highlight-blue-light: #3182CE;   
+    --highlight-green-light: #38A169;  
+    --highlight-red-light: #E53E3E;
+
+    --tick-inactive-light: #A0AEC0;
+    --tick-shadow-light: #718096;
+    --command-text-focus-bg-light: #E2E8F0;
+    --command-button-border-light: #A0AEC0;
+    --raindrop-base-light: 74, 85, 104; /* Darker grey for light bg */
+
+    /* --- Universal Fonts --- */
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
+
+    /* --- Apply Dark Theme by Default --- */
+    --bg-primary: var(--bg-primary-dark);
+    --bg-secondary: var(--bg-secondary-dark);
+    --bg-tome: var(--bg-tome-dark);
+    --bg-tome-cover: var(--bg-tome-cover-dark);
+    --text-tome-ink: var(--text-tome-ink-dark);
+    --text-tome-mana: var(--text-tome-mana-dark);
+    --glow-tome-mana: var(--glow-tome-mana-dark);
+    --text-primary: var(--text-primary-dark);
+    --text-game: var(--text-game-dark);
+    --border-color: var(--border-color-dark);
+    --highlight-blue: var(--highlight-blue-dark);
+    --highlight-green: var(--highlight-green-dark);
+    --highlight-red: var(--highlight-red-dark);
+    --tick-inactive: var(--tick-inactive-dark);
+    --tick-shadow: var(--tick-shadow-dark);
+    --command-text-focus-bg: var(--command-text-focus-bg-dark);
+    --command-button-border: var(--command-button-border-dark);
+    --raindrop-base-rgb: var(--raindrop-base-dark);
+}
+
+body.light-theme {
+    --bg-primary: var(--bg-primary-light);
+    --bg-secondary: var(--bg-secondary-light);
+    --bg-tome: var(--bg-tome-light);
+    --bg-tome-cover: var(--bg-tome-cover-light);
+    --text-tome-ink: var(--text-tome-ink-light);
+    --text-tome-mana: var(--text-tome-mana-light);
+    --glow-tome-mana: var(--glow-tome-mana-light);
+    --text-primary: var(--text-primary-light);
+    --text-game: var(--text-game-light);
+    --border-color: var(--border-color-light);
+    --highlight-blue: var(--highlight-blue-light);
+    --highlight-green: var(--highlight-green-light);
+    --highlight-red: var(--highlight-red-light);
+    --tick-inactive: var(--tick-inactive-light);
+    --tick-shadow: var(--tick-shadow-light);
+    --command-text-focus-bg: var(--command-text-focus-bg-light);
+    --command-button-border: var(--command-button-border-light);
+    --raindrop-base-rgb: var(--raindrop-base-light);
 }
 
 html {
@@ -40,6 +112,7 @@ body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     overflow: hidden; 
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 body.is-dragging, body.is-dragging * { 
     user-select: none;
@@ -69,6 +142,7 @@ body.is-dragging, body.is-dragging * {
     background-color: var(--bg-secondary);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: background-color 0.3s ease;
 }
 
 .left-panel {
@@ -77,10 +151,17 @@ body.is-dragging, body.is-dragging * {
     min-width: 300px; 
     padding: 12px; 
     background-color: var(--bg-tome-cover); 
-    border: 3px solid #4a3b32; 
+    border: 3px solid #4a3b32; /* This border is tied to tome cover, might need theming if cover color changes drastically */
     border-radius: 10px 4px 4px 10px; 
     position: relative; 
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
+/* If tome cover border needs to change with theme:
+body.light-theme .left-panel {
+    border-color: #A0522D; /* Example: Sienna for light theme tome cover */
+}
+*/
+
 
 .left-panel::before {
     content: '';
@@ -112,16 +193,16 @@ body.is-dragging, body.is-dragging * {
     border-radius: 3px 6px 6px 3px; 
     overflow-y: auto;
     flex-grow: 1; 
-    border: 1px solid #d1c7ac; 
+    border: 1px solid #d1c7ac; /* Tome page border, may need theming */
     box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); 
     position: relative; 
     scrollbar-width: none; 
     -ms-overflow-style: none;  
+    transition: background-color 0.3s ease;
 }
 #commandLog::-webkit-scrollbar { 
     display: none;
 }
-
 
 .log-entry {
     margin-bottom: 10px; 
@@ -137,27 +218,22 @@ body.is-dragging, body.is-dragging * {
 .log-style-ink { 
     color: var(--text-tome-ink); 
     font-weight: 500; 
+    transition: color 0.3s ease;
 }
 .log-style-mana {
     color: var(--text-tome-mana);
     font-weight: 700; 
     text-shadow: 0 0 7px var(--glow-tome-mana), 
                  0 0 12px var(--glow-tome-mana),
-                 0 0 18px rgba(192, 162, 247, 0.65); 
+                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 65%, transparent); 
+    transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 
-.log-type-lore {} 
-.log-type-system { font-style: italic; } 
-.log-type-event-good {}
-.log-type-event-bad { font-weight: bold; } 
 .log-style-ink.log-type-user-input {
     opacity: 0.85;
-    color: #605048; 
+    color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); 
     font-weight: 400; 
 }
-.log-type-chat-say {}
-.log-type-chat-shout { font-weight: bold; }
-.log-type-welcome-message {}
 
 
 #mainHeaderStatusContainer { 
@@ -169,6 +245,7 @@ body.is-dragging, body.is-dragging * {
     padding: 0 10px; 
     flex-shrink: 0;
     border-bottom: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
 }
 #debugMenu { 
     display: flex;
@@ -178,6 +255,7 @@ body.is-dragging, body.is-dragging * {
     color: var(--text-primary);
     flex-shrink: 0;
     margin-right: 10px; 
+    transition: color 0.3s ease;
 }
 #debugMenu label {
     margin: 1px 0; 
@@ -187,7 +265,7 @@ body.is-dragging, body.is-dragging * {
     align-items: center;
     white-space: nowrap;
 }
-#debugMenu input[type="checkbox"] {
+#debugMenu input[type="checkbox"], #themeToggle { /* Apply to new toggle too */
     margin-right: 4px;
     vertical-align: middle;
     transform: scale(0.9); 
@@ -208,6 +286,7 @@ body.is-dragging, body.is-dragging * {
     font-size: 0.95em; 
     line-height: 1.4;
     flex-grow: 1; 
+    transition: color 0.3s ease;
 }
 
 
@@ -218,12 +297,13 @@ body.is-dragging, body.is-dragging * {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg-primary); /* Uses the primary background */
+    background-color: var(--bg-primary); 
     border-radius: 6px;
     overflow: hidden; 
     border: 1px solid var(--border-color);
     cursor: grab; 
     padding: 0; 
+    transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 #gameCanvasContainer:active {
     cursor: grabbing;
@@ -237,7 +317,7 @@ body.is-dragging, body.is-dragging * {
     color: var(--text-game);
     z-index: 1;
     position: absolute; 
-    transition: transform 0.3s ease-out; 
+    transition: transform 0.3s ease-out, color 0.3s ease; 
     padding: 0; 
 }
 
@@ -257,10 +337,10 @@ body.is-dragging, body.is-dragging * {
     bottom: 100%;
     width: 1px; 
     height: 60px; 
-    /* Adjusted raindrop color slightly for better visibility on new slate */
-    background: linear-gradient(to bottom, rgba(173, 181, 189, 0), rgba(173, 181, 189, 0.3)); 
+    background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); 
     animation: fall linear infinite;
     opacity: 0.6; 
+    transition: background 0.3s ease;
 }
 
 @keyframes fall {
@@ -273,6 +353,7 @@ body.is-dragging, body.is-dragging * {
     border-radius: 6px;
     flex-shrink: 0;
     border-top: 1px solid var(--border-color);
+    transition: border-color 0.3s ease;
 }
 
 #commandForm {
@@ -284,12 +365,12 @@ body.is-dragging, body.is-dragging * {
 #tickIndicator {
     width: 14px; 
     height: 14px; 
-    background-color: #718096; /* Darker slate for inactive tick */
+    background-color: var(--tick-inactive); 
     border-radius: 50%;
     margin-right: 12px; 
     display: inline-block;
     transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
-    box-shadow: 0 0 3px #1A202C;  /* Darker shadow for slate */
+    box-shadow: 0 0 3px var(--tick-shadow); 
 }
 #tickIndicator.tick-flash {
     background-color: var(--highlight-green);
@@ -305,6 +386,7 @@ body.is-dragging, body.is-dragging * {
     font-size: 0.9em;
     display: flex; 
     align-items: center;
+    transition: color 0.3s ease;
 }
 
 #commandText {
@@ -316,19 +398,20 @@ body.is-dragging, body.is-dragging * {
     font-size: 1em;
     flex-grow: 1;
     font-family: var(--font-game); 
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 #commandText:focus {
     outline: none;
     border-color: var(--highlight-blue);
-    background-color: #4A5568; /* Slightly lighter slate for focus */
-    box-shadow: 0 0 0 2px rgba(99, 179, 237, 0.3); 
+    background-color: var(--command-text-focus-bg); 
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 30%, transparent); 
 }
 
 #commandForm button { 
     background-color: var(--border-color); 
     color: var(--text-primary);
-    border: 1px solid #4A5568; /* Adjusted for slate */
+    border: 1px solid var(--command-button-border); 
     padding: 10px 20px;
     margin-left: 10px;
     cursor: pointer;
@@ -379,6 +462,22 @@ body.is-dragging, body.is-dragging * {
         padding: 5px 10px;
         justify-content: flex-start; 
     }
-    #debugMenu { order: -1; margin-right: auto; }
+    #debugMenu { order: -1; margin-right: auto; } /* Keep toggle button in this menu */
     #mainHeaderStatus { font-size: 0.9em; text-align: right; }
+}
+
+/* Style for the theme toggle button if you use one */
+#themeToggle {
+    padding: 3px 6px;
+    font-size: 0.7em;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: 3px;
+    margin-top: 4px;
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+#themeToggle:hover {
+    background-color: var(--border-color);
 }
