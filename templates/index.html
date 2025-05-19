@@ -77,7 +77,6 @@
         let GRID_WIDTH = 20; 
         let GRID_HEIGHT = 15;
         let GAME_TICK_RATE = 0.75;
-        let OBSERVABLE_DEPTH = 17; 
         let prevSelfPlayerState = null;
         let currentSceneData = { InsideID: 0, name: "The Whispering Plains" }; 
         let globalWeather = { isRaining: true, intensity: 0.1 }; 
@@ -101,7 +100,6 @@
         const FLOOR_CHAR = '·';  
         const WALL_CHAR = '▓';   
         const WATER_CHAR = '~'; 
-        const WET_PLAYER_AURA_CHAR = '∴'; 
         const AURA_VISION_RANGE = 1;
 
         const GAME_ZOOM_FACTOR = 1.4; 
@@ -134,8 +132,7 @@
             if (savedTheme) { applyTheme(savedTheme); } 
             else { applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
         }
-        initializeTheme();
-
+        
         function get_dx_dy_from_direction_str(s) { 
             const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
             return mapping[s] || [0, 0];
@@ -155,16 +152,21 @@
             return { rx: worldDX, ry: worldDY };
         }
         function manhattanDistance(x1, y1, x2, y2) { return Math.abs(x1 - x2) + Math.abs(y1 - y2); }
+        
         function isVisible(observerX, observerY, observerChar, targetX, targetY, scry = false) { 
             if (!observerChar || !selfPlayer) return false; 
             let manhattanDist = manhattanDistance(observerX, observerY, targetX, targetY);
             if (scry || manhattanDist <= AURA_VISION_RANGE) return true;
+            
             const {rx, ry} = getRelativeCoords(observerX, observerY, observerChar, targetX, targetY);
             const clientObservableDepth = 10; 
-            const OBSERVABLE_WIDTH_CONST = 1.0;
+            const OBSERVABLE_WIDTH_CONST = 1.0; 
+            
             if (ry < 0 && -ry <= clientObservableDepth && Math.abs(rx) <= Math.floor(-ry * OBSERVABLE_WIDTH_CONST )) return true;
+            
             return false;
         }
+
         function addLogMessage(message, type = 'lore') { 
             const logEntry = document.createElement('div');
             let displayStyle = 'ink';
@@ -219,6 +221,7 @@
             let measuredWidth = tempSpan.offsetWidth;
             let measuredHeight = tempSpan.offsetHeight;
             document.body.removeChild(tempSpan);
+
             if (measuredWidth > 0 && measuredHeight > 0) {
                 charRenderWidth = measuredWidth; charRenderHeight = measuredHeight;
             } else {
@@ -226,109 +229,110 @@
                 console.warn(`[estimateCharacterSize context: ${context}] tempSpan method yielded non-positive dimensions. Reverting to PREDEFINED FALLBACK.`);
             }
             console.log(`[estimateCharacterSize context: ${context}] Char size (W x H): ${charRenderWidth.toFixed(2)} x ${charRenderHeight.toFixed(2)} based on '${testChar}'`);
-            charSizeEstimatedAtLeastOnce = true;
-            if (GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
+            
+            if (GRID_WIDTH > 0 && GRID_HEIGHT > 0 && charRenderWidth > 0 && charRenderHeight > 0) {
                 gameCanvas.width = GRID_WIDTH * charRenderWidth;
                 gameCanvas.height = GRID_HEIGHT * charRenderHeight;
-                console.log(`[estimateCharacterSize context: ${context}] Canvas element resized to: ${gameCanvas.width}x${gameCanvas.height}px`);
+                console.log(`[estimateCharacterSize context: ${context}] Canvas element ATTR resized to: ${gameCanvas.width}x${gameCanvas.height}px`);
+            } else {
+                console.warn(`[estimateCharacterSize context: ${context}] Could not resize canvas, invalid grid/char dimensions.`);
             }
+            charSizeEstimatedAtLeastOnce = true; 
         }
 
         function drawGrid() {
-            if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !ctx) {
-                if (ctx) { 
-                    const canvasWidth = gameCanvas.width || DEFAULT_CHAR_WIDTH_FALLBACK * GRID_WIDTH;
-                    const canvasHeight = gameCanvas.height || DEFAULT_CHAR_HEIGHT_FALLBACK * GRID_HEIGHT;
-                    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
-                    const tempFont = "16px 'Courier New', monospace";
-                    const tempFill = getComputedStyle(document.body).getPropertyValue('--text-primary') || "#E2E8F0";
-                    ctx.font = tempFont; ctx.fillStyle = tempFill;
-                    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText("The mists obscure your vision...", canvasWidth / 2, canvasHeight / 2 - 10);
-                    ctx.fillText("(Awaiting server data or font readiness)", canvasWidth / 2, canvasHeight / 2 + 10);
+            if (!ctx) return; 
+
+            if (!charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.width === 0 || gameCanvas.height === 0) {
+                const canvasWidth = gameCanvas.width || (DEFAULT_CHAR_WIDTH_FALLBACK * GRID_WIDTH) || 300; 
+                const canvasHeight = gameCanvas.height || (DEFAULT_CHAR_HEIGHT_FALLBACK * GRID_HEIGHT) || 200; 
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                const tempFont = "16px 'Courier New', monospace";
+                const tempFill = getComputedStyle(document.body).getPropertyValue('--text-primary') || "#E2E8F0";
+                ctx.font = tempFont; ctx.fillStyle = tempFill;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("The mists obscure your vision...", canvasWidth / 2, canvasHeight / 2 - 10);
+                ctx.fillText("(Awaiting server data or font readiness)", canvasWidth / 2, canvasHeight / 2 + 10);
+                if (!charSizeEstimatedAtLeastOnce) { 
+                    console.warn("[drawGrid] charSize not estimated, attempting now.");
+                    estimateCharacterSize("drawGrid_fallback_estimate");
                 }
                 return;
             }
-
-            ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
             
-            const bodyStyle = getComputedStyle(document.body);
-            if (document.body.classList.contains('dark-theme')) {
-                ctx.fillStyle = bodyStyle.getPropertyValue('--canvas-bg-dark-mode').trim() || 'white';
-                ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
-            } else {
-                 ctx.fillStyle = bodyStyle.getPropertyValue('--canvas-bg-light-mode').trim() || '#1a202c';
-                 ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+            const bodyStyle = getComputedStyle(document.body); 
+            ctx.fillStyle = bodyStyle.getPropertyValue('--canvas-bg-consistent').trim();
+            ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+            if (!selfPlayer) { 
+                const tempFont = "16px 'Courier New', monospace";
+                const tempFill = bodyStyle.getPropertyValue('--text-game-floor-consistent').trim() || "#9CA3AF"; 
+                ctx.font = tempFont; ctx.fillStyle = tempFill;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("(Awaiting player manifestation...)", gameCanvas.width / 2, gameCanvas.height / 2);
+                return;
             }
 
-            const gameFontFamily = getComputedStyle(document.documentElement).getPropertyValue('--font-game').trim() || "'Courier New', monospace";
+            const gameFontFamily = bodyStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
             ctx.font = `${DEFAULT_FONT_SIZE_PX}px ${gameFontFamily}`;
             ctx.textBaseline = 'top'; 
             ctx.textAlign = 'left';   
 
-            const floorColor = bodyStyle.getPropertyValue('--text-game-floor').trim();
-            const wallColor = bodyStyle.getPropertyValue('--text-game-wall').trim();
-            const waterColor = bodyStyle.getPropertyValue('--text-game-water').trim();
-            const fogColor = bodyStyle.getPropertyValue('--text-game-fog').trim();
-            const selfPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-self').trim();
-            const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other').trim();
-            const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint').trim();
+            const floorColor = bodyStyle.getPropertyValue('--text-game-floor-consistent').trim();
+            const wallColor = bodyStyle.getPropertyValue('--text-game-wall-consistent').trim();
+            const waterColor = bodyStyle.getPropertyValue('--text-game-water-consistent').trim();
+            const fogColor = bodyStyle.getPropertyValue('--text-game-fog-consistent').trim();
+            const selfPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-self-consistent').trim();
+            const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other-consistent').trim();
+            const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint-consistent').trim();
 
-            let displayLayer = Array(GRID_HEIGHT).fill(null).map(() => Array(GRID_WIDTH).fill(null).map(() => ({ char: FLOOR_CHAR, color: floorColor, type: 'floor' })));
-
-            if (visibleTerrain && visibleTerrain.water) {
-                visibleTerrain.water.forEach(wt => {
-                    if (wt.x >= 0 && wt.x < GRID_WIDTH && wt.y >= 0 && wt.y < GRID_HEIGHT) {
-                        displayLayer[wt.y][wt.x] = { char: WATER_CHAR, color: waterColor, type: 'water' };
-                    }
-                });
-            }
-            if (visibleTerrain && visibleTerrain.walls) {
-                visibleTerrain.walls.forEach(wall => {
-                    if (wall.x >= 0 && wall.x < GRID_WIDTH && wall.y >= 0 && wall.y < GRID_HEIGHT) {
-                        displayLayer[wall.y][wall.x] = { char: WALL_CHAR, color: wallColor, type: 'wall' };
-                    }
-                });
-            }
-
-            let playersToDraw = [];
-            for (const playerID in otherPlayers) {
-                const op = otherPlayers[playerID];
-                if (op.x >= 0 && op.x < GRID_WIDTH && op.y >= 0 && op.y < GRID_HEIGHT) {
-                    playersToDraw.push({ ...op, baseColor: otherPlayerBaseColor });
-                }
-            }
-            if (selfPlayer.x >= 0 && selfPlayer.x < GRID_WIDTH && selfPlayer.y >= 0 && selfPlayer.y < GRID_HEIGHT) {
-                 playersToDraw.push({ ...selfPlayer, baseColor: selfPlayerBaseColor });
-            }
-            
             for (let y = 0; y < GRID_HEIGHT; y++) {
                 for (let x = 0; x < GRID_WIDTH; x++) {
-                    let cell = displayLayer[y][x];
-                    let charToDraw = cell.char;
-                    let charColor = cell.color;
-
-                    if (!isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
-                        charToDraw = FOG_CHAR;
-                        charColor = fogColor;
+                    let charToDraw = FLOOR_CHAR;
+                    let colorToUse = floorColor;
+                    
+                    if (visibleTerrain.water && visibleTerrain.water.some(wt => wt.x === x && wt.y === y)) {
+                        charToDraw = WATER_CHAR; colorToUse = waterColor;
+                    } else if (visibleTerrain.walls && visibleTerrain.walls.some(w => w.x === x && w.y === y)) {
+                        charToDraw = WALL_CHAR; colorToUse = wallColor;
                     }
-                    ctx.fillStyle = charColor;
+
+                    // Apply fog if not visible (players will be drawn over fog if they are in a fogged tile)
+                    if (!isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, x, y)) {
+                        charToDraw = FOG_CHAR; colorToUse = fogColor;
+                    }
+                    
+                    ctx.fillStyle = colorToUse;
                     ctx.fillText(charToDraw, x * charRenderWidth, y * charRenderHeight);
                 }
             }
 
-            playersToDraw.forEach(p => {
+            // Draw other players
+            for (const id in otherPlayers) {
+                const p = otherPlayers[id];
                 if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, p.x, p.y)) {
-                    ctx.fillStyle = p.baseColor;
+                    ctx.fillStyle = otherPlayerBaseColor;
                     ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
                     if (p.is_wet) {
                         ctx.fillStyle = wetPlayerTintColor; 
                         ctx.fillRect(p.x * charRenderWidth, p.y * charRenderHeight, charRenderWidth, charRenderHeight);
-                        ctx.fillStyle = p.baseColor; 
+                        ctx.fillStyle = otherPlayerBaseColor; 
                         ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
                     }
                 }
-            });
+            }
+            
+            // Draw self player (ensures it's on top of terrain and other players if same tile)
+             if (isVisible(selfPlayer.x, selfPlayer.y, selfPlayer.char, selfPlayer.x, selfPlayer.y, true )) { 
+                ctx.fillStyle = selfPlayerBaseColor;
+                ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
+                if (selfPlayer.is_wet) {
+                    ctx.fillStyle = wetPlayerTintColor; 
+                    ctx.fillRect(selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight, charRenderWidth, charRenderHeight);
+                    ctx.fillStyle = selfPlayerBaseColor; 
+                    ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
+                }
+            }
         }
 
         function startRainEffect(intensity) { 
@@ -393,17 +397,16 @@
             }
         });
         
-        function centerViewOnPlayer(context = "unknown") {
+        function centerViewOnPlayer(context = "unknown") { 
             const containerHeight = gameCanvasContainer.clientHeight;
             const containerWidth = gameCanvasContainer.clientWidth;
             const currentZoom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--game-zoom') || "1");
-            console.log(`[centerViewOnPlayer context: ${context}] Called. Char (W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)}), Zoom: ${currentZoom}, charSizeEst: ${charSizeEstimatedAtLeastOnce}`);
-            if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0 || charRenderWidth <=0 || charRenderHeight <=0) {
-                 console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Aborting centering. Canvas W/H: ${gameCanvas.width}/${gameCanvas.height}`);
-                 if (charSizeEstimatedAtLeastOnce && (gameCanvas.width === 0 || gameCanvas.height === 0) && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
-                     gameCanvas.width = GRID_WIDTH * charRenderWidth;
-                     gameCanvas.height = GRID_HEIGHT * charRenderHeight;
-                 }
+            
+            if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || 
+                containerHeight <= 0 || containerWidth <=0 || 
+                charRenderWidth <=0 || charRenderHeight <=0 || 
+                gameCanvas.width === 0 || gameCanvas.height === 0) { 
+                 console.warn(`[centerViewOnPlayer context: ${context}] PRECONDITIONS NOT MET. Canvas(W:${gameCanvas.width},H:${gameCanvas.height}), Char(W:${charRenderWidth.toFixed(2)}, H:${charRenderHeight.toFixed(2)})`);
                  gameCanvas.style.setProperty('--pan-x', `0px`); gameCanvas.style.setProperty('--pan-y', `0px`);
                 return; 
             }
@@ -412,7 +415,6 @@
             targetPanX = (containerWidth / 2) - (playerVisualCenterX_unscaled * currentZoom);
             targetPanY = (containerHeight / 2) - (playerVisualCenterY_unscaled * currentZoom);
             currentPanX = targetPanX; currentPanY = targetPanY;
-            console.log(`[centerViewOnPlayer context: ${context}] Centering: Player(${selfPlayer.x},${selfPlayer.y}), Pan(X:${targetPanX.toFixed(2)}, Y:${targetPanY.toFixed(2)})`);
             gameCanvas.style.transition = 'transform 0.3s ease-out'; 
             gameCanvas.style.setProperty('--pan-x', `${currentPanX}px`);
             gameCanvas.style.setProperty('--pan-y', `${currentPanY}px`);
@@ -471,6 +473,7 @@
             console.log("Received 'initial_game_data':", data);
             if (!data || !data.player_data || typeof data.grid_width !== 'number' || typeof data.grid_height !== 'number') {
                 logRandomizedEvent('LORE', 'CORRUPT_MANIFESTATION_SERVER', {}, 'event-bad');
+                if (!charSizeEstimatedAtLeastOnce) estimateCharacterSize("initial_data_fail_estimate");
                 drawGrid(); return;
             }
             selfPlayer = data.player_data; myPlayerID = selfPlayer.id; 
@@ -481,14 +484,17 @@
             prevSelfPlayerState = { ...selfPlayer };
             const savedDebugInfo = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
             const savedRainIntensity = localStorage.getItem('rainIntensity'); globalWeather.intensity = savedRainIntensity !== null ? parseFloat(savedRainIntensity) : 0.1; rainIntensitySlider.value = globalWeather.intensity;
+            
+            if (!charSizeEstimatedAtLeastOnce) { 
+                estimateCharacterSize("initial_data_pre_font_ready");
+            }
+
             document.fonts.ready.then(() => {
                 console.log("Fonts ready. Initial data processed.");
+                estimateCharacterSize("initial_data_fonts_ready"); 
                 if (selfPlayer) {
-                    charSizeEstimatedAtLeastOnce = false; 
-                    estimateCharacterSize("initial_data_fonts_ready"); 
                     drawGrid(); updateStatus(); 
                     if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
-                        console.log("Container has height post-draw. Ensuring centering & UI setup.");
                         centerViewOnPlayer("initial_data_direct_center_attempt");
                         initialCenteringDone = true;
                         if(!initialUIDone){
@@ -574,13 +580,12 @@
         socket.on('player_event', (data) => { 
             if (data.type === 'stepped_in_water' && data.sid === myPlayerID) { 
                 console.log("Client: Received stepped_in_water event. Playing sound (placeholder)... SPLASH!");
-                // playWaterStepSound(); // Future: Call actual sound function here
             }
         });
         
         let tickFlashTimeout = null;
-        socket.on('game_update', (data) => {
-            if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
+        socket.on('game_update', (data) => { 
+             if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
             if(tickIndicator) {tickIndicator.classList.add('tick-flash'); if(tickFlashTimeout) clearTimeout(tickFlashTimeout); tickFlashTimeout = setTimeout(() => { if(tickIndicator) tickIndicator.classList.remove('tick-flash'); }, 150); }
             
             const oldSceneX = selfPlayer.scene_x; const oldSceneY = selfPlayer.scene_y;
@@ -607,7 +612,7 @@
             
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
-                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0){
+                    if(!charSizeEstimatedAtLeastOnce || charRenderWidth <= 0 || charRenderHeight <= 0 || gameCanvas.width === 0){
                         estimateCharacterSize("game_update_pre_recenter_estimate"); 
                     }
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0); 
@@ -616,7 +621,7 @@
             prevSelfPlayerState = { ...selfPlayer }; 
             drawGrid(); 
             
-            if (!charSizeEstimatedAtLeastOnce && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
+            if (!charSizeEstimatedAtLeastOnce && GRID_WIDTH > 0 && GRID_HEIGHT > 0) { 
                  estimateCharacterSize("game_update_reestimate"); 
                  if(!isDragging) setTimeout(() => centerViewOnPlayer("game_update_after_reestimate_centering"), 0);
             }
@@ -629,9 +634,10 @@
         }
         socket.on('action_feedback', (data) => { 
             console.log("Client received 'action_feedback':", data);
-            // CORRECTED KEY LOGIC:
             const baseKey = 'ACTION_SENT_FEEDBACK';
-            const subKey = data.messageKey ? data.messageKey.substring(baseKey.length + 1) : (data.success ? 'ACTION_QUEUED' : 'ACTION_FAILED_UNKNOWN_COMMAND');
+            const subKey = data.messageKey && data.messageKey.startsWith(baseKey + '.') ? 
+                           data.messageKey.substring(baseKey.length + 1) : 
+                           (data.success ? 'ACTION_QUEUED' : 'ACTION_FAILED_UNKNOWN_COMMAND');
 
             const placeholders = data.placeholders || { actionWord: data.actionWordAttempted || "", message: data.message };
             const messageType = data.success ? 'system' : 'event-bad';
@@ -779,7 +785,11 @@
             updateStatus(); updateWeatherEffects();
         };
         
+        // Initial setup
+        initializeTheme(); 
+        estimateCharacterSize("initial_page_load"); 
         drawGrid(); 
+        
         if (commandInput) { commandInput.focus(); }
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; debugInfoToggle.checked = showDebugInfo; rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
         const savedRainIntensityOnLoad = localStorage.getItem('rainIntensity'); globalWeather.intensity = savedRainIntensityOnLoad !== null ? parseFloat(savedRainIntensityOnLoad) : 0.1; rainIntensitySlider.value = globalWeather.intensity;
