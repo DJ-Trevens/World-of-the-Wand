@@ -34,7 +34,7 @@ SHOUT_MANA_COST = 5
 # Game State
 players = {}
 queuedActions = {}
-_game_loop_started_in_this_process = False # More specific name
+_game_loop_started_in_this_process = False # Flag per process
 
 def get_player_name(sid):
     return f"Wizard-{sid[:4]}"
@@ -46,26 +46,19 @@ def game_loop():
     while True:
         try:
             loop_count += 1
-            
-            # Critical: Make a thread-safe copy for iteration if modifications can happen concurrently
-            # For simple dicts like these, direct iteration should be fine if game_loop is the only modifier of player states
-            # and queue_command is the only writer to queuedActions (which is then cleared by game_loop).
-            # However, making copies is safer if there's any doubt.
-            current_actions_to_process = dict(queuedActions) # Process a snapshot
-            
-            # Optional: Reduce noise if loop is very idle
-            # if loop_count % 10 == 0 or current_actions_to_process or players: # Log every 10 ticks or if active
-            #     print(f"[{my_pid}] Game Loop Iteration: {loop_count}. Players: {len(players)}, Actions Queued: {len(current_actions_to_process)}")
+            current_actions_to_process = dict(queuedActions)
 
+            # Optional: Reduce noise if loop is very idle
+            if loop_count % 20 == 0 or current_actions_to_process or players:
+                print(f"[{my_pid}] Game Loop Iteration: {loop_count}. Players: {len(players)}, Actions Queued: {len(current_actions_to_process)}")
 
             for sid, actionData in current_actions_to_process.items():
-                if actionData and sid in players: # Check if player still exists
+                if actionData and sid in players:
                     player = players[sid]
                     actionType = actionData.get('type')
                     details = actionData.get('details', {})
                     print(f"[{my_pid}] Game Loop: Processing action '{actionType}' for player {player.get('name', sid)} ({sid})")
 
-                    # ... (rest of your action processing logic remains the same)
                     if actionType == 'move' or actionType == 'look':
                         dx = details.get('dx', 0)
                         dy = details.get('dy', 0)
@@ -104,9 +97,9 @@ def game_loop():
                         player['char'] = newChar
                         if scene_changed:
                             socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
-                        # print(f"[{my_pid}] Game Loop: Player {player.get('name', sid)} new state after move/look: {player}")
+                        print(f"[{my_pid}] Game Loop: Player {player.get('name', sid)} new state after move/look: {player}")
 
-                    elif actionType == 'drink_potion': # ... (rest of actions)
+                    elif actionType == 'drink_potion':
                         if player['potions'] > 0:
                             player['potions'] -= 1
                             player['current_health'] = min(player['max_health'], player['current_health'] + 15)
@@ -118,7 +111,7 @@ def game_loop():
                         message_text = details.get('message', '')
                         if message_text:
                             chat_data = { 'sender_name': get_player_name(sid), 'message': message_text, 'type': 'say', 'scene_coords': f"({player['scene_x']},{player['scene_y']})" }
-                            for p_sid_target, p_data_target in list(players.items()): # Iterate over a copy if players can change during this loop
+                            for p_sid_target, p_data_target in list(players.items()):
                                 if p_data_target['scene_x'] == player['scene_x'] and p_data_target['scene_y'] == player['scene_y']:
                                     socketio.emit('chat_message', chat_data, room=p_sid_target)
                     elif actionType == 'shout':
@@ -139,19 +132,15 @@ def game_loop():
                             else:
                                 socketio.emit('lore_message', {'message': f"Tome warns: You lack the {SHOUT_MANA_COST} mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
                     
-                    # Clear the action from the main queuedActions dict *only if it hasn't changed*
                     if sid in queuedActions and queuedActions[sid] == actionData:
-                        queuedActions[sid] = None 
-                        # print(f"[{my_pid}] Game Loop: Action for {sid} cleared.")
-                    # else:
-                        # print(f"[{my_pid}] Game Loop: Action for {sid} was not cleared (it might have changed or already been cleared).")
+                        queuedActions[sid] = None
 
-            current_player_states = list(players.values()) # Get current states after processing actions
+            current_player_states = list(players.values())
             if current_player_states:
-                 if loop_count % 5 == 0 or current_actions_to_process : # Emit less frequently if no actions, or always if actions
-                    print(f"[{my_pid}] Game Loop Tick {loop_count}: Emitting game_state_update for {len(current_player_states)} player(s).")
+                 if loop_count % 5 == 0 or current_actions_to_process :
+                    print(f"[{my_pid}] Game Loop Tick {loop_count}: Emitting game_state_update for {len(current_player_states)} player(s). Data: {current_player_states}")
                  socketio.emit('game_state_update', current_player_states)
-            elif loop_count % 20 == 0: # If no players, log less often
+            elif loop_count % 60 == 0: # Log less often if no players
                  print(f"[{my_pid}] Game Loop Tick {loop_count}: No players to update.")
             
             socketio.sleep(GAME_TICK_RATE)
@@ -159,8 +148,9 @@ def game_loop():
         except Exception as e:
             print(f"!!! [{my_pid}] ERROR IN GAME LOOP (Iteration {loop_count}): {e} !!!")
             traceback.print_exc()
-            socketio.sleep(1) # Prevent rapid error logging
+            socketio.sleep(1)
 
+# SocketIO event handlers (no change needed in these based on current problem)
 @socketio.on('connect')
 def handle_connect(auth=None):
     sid = request.sid
@@ -169,6 +159,7 @@ def handle_connect(auth=None):
 
     if sid in players:
         print(f"[{my_pid}] Player {get_player_name(sid)} ({sid}) already in players dict. Re-sending initial_state.")
+        # This might be problematic if other_players isn't up-to-date for the *current* state of this player
         otherPlayersInScene = {
             playerID: playerData for playerID, playerData in players.items()
             if playerID != sid and playerData['scene_x'] == players[sid]['scene_x'] and playerData['scene_y'] == players[sid]['scene_y']
@@ -222,19 +213,19 @@ def handle_disconnect(reason=None):
     my_pid = os.getpid()
     print(f"[{my_pid}] Disconnect event for SID {sid} (Reason: {reason if reason else 'N/A'}).")
     if sid in players:
-        player_data_left = players.pop(sid, None) # Pop with default None
+        player_data_left = players.pop(sid, None)
         if player_data_left:
             player_id_left = player_data_left['id']
             player_name_left = player_data_left.get('name', 'A wizard')
             
-            if sid in queuedActions: # Also remove from queued actions
+            if sid in queuedActions:
                 del queuedActions[sid]
             
             print(f"[{my_pid}] Player {player_name_left} ({player_id_left}) removed. Active players: {list(players.keys())}")
-            socketio.emit('player_left', {'id': player_id_left, 'name': player_name_left}, room='/', skip_sid=sid) # skip_sid might be redundant if player already gone
+            socketio.emit('player_left', {'id': player_id_left, 'name': player_name_left}, room='/', skip_sid=sid)
             print(f"[{my_pid}] Broadcast player_left for {player_name_left} ({player_id_left}).")
         else:
-            print(f"[{my_pid}] Player {sid} was in players keys, but pop returned None. This is unexpected.")
+            print(f"[{my_pid}] Player {sid} was in players keys, but pop returned None.")
     else:
         print(f"[{my_pid}] Player with SID {sid} not found in players list upon disconnect.")
 
@@ -248,7 +239,7 @@ def handle_queue_command(data):
         actionType = data.get('type')
         print(f"[{my_pid}] Command received from {player_name} ({sid}): {data}")
         if actionType in ['move', 'look', 'cast', 'drink_potion', 'say', 'shout']:
-            queuedActions[sid] = data # This will overwrite any previous unhandled action
+            queuedActions[sid] = data
             if actionType not in ['drink_potion', 'say', 'shout']:
                 emit_ctx('action_queued', {'message': "Your will has been noted. Awaiting cosmic alignment..."})
             print(f"[{my_pid}] Command queued for {player_name}. Queued: {queuedActions[sid]}")
@@ -260,45 +251,32 @@ def handle_queue_command(data):
         print(f"[{my_pid}] Command from unknown SID {sid}: {data}")
 
 
-def main_app_setup():
-    # This function is to ensure the game loop is started by the Gunicorn worker
-    # and not just the master process if it also loads app.py.
-    # This function should be called after the app is fully initialized by Gunicorn.
-    # However, for `start_background_task`, it needs `socketio` to be initialized.
-    # The simplest for now is to rely on the module-level call.
-    
-    # Check if this is a Gunicorn worker process
-    # GUNICORN_PID is an environment variable Gunicorn sets for workers.
-    # This is a more robust way to check than just _game_loop_started_in_this_process
-    # if os.environ.get('GUNICORN_PID'): # This might not be set, depends on Gunicorn version/setup
-    
-    # A simpler check for now, just use the global flag per process
+def start_game_loop_if_not_running(): # Renamed for clarity
     global _game_loop_started_in_this_process
     my_pid = os.getpid()
 
     if not _game_loop_started_in_this_process:
-        print(f"[{my_pid}] Attempting to start game loop background task...")
+        print(f"[{my_pid}] Attempting to start game loop background task from start_game_loop_if_not_running()...")
         try:
+            # Ensure socketio instance is available. It should be global.
             socketio.start_background_task(target=game_loop)
-            _game_loop_started_in_this_process = True # Set flag for this process
-            print(f"[{my_pid}] Game loop background task initiated. Watch for 'GAME LOOP THREAD HAS STARTED' message from this PID.")
+            _game_loop_started_in_this_process = True
+            print(f"[{my_pid}] Game loop background task initiated via start_game_loop_if_not_running(). Watch for 'GAME LOOP THREAD HAS STARTED' message from this PID.")
         except Exception as e:
-            print(f"!!! [{my_pid}] FAILED TO START GAME LOOP BACKGROUND TASK: {e} !!!")
+            print(f"!!! [{my_pid}] FAILED TO START GAME LOOP (from start_game_loop_if_not_running): {e} !!!")
             traceback.print_exc()
     else:
-        print(f"[{my_pid}] Game loop already marked as started in this process.")
+        print(f"[{my_pid}] Game loop already marked as started in this process (PID: {my_pid}).")
 
-# This will be executed when Gunicorn worker loads app.py
-print(f"[{os.getpid()}] App module loading. Setting up main app components.")
-main_app_setup()
-
-
+# This block runs ONLY when you execute `python app.py` directly
 if __name__ == '__main__':
-    # This block runs ONLY when you execute `python app.py` directly
     my_pid = os.getpid()
     print(f"[{my_pid}] Starting Flask-SocketIO server for LOCAL DEVELOPMENT...")
-    # For local dev, ensure the loop starts here too if not using Gunicorn
-    if not _game_loop_started_in_this_process: # Check again for local run
-         main_app_setup() # Call setup which includes starting the loop
+    start_game_loop_if_not_running() # Start the loop for local dev
     socketio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), use_reloader=False)
-    # `use_reloader=False` is important for local dev with background tasks to avoid starting multiple loops.
+else:
+    # This block runs when Gunicorn imports the app.
+    # We do NOT want to start the loop here if Gunicorn is managing it.
+    # The post_fork hook in gunicorn_config.py will call start_game_loop_if_not_running().
+    my_pid = os.getpid()
+    print(f"[{my_pid}] App module loaded by Gunicorn (or other WSGI server). Game loop will be started by post_fork hook if applicable.")
