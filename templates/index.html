@@ -14,11 +14,12 @@
 </head>
 <body> 
     <div class="main-ui-container">
-        <div class="left-panel">
+        <div class="left-panel"> {/* This is the Journal */}
             <div id="commandLog"></div>
             <div id="commandInputBox">
                 <form id="commandForm">
                     <label for="commandText">
+                        {/* Wizard's Heart for server updates will be styled by CSS to be prominent */}
                         <span id="wizardHeartIndicator"></span> Inscribe Thy Will:
                     </label>
                     <div id="commandText" contenteditable="true" spellcheck="false" autocomplete="off" role="textbox" aria-multiline="false"></div>
@@ -29,23 +30,9 @@
 
         <div class="right-panel">
             <div id="mainHeaderStatusContainer">
-                <div id="debugMenu">
-                    <label>
-                        <input type="checkbox" id="debugInfoToggle"> Debug Info
-                    </label>
-                    <div id="rainIntensityControl">
-                        <label>
-                            Rain Intensity: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
-                        </label>
-                    </div>
-                    <div id="simulateHeartbeatControl" style="display: none;">
-                         <label>
-                            <input type="checkbox" id="simulateHeartbeatToggle"> Simulate Server Heartbeat
-                        </label>
-                    </div>
-                    <button id="themeToggle" title="Switch to Light Mode">☀️</button>
-                </div>
+                {/* Debug Menu items moved to bottom-right panel, theme toggle will be in its own spot */}
                 <div id="mainHeaderStatus">World of the Wand</div>
+                 <button id="themeToggle" title="Switch to Light Mode">☀️</button> <!-- Theme toggle moved here -->
             </div>
 
             <div id="gameCanvasContainer">
@@ -54,13 +41,32 @@
             </div>
             
             <div id="bottomRightPanel" class="info-panel">
-                <div id="clientDebugInfo" style="display:none; font-size: 0.8em; padding: 5px;">
-                    <h4>Client Debug:</h4>
+                {/* Debug controls moved here */}
+                <div id="debugControls">
+                    <label class="debug-control-item">
+                        <input type="checkbox" id="debugInfoToggle"> Debug Info
+                    </label>
+                    <div id="rainIntensityControl" class="debug-control-item">
+                        <label>
+                            Rain: <input type="range" id="rainIntensitySlider" min="0" max="1" step="0.05">
+                        </label>
+                    </div>
+                    <div id="simulateHeartbeatControl" class="debug-control-item" style="display: none;">
+                         <label>
+                            <input type="checkbox" id="simulateHeartbeatToggle"> Simulate Heartbeat 
+                        </label>
+                        <span id="simulatedHeartbeatIndicator"></span> {/* Indicator for simulated heartbeat */}
+                    </div>
+                </div>
+                <hr class="debug-hr">
+                {/* Client-side debug info will go here */}
+                <div id="clientDebugInfo" style="display:none;">
+                    <h4>Client Debug Stats:</h4>
                     <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
                     <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
                     <div>NPCs: <span id="dbgNpcsCount">0</span></div>
-                    <div>Last Update: <span id="dbgLastUpdate">Never</span></div>
-                    <div>Simulating Heartbeat: <span id="dbgSimulating">false</span></div>
+                    <div>Server Heartbeat: <span id="dbgLastUpdate">Never</span></div>
+                    <div>Sim. Heartbeat: <span id="dbgSimulating">false</span></div>
                 </div>
             </div>
         </div>
@@ -76,6 +82,7 @@
         const commandForm = document.getElementById('commandForm');
         const commandInput = document.getElementById('commandText');
         const wizardHeartIndicator = document.getElementById('wizardHeartIndicator'); 
+        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const rainIntensityControl = document.getElementById('rainIntensityControl');
@@ -89,11 +96,10 @@
         const dbgLastUpdate = document.getElementById('dbgLastUpdate');
         const dbgSimulating = document.getElementById('dbgSimulating');
 
-
         const MOON_EMOJI = '🌙'; 
         const SUN_EMOJI = '☀️'; 
 
-        let showDebugInfo = false; 
+        let showDebugInfo = true; // Default to true for now
         let selfPlayer = null;
         let otherPlayers = {}; 
         let visibleNPCs = [];
@@ -136,7 +142,8 @@
 
         let simulateServerHeartbeatEnabled = false; 
         let simulatedHeartbeatInterval = null;     
-        let heartbeatFlashTimeout = null; 
+        let heartbeatFlashTimeout = null; // For server heart
+        let simulatedHeartbeatFlashTimeout = null; // For simulated heart
 
 
         function updateGameZoomCSS() {
@@ -145,9 +152,7 @@
                 centerViewOnPlayer("zoom_change_recenter");
             }
         }
-        updateGameZoomCSS(); 
-
-
+        
         function applyTheme(theme) {
             if (theme === 'light') {
                 document.body.classList.add('light-theme');
@@ -566,10 +571,10 @@
             if (simulateServerHeartbeatEnabled) {
                 if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval); 
                 simulatedHeartbeatInterval = setInterval(() => {
-                    if (wizardHeartIndicator) { 
-                        wizardHeartIndicator.classList.add('heartbeat-flash'); 
-                        if(heartbeatFlashTimeout) clearTimeout(heartbeatFlashTimeout);
-                        heartbeatFlashTimeout = setTimeout(() => { if(wizardHeartIndicator) wizardHeartIndicator.classList.remove('heartbeat-flash'); }, 150);
+                    if (simulatedHeartbeatIndicator) { 
+                        simulatedHeartbeatIndicator.classList.add('heartbeat-flash'); 
+                        if(simulatedHeartbeatFlashTimeout) clearTimeout(simulatedHeartbeatFlashTimeout);
+                        simulatedHeartbeatFlashTimeout = setTimeout(() => { if(simulatedHeartbeatIndicator) simulatedHeartbeatIndicator.classList.remove('heartbeat-flash'); }, 150);
                     }
                     if (selfPlayer) { drawGrid(); }
                     if(showDebugInfo && dbgSimulating) {
@@ -596,7 +601,8 @@
                         initialCenteringDone = true; 
                         if (!initialUIDone) {
                             updateStatus(); updateWeatherEffects(); 
-                            if(showDebugInfo) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
+                             logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
+                             if(showDebugInfo) logRandomizedEvent('LORE', 'WELCOME', { playerId: myPlayerID }, 'welcome-message');
                             if (currentSceneData.InsideID === 0 && globalWeather.isRaining) logRandomizedEvent('LORE', 'INITIAL_RAIN', {}, 'system');
                             initialUIDone = true;
                         }
@@ -658,9 +664,10 @@
                 data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
             }
             prevSelfPlayerState = { ...selfPlayer };
-
+            
+            // Set debug info state based on saved value or default to true
             const savedDebugInfo = localStorage.getItem('showDebugInfo'); 
-            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false; 
+            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : true; // Default to true
             debugInfoToggle.checked = showDebugInfo; 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
             simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
@@ -670,6 +677,9 @@
             if (showDebugInfo && savedSimulateHeartbeat !== null) { 
                 simulateHeartbeatToggle.checked = JSON.parse(savedSimulateHeartbeat);
                 simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
+            } else if (showDebugInfo) { // If debug is on but no saved sim pref, default sim to off
+                simulateHeartbeatToggle.checked = false;
+                simulateHeartbeatToggle.dispatchEvent(new Event('change'));
             }
             
             console.log("CLIENT: Initializing character size estimation...");
@@ -792,9 +802,7 @@
                 console.warn("game_update received without selfPlayer or data.self_player_data");
                 return; 
             }
-            // console.log("Client received 'game_update'. Self player data from server:", data.self_player_data.x, data.self_player_data.y); 
             if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
-
 
             if(wizardHeartIndicator && !simulateServerHeartbeatEnabled) { 
                 wizardHeartIndicator.classList.add('heartbeat-flash'); 
@@ -957,7 +965,7 @@
                     } else { 
                         shouldEmitToServer = false; 
                         let foundSomethingVisible = false;
-                        const charToUseForVisibilityCheck = selfPlayer.char;
+                        const charToUseForVisibilityCheck = selfPlayer.char; 
 
                         if (visibleNPCs) {
                             for(const npc of visibleNPCs) {
@@ -1044,8 +1052,9 @@
         drawGrid(); 
         
         if (commandInput) { commandInput.focus(); }
+        // Set debug info on load, defaulting to true
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo'); 
-        showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false; 
+        showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : true; // Default to true
         debugInfoToggle.checked = showDebugInfo; 
         rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
         simulateHeartbeatControl.style.display = showDebugInfo ? 'block' : 'none'; 
@@ -1054,8 +1063,10 @@
         const savedSimulateHeartbeat = localStorage.getItem('simulateServerHeartbeat'); 
         if (showDebugInfo && savedSimulateHeartbeat !== null) { 
             simulateHeartbeatToggle.checked = JSON.parse(savedSimulateHeartbeat);
-            simulateHeartbeatToggle.dispatchEvent(new Event('change')); 
+        } else if (showDebugInfo) { // If debug is on but no saved sim pref, default sim to off
+             simulateHeartbeatToggle.checked = false;
         }
+        simulateHeartbeatToggle.dispatchEvent(new Event('change')); // Trigger initial state for simulation
 
         updateStatus("Awaiting connection to the Ethereal Plane..."); 
         updateWeatherEffects(); 
