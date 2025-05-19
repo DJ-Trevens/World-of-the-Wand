@@ -10,15 +10,13 @@
     --bg-tome-cover-dark: #4a3b32;
     
     --text-tome-ink-dark: #1A202C;    
-    /* Adjusted Mana Colors for a Bluer Glow */
-    --text-tome-mana-dark: #7f5ad5;   /* More indigo/blue-purple */   
-    --glow-tome-mana-dark: #9f7aea; /* Lighter, bluer purple for glow */   
+    --text-tome-mana-dark: #7f5ad5;   
+    --glow-tome-mana-dark: #9f7aea;   
     
     --text-primary-dark: #E2E8F0; 
-    --text-game-dark: #F7FAFC;        
     --border-color-dark: #4A5568;     
     
-    --highlight-blue-dark: var(--glow-tome-mana-dark); /* Using mana glow for consistency */
+    --highlight-blue-dark: var(--glow-tome-mana-dark);
     --highlight-green-dark: #48BB78;  
     --highlight-red-dark: #F56565;    
 
@@ -28,6 +26,13 @@
     --command-button-border-dark: #4A5568; 
     --raindrop-base-dark: 160, 174, 192; 
 
+    --text-game-floor-dark: #5A616A; 
+    --text-game-wall-dark:  #A0AEC0; 
+    --text-game-fog-dark:   #3a4150; 
+    --text-game-self-dark:  #68D391; 
+    --text-game-other-dark: #F6E05E; 
+
+
     /* --- Light Theme --- */
     --bg-primary-light: #FDFBF6;   
     --bg-secondary-light: #EFEAE2; 
@@ -35,15 +40,13 @@
     --bg-tome-cover-light: #8B4513;
     
     --text-tome-ink-light: #3A3226;       
-    /* Adjusted Mana Colors for a Bluer Glow - Light Theme */
-    --text-tome-mana-light: #6B46C1;   /* More indigo/blue-purple for light theme */   
-    --glow-tome-mana-light: #805AD5;   /* Lighter, bluer purple glow for light theme */   
+    --text-tome-mana-light: #6B46C1;   
+    --glow-tome-mana-light: #805AD5;   
     
     --text-primary-light: #2D3748; 
-    --text-game-light: #1A202C;        
     --border-color-light: #D1C7AC;     
     
-    --highlight-blue-light: var(--glow-tome-mana-light); /* Using mana glow for consistency */
+    --highlight-blue-light: var(--glow-tome-mana-light);
     --highlight-green-light: #38A169;  
     --highlight-red-light: #C53030;    
 
@@ -52,6 +55,12 @@
     --command-text-focus-bg-light: #E2E8F0; 
     --command-button-border-light: #A0AEC0; 
     --raindrop-base-light: 100, 116, 139; 
+
+    --text-game-floor-light: #B8C2CC; 
+    --text-game-wall-light:  #4A5568; 
+    --text-game-fog-light:   #CBD5E0; 
+    --text-game-self-light:  #2F855A; 
+    --text-game-other-light: #D69E2E; 
 
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
@@ -66,7 +75,6 @@
     --text-tome-mana: var(--text-tome-mana-dark);
     --glow-tome-mana: var(--glow-tome-mana-dark);
     --text-primary: var(--text-primary-dark);
-    --text-game: var(--text-game-dark);
     --border-color: var(--border-color-dark);
     --highlight-blue: var(--highlight-blue-dark);
     --highlight-green: var(--highlight-green-dark);
@@ -76,6 +84,12 @@
     --command-text-focus-bg: var(--command-text-focus-bg-dark);
     --command-button-border: var(--command-button-border-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
+
+    --text-game-floor: var(--text-game-floor-dark);
+    --text-game-wall: var(--text-game-wall-dark);
+    --text-game-fog: var(--text-game-fog-dark);
+    --text-game-self: var(--text-game-self-dark);
+    --text-game-other: var(--text-game-other-dark);
 }
 
 body.light-theme {
@@ -87,7 +101,6 @@ body.light-theme {
     --text-tome-mana: var(--text-tome-mana-light);
     --glow-tome-mana: var(--glow-tome-mana-light);
     --text-primary: var(--text-primary-light);
-    --text-game: var(--text-game-light);
     --border-color: var(--border-color-light);
     --highlight-blue: var(--highlight-blue-light);
     --highlight-green: var(--highlight-green-light);
@@ -97,6 +110,12 @@ body.light-theme {
     --command-text-focus-bg: var(--command-text-focus-bg-light);
     --command-button-border: var(--command-button-border-light);
     --raindrop-base-rgb: var(--raindrop-base-light);
+
+    --text-game-floor: var(--text-game-floor-light);
+    --text-game-wall: var(--text-game-wall-light);
+    --text-game-fog: var(--text-game-fog-light);
+    --text-game-self: var(--text-game-self-light);
+    --text-game-other: var(--text-game-other-light);
 }
 
 html { height: 100%; overflow: hidden; }
@@ -139,14 +158,13 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 #mainHeaderStatus { color: var(--text-primary); padding: 10px 0; text-align: center; font-size: 0.95em; line-height: 1.4; flex-grow: 1; transition: color 0.3s ease; }
 #gameCanvasContainer { position: relative; flex-grow: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; background-color: var(--bg-primary); border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color); cursor: grab; padding: 0; transition: background-color 0.3s ease, border-color 0.3s ease; }
 #gameCanvasContainer:active { cursor: grabbing; }
+
 #gameCanvas {
-    font-family: var(--font-game); white-space: pre; line-height: 0.9; font-size: 18px; 
-    color: var(--text-game); z-index: 1; position: absolute; 
-    padding: 0; 
     transform-origin: 0 0; 
     transform: translate(var(--pan-x, 0px), var(--pan-y, 0px)) scale(var(--game-zoom, 1));
-    transition: transform 0.3s ease-out, color 0.3s ease; 
+    transition: transform 0.3s ease-out; 
 }
+
 #rainOverlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 2; }
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
@@ -159,7 +177,7 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 #commandText:focus { 
     outline: none; border-color: var(--highlight-blue); 
     background-color: var(--command-text-focus-bg); 
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent); /* Using mana glow color for focus */
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent);
 }
 #commandForm button { 
     background-color: var(--border-color); color: var(--text-primary);
@@ -169,7 +187,7 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
     letter-spacing: 0.5px; font-size: 0.9em;
     transition: background-color 0.2s ease, color 0.2s ease, text-shadow 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
 }
-#commandForm button:hover, #commandForm button:focus-visible { /* Added focus-visible for keyboard nav */
+#commandForm button:hover, #commandForm button:focus-visible {
     background-color: var(--text-tome-mana); 
     color: var(--bg-tome); 
     text-shadow: 0 0 5px var(--glow-tome-mana), 0 0 8px var(--glow-tome-mana);
@@ -178,8 +196,8 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 }
 #commandForm button:active { 
     transform: translateY(1px);
-    background-color: color-mix(in srgb, var(--text-tome-mana) 80%, black); /* Darker shade for active */
+    background-color: color-mix(in srgb, var(--text-tome-mana) 80%, black); 
 }
-@media (max-width: 800px) { .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } .left-panel, .right-panel { flex-basis: auto; width: 100%; min-width: unset; padding: 10px; } .left-panel { max-height: 35vh; padding: 5px; } #commandLog { padding: 15px; } .right-panel { flex-grow: 1; } #gameCanvas { font-size: 16px; } #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: flex-start; } #debugMenu { order: -1; margin-right: auto; } #mainHeaderStatus { font-size: 0.9em; text-align: right; } }
+@media (max-width: 800px) { .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; } .left-panel, .right-panel { flex-basis: auto; width: 100%; min-width: unset; padding: 10px; } .left-panel { max-height: 35vh; padding: 5px; } #commandLog { padding: 15px; } .right-panel { flex-grow: 1; } #mainHeaderStatusContainer { flex-wrap: wrap; padding: 5px 10px; justify-content: flex-start; } #debugMenu { order: -1; margin-right: auto; } #mainHeaderStatus { font-size: 0.9em; text-align: right; } }
 #themeToggle { padding: 3px 6px; font-size: 1.2em; line-height: 1; cursor: pointer; border: 1px solid var(--border-color); background-color: var(--bg-secondary); color: var(--text-primary); border-radius: 3px; margin-top: 4px; transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
 #themeToggle:hover { background-color: var(--border-color); }

@@ -1,18 +1,18 @@
 // static/game_texts.js
 
 const GAME_TEXTS = {
-    PLAYER_MOVE: [ // Client-side interpretation of server state change
+    PLAYER_MOVE: [ 
         "Tome traces your path: You move to ({x}, {y}), now facing {direction}.",
         "The weave shifts as you step to ({x}, {y}), oriented {direction}.",
         "Your journey continues to ({x}, {y}), gaze fixed {direction}.",
         "With a soft rustle of reality, you find yourself at ({x}, {y}), looking {direction}."
     ],
-    PLAYER_TURN: [ // Client-side interpretation of server state change
+    PLAYER_TURN: [ 
         "Tome observes: You turn to face {direction} at ({x},{y}).",
         "Your gaze shifts {direction} from your position at ({x},{y}).",
         "Oriented {direction}, you survey your surroundings from ({x},{y})."
     ],
-    ACTION_SENT_FEEDBACK: { // For 'action_feedback' event from server
+    ACTION_SENT_FEEDBACK: { 
         ACTION_QUEUED: [
             "Tome confirms: Your will has been noted. Awaiting cosmic alignment...",
             "The Ethereal Plane acknowledges your intent. Processing...",
@@ -24,7 +24,6 @@ const GAME_TEXTS = {
             "The ancient script offers no translation for \"{actionWord}\". Try 'help'.",
             "Confusion clouds the Tome's pages. The command \"{actionWord}\" is not recognized."
         ],
-        // Example for other action feedbacks (server would send these keys)
         SPELL_FIZZLE_NO_MANA: [
             "Your spell fizzles, your mana reserves too low for such an incantation.",
             "A pathetic spark is all you can muster; more mana is required."
@@ -34,7 +33,7 @@ const GAME_TEXTS = {
             "Thirst quencher needed, wizard, but what?"
         ]
     },
-    LORE: { // For 'lore_message' event from server (server sends the key)
+    LORE: { 
         CONNECTION_ESTABLISHED: [
             "Tome hums: Connection to the Ethereal Plane established.",
             "The ethereal link solidifies. You are connected.",
@@ -78,7 +77,7 @@ const GAME_TEXTS = {
             "The air trembles with your shout, draining {manaCost} mana.",
             "A thundering call echoes, consuming {manaCost} of your essence."
         ],
-        LACK_MANA_SHOUT: [ // Corrected key name
+        LACK_MANA_SHOUT: [ 
             "Tome warns: You lack the {manaCost} mana to project your voice so powerfully.",
             "A mere whisper escapes; you need {manaCost} mana for such a shout.",
             "Your throat strains, but the arcane energies are insufficient. ({manaCost} mana required)."
@@ -91,8 +90,45 @@ const GAME_TEXTS = {
         FONT_SORCERY_FAILED: ["Tome sighs: Font sorcery failed. Visuals may be askew."],
         CENTERING_ERROR: ["Tome struggles: The world's perspective is lost! (Centering Error)"],
         FONT_AND_DATA_ERROR: ["Tome wails: The world's very fabric is unstable! (Font & Data Error)"],
-        CHAT_SAY: ["[ {senderName} says ]: "], // These are prefixes, message is appended
-        CHAT_SHOUT: ["[ SHOUT from {senderName} at {sceneCoords} ]: "]
+        CHAT_SAY: ["[ {senderName} says ]: "], 
+        CHAT_SHOUT: ["[ SHOUT from {senderName} at {sceneCoords} ]: "],
+        ACTION_BLOCKED_WALL: [
+            "Tome groans: You run face-first into a solid wall!",
+            "The way is blocked by an unyielding stone barrier.",
+            "Oof! That wall wasn't there a moment ago... or was it?"
+        ],
+        BUILD_FAIL_OUT_OF_BOUNDS: [
+            "Tome advises: You cannot build beyond the known world.",
+            "The aether resists your construction at these coordinates."
+        ],
+        BUILD_FAIL_OBSTRUCTED: [
+            "Tome shakes its pages: You cannot build there, something is in the way.",
+            "The space is already occupied. Choose another location."
+        ],
+        BUILD_FAIL_NO_MATERIALS: [
+            "Tome sighs: You lack the stone and mortar (wall items) to construct this.",
+            "Your satchel is empty of building supplies."
+        ],
+        BUILD_SUCCESS: [
+            "Tome records: With effort, you erect a sturdy wall. ({walls} wall items remaining)",
+            "A new barrier rises from the ground at your command! ({walls} left)"
+        ],
+        DESTROY_FAIL_OUT_OF_BOUNDS: [
+            "Tome queries: Destroy what? There is nothing but void there.",
+            "You reach into the unknown, but find no wall to dismantle."
+        ],
+        DESTROY_FAIL_NO_WALL: [
+            "Tome seems confused: There is no wall there to destroy.",
+            "Your efforts are wasted on empty space."
+        ],
+        DESTROY_FAIL_NO_MANA: [
+            "Tome warns: You lack the {manaCost} mana to deconstruct this barrier.",
+            "Your will is strong, but your essence is weak. ({manaCost} mana needed)"
+        ],
+        DESTROY_SUCCESS: [
+            "Tome exclaims: The wall crumbles to dust! You reclaim its essence. ({walls} wall items, {manaCost} mana spent)",
+            "With a surge of power, the barrier is unmade. ({walls} items, {manaCost} mana)"
+        ]
     },
     GENERIC: { 
         LORE: ["{message}"], 
@@ -104,18 +140,17 @@ const GAME_TEXTS = {
 
 function getRandomGameText(mainKey, subKey, placeholders = {}) {
     let textsArray;
-    let actualKeyForLog = mainKey + (subKey ? "." + subKey : ""); // For logging
+    let actualKeyForLog = mainKey + (subKey ? "." + subKey : "");
 
     if (mainKey && GAME_TEXTS[mainKey]) {
         if (subKey && typeof GAME_TEXTS[mainKey] === 'object' && GAME_TEXTS[mainKey][subKey] && Array.isArray(GAME_TEXTS[mainKey][subKey])) {
             textsArray = GAME_TEXTS[mainKey][subKey];
-        } else if (Array.isArray(GAME_TEXTS[mainKey])) { // If mainKey itself points to an array (e.g., PLAYER_MOVE)
+        } else if (Array.isArray(GAME_TEXTS[mainKey])) { 
             textsArray = GAME_TEXTS[mainKey];
         }
     }
 
     if (!textsArray) {
-        // Fallback 1: Try GENERIC based on mainKey (if server sends a generic type as mainKey)
         if (mainKey && GAME_TEXTS.GENERIC && GAME_TEXTS.GENERIC[mainKey.toUpperCase()] && Array.isArray(GAME_TEXTS.GENERIC[mainKey.toUpperCase()])) {
             textsArray = GAME_TEXTS.GENERIC[mainKey.toUpperCase()];
             if (!(placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "")) {
@@ -123,18 +158,16 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
                 return `Text error for generic type ${mainKey.toUpperCase()} (message content missing/empty)`;
             }
         } 
-        // Fallback 2: If a raw message was passed in placeholders and no key matched
         else if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
             return placeholders.message; 
         } 
-        // Fallback 3: No matching key and no usable raw message
         else {
             console.warn(`No texts found for key: ${actualKeyForLog}. Placeholders:`, placeholders);
             return `Missing text definition or content for: ${actualKeyForLog}`;
         }
     }
     
-    if (!textsArray || textsArray.length === 0) { // Should ideally be caught by above, but as a safeguard
+    if (!textsArray || textsArray.length === 0) { 
         console.warn(`Empty text array for key: ${actualKeyForLog}`);
         return `No text variants for: ${actualKeyForLog}`;
     }
@@ -148,19 +181,12 @@ function getRandomGameText(mainKey, subKey, placeholders = {}) {
         }
     }
     
-    // Clean up any remaining unfilled placeholders like {some_unfilled_placeholder}
-    // but be careful not to remove if the template itself IS just "{message}" and it was filled.
-    if (selectedText.includes("{") && selectedText.includes("}")) { // Only run regex if placeholders might exist
+    if (selectedText.includes("{") && selectedText.includes("}")) { 
         selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, (match) => {
-            // If the entire string was just "{message}" and it was a GENERIC fallback, 
-            // it means placeholders.message was already used. If it's some other placeholder,
-            // it means it wasn't supplied, so remove it or indicate it's missing.
             if (match === "{message}" && textsArray === GAME_TEXTS.GENERIC[mainKey.toUpperCase()]) {
-                return ""; // Already handled by the template
+                return ""; 
             }
-            // For other unfilled placeholders, you might want to indicate they were missing
-            // console.warn(`Unfilled placeholder: ${match} in text for ${actualKeyForLog}`);
-            return ""; // Or return match to show it like {unfilled_placeholder}
+            return ""; 
         }).trim();
     }
     
