@@ -101,6 +101,7 @@
         let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; 
         let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; 
         let charSizeEstimated = false;
+        let initialCenteringDone = false; // Flag for ResizeObserver
 
         const FOG_CHAR = '░'; 
         const FLOOR_CHAR = '·'; 
@@ -426,6 +427,32 @@
             }
         });
         
+        // --- ResizeObserver for robust initial centering ---
+        const resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.target === gameCanvasContainer) {
+                    const newHeight = entry.contentRect.height;
+                    console.log(`[ResizeObserver] gameCanvasContainer new height: ${newHeight}`);
+                    if (newHeight > 0 && selfPlayer && !initialCenteringDone) {
+                        console.log(`[ResizeObserver] Container has valid height. Attempting initial centering.`);
+                        if (!charSizeEstimated || charRenderWidth <=0 || charRenderHeight <=0 ) {
+                           charSizeEstimated = false; 
+                           estimateCharacterSize("ResizeObserver_triggered_estimate");
+                        }
+                        centerViewOnPlayer("ResizeObserver_initial_center");
+                        initialCenteringDone = true; 
+                        // Optional: Can unobserve now if only needed for initial center
+                        // resizeObserver.unobserve(gameCanvasContainer); 
+                    }
+                }
+            }
+        });
+        if (gameCanvasContainer) {
+            resizeObserver.observe(gameCanvasContainer);
+        }
+        // --- End ResizeObserver ---
+
+
         socket.on('connect', () => {
             console.log("Socket.IO connected successfully! SID (client-side):", socket.id);
             addLogMessage("Tome hums: Connection to the Ethereal Plane established.", 'system');
@@ -472,48 +499,39 @@
 
             document.fonts.ready.then(() => {
                 console.log("Fonts ready. Initial UI setup after 'initial_game_data'.");
-                if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
+                if (selfPlayer) {
+                    charSizeEstimated = false; estimateCharacterSize("initial_data_fonts_ready");
+                    drawGrid();
+                    updateStatus();
+                    updateWeatherEffects(); 
+                    addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
+                    if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
                     
-                    function attemptInitialRenderAndCenter() {
-                        charSizeEstimated = false; 
-                        estimateCharacterSize("initial_render_attempt");
-                        drawGrid();
-                        updateStatus();
-                        
-                        if (gameCanvasContainer.clientHeight > 0) {
-                            centerViewOnPlayer("initial_render_attempt_center");
-                            updateWeatherEffects(); 
-                            addLogMessage(`Tome: You have materialized. (ID: ${myPlayerID})`, 'welcome-message');
-                            if (currentSceneData.InsideID === 0 && globalWeather.isRaining) addLogMessage("Tome notes: A chilling rain falls...", 'system');
-                        } else {
-                            console.warn("Container height still 0 after draw. Retrying centering shortly...");
-                            setTimeout(attemptInitialRenderAndCenter, 100); 
-                        }
+                    // Check if ResizeObserver already centered it or if height is now valid for immediate centering
+                    if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
+                        console.log("Container has height post-draw in initial_game_data. Ensuring centering.");
+                        centerViewOnPlayer("initial_data_fallback_center");
+                        initialCenteringDone = true;
+                    } else if (gameCanvasContainer.clientHeight <= 0) {
+                        console.warn("Container height still 0 after draw in initial_game_data. ResizeObserver should handle centering.");
                     }
-                    attemptInitialRenderAndCenter(); // Start the process
-
                 } else {
-                    gameCanvas.textContent = "Error: Could not initialize player or world data after fonts ready."; 
+                    gameCanvas.textContent = "Error: Player data missing after fonts ready.";
                     addLogMessage("Tome warns: Manifestation failed (missing critical data).", 'event-bad');
                 }
             }).catch(err => {
                 console.error("Font loading error:", err);
                 addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
-                 if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                    function attemptInitialRenderAndCenterAfterFontFail() { // Renamed for clarity
-                        charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback_1"); 
-                        drawGrid(); 
-                        updateStatus(); 
-                        if (gameCanvasContainer.clientHeight > 0) {
-                            centerViewOnPlayer("fonts_catch_centering");
-                            updateWeatherEffects();
-                            addLogMessage("Attempting to render world despite font issues...", 'system');
-                        } else {
-                             console.warn("Container height still 0 after font fail. Retrying centering shortly...");
-                            setTimeout(attemptInitialRenderAndCenterAfterFontFail, 100);
-                        }
+                 if (selfPlayer) { 
+                    charSizeEstimated = false; estimateCharacterSize("fonts_catch_fallback"); 
+                    drawGrid(); 
+                    updateStatus(); 
+                    if (gameCanvasContainer.clientHeight > 0 && !initialCenteringDone) {
+                        centerViewOnPlayer("fonts_catch_centering");
+                        initialCenteringDone = true;
                     }
-                    attemptInitialRenderAndCenterAfterFontFail();
+                    updateWeatherEffects();
+                    addLogMessage("Attempting to render world despite font issues...", 'system');
                  } else { 
                     gameCanvas.textContent = "Error: Font and Player data error.";
                     addLogMessage("Tome wails: The world's very fabric is unstable! (Font & Data Error)", 'event-bad');
@@ -586,6 +604,9 @@
 
             if (sceneChanged || positionChanged || facingChanged) {
                  if (!isDragging) {
+                    // Use ResizeObserver for re-centering on move/turn as well,
+                    // or fall back to a slight delay if not using it actively for this.
+                    // For now, simple timeout.
                     setTimeout(() => centerViewOnPlayer("game_update_recentering"), 0);
                 }
             }
@@ -734,7 +755,7 @@
 
             let commandToSend = { type: canonicalAction, details: {} };
             let shouldEmitToServer = true; 
-            const currentUseLocalCommands = false; // Override the global useLocalCommands for this submit
+            const currentUseLocalCommands = false; 
 
             if (currentUseLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
                 shouldEmitToServer = false; 
