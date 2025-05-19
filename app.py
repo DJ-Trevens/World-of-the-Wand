@@ -25,14 +25,13 @@ socketio = SocketIO(app, async_mode="eventlet", path=f"{GAME_PATH_PREFIX}/socket
 def health_check():
     return "OK", 200
 
-# --- Game Settings ---
+# Game Settings
 GRID_WIDTH = 20
 GRID_HEIGHT = 15
 GAME_TICK_RATE = 0.75 
 SHOUT_MANA_COST = 5
 MAX_VIEW_DISTANCE = 8
 
-# --- Game State (Worker-Specific) ---
 players = {} 
 queued_actions = {} 
 _game_loop_started_in_this_process = False
@@ -49,14 +48,14 @@ def is_visible_server(observer_player_data, target_player_data):
     dist_y = abs(observer_player_data['y'] - target_player_data['y'])
     return dist_x <= MAX_VIEW_DISTANCE and dist_y <= MAX_VIEW_DISTANCE
 
-# --- Core Game Loop ---
 def game_loop():
-    my_pid = os.getpid()
-    print(f">>>> [{my_pid}] ATTEMPTING TO START GAME LOOP. My PID is {my_pid}. Time: {time.time()} <<<<")
+    # ----> IMMEDIATE PRINT ON FUNCTION ENTRY <----
+    print(f">>>> [{os.getpid()}] game_loop FUNCTION ENTERED. Time: {time.time()} <<<<")
+    my_pid = os.getpid() # Define my_pid after the first print
     try:
         print(f">>>> [{my_pid}] GAME LOOP THREAD HAS SUCCESSFULLY STARTED AND IS RUNNING (Tick rate: {GAME_TICK_RATE}s) <<<<")
         loop_count = 0
-
+        # ... (rest of game_loop as in previous fully working version) ...
         while True:
             loop_start_time = time.time()
             loop_count += 1
@@ -86,8 +85,6 @@ def game_loop():
                         new_y_local = player_ref['y'] + dy
                         scene_changed = False
                         transition_message = ""
-
-                        # X-axis movement and scene transition
                         if new_x_local < 0:
                             player_ref['scene_x'] -= 1
                             player_ref['x'] = GRID_WIDTH - 1
@@ -100,8 +97,6 @@ def game_loop():
                             transition_message = f"Emerged east ({player_ref['scene_x']},{player_ref['scene_y']})."
                         else:
                             player_ref['x'] = new_x_local
-
-                        # Y-axis movement and scene transition
                         if new_y_local < 0:
                             player_ref['scene_y'] -= 1
                             player_ref['y'] = GRID_HEIGHT - 1
@@ -117,10 +112,8 @@ def game_loop():
                         else:
                             if not (new_x_local < 0 or new_x_local >= GRID_WIDTH): 
                                 player_ref['y'] = new_y_local
-                        
                         if scene_changed:
                             socketio.emit('lore_message', {'message': transition_message, 'type': 'system'}, room=sid)
-                        # print(f"[{my_pid}] Tick {loop_count}: Player {player_ref['name']} new state after move: {player_ref}") # Verbose
 
                 elif action_type == 'drink_potion':
                     if player_ref['potions'] > 0:
@@ -129,7 +122,6 @@ def game_loop():
                         socketio.emit('lore_message', {'message': "Tome notes: You drink a potion, feeling invigorated!", 'type': 'event-good'}, room=sid)
                     else:
                         socketio.emit('lore_message', {'message': "Tome sighs: Your satchel is empty of potions.", 'type': 'event-bad'}, room=sid)
-                
                 elif action_type == 'say':
                     message_text = details.get('message', '')
                     if message_text:
@@ -138,7 +130,6 @@ def game_loop():
                         for p_sid_target, p_data_target in list(players.items()):
                             if p_data_target['scene_x'] == player_ref['scene_x'] and p_data_target['scene_y'] == player_ref['scene_y']:
                                 socketio.emit('chat_message', chat_data, room=p_sid_target)
-
                 elif action_type == 'shout':
                     message_text = details.get('message', '')
                     if message_text:
@@ -154,27 +145,23 @@ def game_loop():
                         else:
                             socketio.emit('lore_message', {'message': f"Tome warns: You lack the mana to project your voice so powerfully.", 'type': 'event-bad'}, room=sid)
 
-            # Broadcast Tailored State Updates
             if current_process_players_snapshot:
                 all_players_snapshot_after_actions = list(players.values()) 
                 num_updates_sent = 0
                 for recipient_sid in list(current_process_players_snapshot.keys()): 
                     if recipient_sid not in players: continue
-
                     recipient_player_data_for_visibility = players[recipient_sid]
                     visible_other_players_list = []
                     for other_p_data in all_players_snapshot_after_actions:
                         if other_p_data['id'] == recipient_sid: continue
                         if is_visible_server(recipient_player_data_for_visibility, other_p_data):
                             visible_other_players_list.append({'id': other_p_data['id'], 'name': other_p_data['name'], 'x': other_p_data['x'], 'y': other_p_data['y'], 'char': other_p_data['char'], 'scene_x': other_p_data['scene_x'], 'scene_y': other_p_data['scene_y']})
-                    
                     payload_for_client = {
                         'self_player_data': players[recipient_sid], 
                         'visible_other_players': visible_other_players_list,
                     }
                     socketio.emit('game_update', payload_for_client, room=recipient_sid)
                     num_updates_sent +=1
-                
                 if num_updates_sent > 0 and loop_count % 5 == 0 : 
                      print(f"[{my_pid}] Tick {loop_count}: Sent 'game_update' to {num_updates_sent} players.")
             
@@ -184,15 +171,15 @@ def game_loop():
                 socketio.sleep(sleep_duration)
             elif sleep_duration < -0.05: 
                 print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s.")
-    
     except Exception as e_loop: 
-        print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN GAME_LOOP ITSELF: {e_loop} !!!!!!!!")
+        print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN GAME_LOOP ITSELF (pid: {my_pid}): {e_loop} !!!!!!!!")
         traceback.print_exc()
 
+# Socket.IO handlers
 @socketio.on('connect')
 def handle_connect_event(auth=None):
-    sid = request.sid
-    my_pid = os.getpid()
+    # ... (implementation as before, no changes needed here for this debug step) ...
+    sid = request.sid; my_pid = os.getpid()
     print(f"[{my_pid}] Connect event for SID {sid}.")
     player_name = get_player_name(sid)
     new_player_data = {
@@ -214,10 +201,11 @@ def handle_connect_event(auth=None):
             socketio.emit('player_entered_your_scene', new_player_broadcast_data, room=p_sid_iter)
     print(f"[{my_pid}] Sent 'initial_game_data' to {player_name} and 'player_entered_your_scene' to relevant players.")
 
+
 @socketio.on('disconnect')
 def handle_disconnect_event():
-    sid = request.sid
-    my_pid = os.getpid()
+    # ... (implementation as before) ...
+    sid = request.sid; my_pid = os.getpid()
     player_left_data = players.pop(sid, None)
     if sid in queued_actions: del queued_actions[sid]
     if player_left_data:
@@ -228,20 +216,17 @@ def handle_disconnect_event():
                 socketio.emit('player_exited_your_scene', player_left_broadcast_data, room=p_sid_iter)
     else: print(f"[{my_pid}] Disconnect for SID {sid} but player not in 'players' dict.")
 
+
 @socketio.on('queue_player_action')
 def handle_queue_player_action(data):
-    sid = request.sid
-    my_pid = os.getpid()
+    # ... (implementation as before) ...
+    sid = request.sid; my_pid = os.getpid()
     if sid not in players:
-        print(f"[{my_pid}] Action from unknown SID {sid}: {data}")
-        emit_ctx('action_feedback', {'success': False, 'message': "Player not recognized."})
-        return
-    player_name = players[sid]['name']
-    action_type = data.get('type')
+        print(f"[{my_pid}] Action from unknown SID {sid}: {data}"); emit_ctx('action_feedback', {'success': False, 'message': "Player not recognized."}); return
+    player_name = players[sid]['name']; action_type = data.get('type')
     valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout']
     if action_type not in valid_actions:
-        emit_ctx('action_feedback', {'success': False, 'message': f"Unknown action: {action_type}."})
-        return
+        emit_ctx('action_feedback', {'success': False, 'message': f"Unknown action: {action_type}."}); return
     queued_actions[sid] = data 
     emit_ctx('action_feedback', {'success': True, 'message': "Your will is noted..."})
     print(f"[{my_pid}] Action queued for {player_name} ({sid}): {data}")
@@ -254,11 +239,13 @@ def start_game_loop_for_worker():
         print(f"[{my_pid}] Worker: Attempting to start game_loop background task via start_background_task...")
         try:
             socketio.start_background_task(target=game_loop)
+            # ----> ADDED PRINT AFTER THE CALL <----
+            print(f"[{my_pid}] Worker: call to socketio.start_background_task(target=game_loop) COMPLETED.")
             _game_loop_started_in_this_process = True
         except Exception as e:
-            print(f"!!! [{my_pid}] Worker: FAILED TO START GAME LOOP: {e} !!!")
+            print(f"!!! [{my_pid}] Worker: FAILED TO START GAME LOOP (exception during start_background_task): {e} !!!")
             traceback.print_exc()
-    else: print(f"[{my_pid}] Worker: Game loop already marked as started.")
+    else: print(f"[{my_pid}] Worker: Game loop already marked as started in this process.")
 
 if __name__ == '__main__':
     my_pid = os.getpid()
