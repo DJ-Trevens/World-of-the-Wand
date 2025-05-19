@@ -8,6 +8,7 @@
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
+        // Path must exactly match the server-side path for Socket.IO
         const socket = io({path: "/world-of-the-wand/socket.io"});
     </script>
 </head>
@@ -192,17 +193,27 @@
                 }
                 mainHeaderStatus.textContent = baseStatus;
             } else {
-                mainHeaderStatus.textContent = "Welcome to the World of the Wand!";
+                mainHeaderStatus.textContent = "Connecting to the World of the Wand...";
             }
         }
 
         function estimateCharacterSize() {
             if (charSizeEstimated || !gameCanvas.textContent || gameCanvas.textContent.startsWith("Initializing Realm...") || gameCanvas.textContent.startsWith("The mists")) {
                  if (!charSizeEstimated) { 
-                    charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * 0.6; 
-                    charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
-                    console.warn("Using fallback char size for initial centering:", charRenderWidth, charRenderHeight);
-                    charSizeEstimated = true; 
+                    const computedStyle = getComputedStyle(gameCanvas);
+                    const fontSizeStr = computedStyle.fontSize || "18px";
+                    const lineHeightStr = computedStyle.lineHeight; // CSS sets this to 0.9
+
+                    charRenderWidth = parseFloat(fontSizeStr) * 0.6; // Approximation
+
+                    let fs = parseFloat(fontSizeStr);
+                    if (lineHeightStr === 'normal') {
+                        charRenderHeight = fs * 1.2; // Common fallback for 'normal'
+                    } else {
+                        charRenderHeight = fs * parseFloat(lineHeightStr);
+                    }
+                    console.warn("Using early fallback char size for initial centering:", charRenderWidth, charRenderHeight);
+                    charSizeEstimated = true; // Mark as estimated to avoid re-entry before font-ready measure
                  }
                 return;
             }
@@ -214,11 +225,11 @@
             tempSpan.style.whiteSpace = 'pre';
             tempSpan.style.visibility = 'hidden';
             tempSpan.style.position = 'absolute'; 
-            tempSpan.textContent = 'M'; 
+            tempSpan.textContent = 'M'; // A common character for width, though for height, box is more important
             document.body.appendChild(tempSpan);
             
             charRenderWidth = tempSpan.offsetWidth;
-            const lh = parseFloat(getComputedStyle(gameCanvas).lineHeight);
+            const lh = parseFloat(getComputedStyle(gameCanvas).lineHeight); // Should be 0.9 from CSS
             const fs = parseFloat(getComputedStyle(gameCanvas).fontSize);
             charRenderHeight = fs * lh; 
             
@@ -226,11 +237,21 @@
 
             if (charRenderWidth > 0 && charRenderHeight > 0) {
                 charSizeEstimated = true;
-                console.log("Estimated char size (W x H):", charRenderWidth, "x", charRenderHeight);
+                console.log("Estimated char size via tempSpan (W x H):", charRenderWidth, "x", charRenderHeight);
             } else { 
-                charRenderWidth = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * 0.6; 
-                charRenderHeight = parseFloat(getComputedStyle(gameCanvas).fontSize || "18px") * parseFloat(getComputedStyle(gameCanvas).lineHeight || "0.9");
-                 console.warn("Failed to estimate char size accurately, using fallback:", charRenderWidth, charRenderHeight);
+                // Fallback if tempSpan measurement failed (e.g., offsetWidth was 0)
+                const computedStyle = getComputedStyle(gameCanvas);
+                const fontSizeStr = computedStyle.fontSize || "18px";
+                const lineHeightStr = computedStyle.lineHeight;
+
+                charRenderWidth = parseFloat(fontSizeStr) * 0.6; 
+                let fsVal = parseFloat(fontSizeStr);
+                if (lineHeightStr === 'normal') {
+                    charRenderHeight = fsVal * 1.2; 
+                } else {
+                    charRenderHeight = fsVal * parseFloat(lineHeightStr);
+                }
+                console.warn("Failed to estimate char size accurately via tempSpan, using computed fallback:", charRenderWidth, charRenderHeight);
                 charSizeEstimated = true; 
             }
         }
@@ -298,12 +319,14 @@
         function stopRainEffect() {
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
+            rainOverlay.innerHTML = ''; // Clear any remaining drops
         }
         
         function updateWeatherEffects() {
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
+                // Check if intensity actually changed or if rain needs to start
                 if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
-                    globalWeather.intensity = rainIntensitySlider.valueAsNumber;
+                    globalWeather.intensity = rainIntensitySlider.valueAsNumber; // Sync with slider
                     startRainEffect(globalWeather.intensity);
                 }
             } else {
@@ -312,13 +335,13 @@
         }
 
         gameCanvasContainer.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return;
+            if (e.button !== 0) return; // Only left click
             isDragging = true;
             document.body.classList.add('is-dragging');
             gameCanvasContainer.style.cursor = 'grabbing';
             startDragX = e.clientX - currentPanX;
             startDragY = e.clientY - currentPanY;
-            gameCanvas.style.transition = 'none';
+            gameCanvas.style.transition = 'none'; // Allow instant drag
         });
 
         window.addEventListener('mousemove', (e) => {
@@ -333,36 +356,40 @@
             isDragging = false;
             document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
-            gameCanvas.style.transition = 'transform 0.3s ease-out';
-            requestAnimationFrame(centerViewOnPlayer);
+            gameCanvas.style.transition = 'transform 0.3s ease-out'; // Smooth transition for recentering or if needed
+            // No automatic recenter on mouseup; let user control view unless an action forces it
         });
         gameCanvasContainer.addEventListener('mouseleave', () => {
-            if(isDragging){
+            if(isDragging){ // If mouse leaves container while dragging, treat as drag end
                 isDragging = false;
                 document.body.classList.remove('is-dragging');
                 gameCanvasContainer.style.cursor = 'grab';
                 gameCanvas.style.transition = 'transform 0.3s ease-out';
-                requestAnimationFrame(centerViewOnPlayer);
             }
         });
 
         function centerViewOnPlayer() {
-            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 ) {
+            if (!selfPlayer || !charSizeEstimated || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || !gameCanvasContainer || !gameCanvas) {
+                 console.warn("Cannot center view: missing player, char size, or canvas elements.");
                  currentPanX = 0;
                  currentPanY = 0;
                  if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
                 return; 
             }
             
+            // Calculate the player's character's visual center point within the gameCanvas's own coordinate system
             const playerVisualCenterX = (selfPlayer.x * charRenderWidth) + (charRenderWidth / 2);
             const playerVisualCenterY = (selfPlayer.y * charRenderHeight) + (charRenderHeight / 2);
 
+            // Calculate the translation needed to bring that point to the center of the gameCanvasContainer
             targetPanX = (gameCanvasContainer.clientWidth / 2) - playerVisualCenterX;
             targetPanY = (gameCanvasContainer.clientHeight / 2) - playerVisualCenterY;
             
+            // Apply the translation
             currentPanX = targetPanX;
             currentPanY = targetPanY;
-            if(gameCanvas) gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
+            // console.log(`Centering: Player(${selfPlayer.x},${selfPlayer.y}), CharSize(${charRenderWidth.toFixed(2)},${charRenderHeight.toFixed(2)}), PlayerVisual(${playerVisualCenterX.toFixed(2)},${playerVisualCenterY.toFixed(2)}), Container(${gameCanvasContainer.clientWidth},${gameCanvasContainer.clientHeight}), TargetPan(${targetPanX.toFixed(2)},${targetPanY.toFixed(2)})`);
+            gameCanvas.style.transform = `translate(${currentPanX}px, ${currentPanY}px)`;
         }
 
 
@@ -380,68 +407,93 @@
             const newIntensity = parseFloat(event.target.value);
             if (globalWeather.intensity !== newIntensity) {
                 globalWeather.intensity = newIntensity;
-                localStorage.setItem('rainIntensity', globalWeather.intensity);
+                localStorage.setItem('rainIntensity', globalWeather.intensity.toString());
                 if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
                     startRainEffect(globalWeather.intensity); 
                 }
-                // No log message for intensity change unless debug info is on, 
-                // but the effect changes regardless of showDebugInfo for the slider.
             }
         });
 
-        socket.on('connect', () => {});
+        // --- Socket.IO Event Handlers ---
+        socket.on('connect', () => {
+            console.log("Socket.IO connected successfully! SID:", socket.id);
+            myPlayerID = socket.id; // Set myPlayerID upon successful connection
+            addLogMessage("Tome hums: Connection to the Ethereal Plane established.", 'system');
+            // Initial state will be sent by server, no need to request here
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error("Socket.IO connection error:", err);
+            addLogMessage(`Tome screams: Connection Error! ${err.message} (Type: ${err.type}, Description: ${err.description})`, 'event-bad');
+            updateStatus("Connection failed. Trying to reconnect...");
+        });
 
         socket.on('initial_state', (data) => {
+            console.log("Received initial_state:", data);
+            if (!data || !data.player) {
+                console.error("Received invalid initial_state data:", data);
+                addLogMessage("Tome flickers: Received corrupted manifestation data from the server.", 'event-bad');
+                return;
+            }
             selfPlayer = data.player; 
-            myPlayerID = selfPlayer.id;
+            // myPlayerID is already set from socket.id on 'connect' event, but we can verify
+            if (selfPlayer.id !== myPlayerID) {
+                console.warn(`Player ID mismatch! Socket ID: ${myPlayerID}, Server assigned ID: ${selfPlayer.id}. Using server ID.`);
+                myPlayerID = selfPlayer.id;
+            }
+
             GRID_WIDTH = data.grid_width; 
             GRID_HEIGHT = data.grid_height;
             GAME_TICK_RATE = data.tick_rate;
-            otherPlayers = data.other_players || {};
+            otherPlayers = data.other_players || {}; // Ensure otherPlayers is an object
             prevSelfPlayerState = { ...selfPlayer };
 
+            // Load preferences
             const savedDebugInfo = localStorage.getItem('showDebugInfo');
-            if (savedDebugInfo !== null) { showDebugInfo = JSON.parse(savedDebugInfo); } 
-            else { showDebugInfo = false; }
+            showDebugInfo = savedDebugInfo !== null ? JSON.parse(savedDebugInfo) : false;
             debugInfoToggle.checked = showDebugInfo; 
             rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
 
-
             const savedLocalCommands = localStorage.getItem('useLocalCommands');
-            if (savedLocalCommands !== null) { useLocalCommands = JSON.parse(savedLocalCommands); }
-            else { useLocalCommands = true; } 
+            useLocalCommands = savedLocalCommands !== null ? JSON.parse(savedLocalCommands) : true;
             localCommandsToggle.checked = useLocalCommands;
 
             const savedRainIntensity = localStorage.getItem('rainIntensity');
-            if (savedRainIntensity !== null) { 
-                globalWeather.intensity = parseFloat(savedRainIntensity);
-            } else {
-                globalWeather.intensity = 0.1; 
-            }
+            globalWeather.intensity = savedRainIntensity !== null ? parseFloat(savedRainIntensity) : 0.1;
             rainIntensitySlider.value = globalWeather.intensity;
 
+            if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID]; // Should not happen if server sends correctly
 
-            if (otherPlayers[myPlayerID]) delete otherPlayers[myPlayerID];
-
-            if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
-                drawGrid(); 
-                requestAnimationFrame(() => { 
-                    estimateCharacterSize(); 
+            // UI setup, dependent on fonts being ready for char size estimation
+            document.fonts.ready.then(() => {
+                console.log("Fonts ready, proceeding with initial UI setup after initial_state.");
+                if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
+                    estimateCharacterSize(); // Estimate first
+                    drawGrid(); // Then draw
                     updateStatus(); 
-                    centerViewOnPlayer(); 
+                    centerViewOnPlayer(); // Then center
                     updateWeatherEffects(); 
-                    addLogMessage(`Tome: You have materialized in The Whispering Plains.`, 'lore');
-                     if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
+                    addLogMessage(`Tome: You have materialized in The Whispering Plains. Your journey begins. (SID: ${myPlayerID})`, 'welcome-message');
+                    if (currentSceneData.InsideID === 0 && globalWeather.isRaining) {
                         addLogMessage("Tome notes: A chilling rain falls from the slate-grey sky.", 'system');
                     }
-                });
-            } else {
-                gameCanvas.textContent = "Error: Could not initialize player or world data."; 
-                addLogMessage("Tome warns: Error! Could not manifest in world.", 'event-bad');
-            }
+                } else {
+                    gameCanvas.textContent = "Error: Could not initialize player or world data correctly."; 
+                    addLogMessage("Tome warns: Error! Could not manifest in world due to corrupted data.", 'event-bad');
+                    console.error("Critical data missing for UI setup:", selfPlayer, GRID_WIDTH);
+                }
+            }).catch(err => {
+                console.error("Font loading error or timeout:", err);
+                addLogMessage("Tome sighs: Font sorcery failed. Visuals may be askew.", 'event-bad');
+                // Attempt to setup UI anyway, might use fallback char sizes
+                if (selfPlayer && typeof GRID_WIDTH === 'number' && GRID_WIDTH > 0) {
+                    estimateCharacterSize(); drawGrid(); updateStatus(); centerViewOnPlayer(); updateWeatherEffects();
+                }
+            });
         });
 
         socket.on('player_joined', (newPlayerData) => { 
+            console.log("Player joined:", newPlayerData);
             if (myPlayerID && newPlayerData.id !== myPlayerID && selfPlayer &&
                 newPlayerData.scene_x === selfPlayer.scene_x && newPlayerData.scene_y === selfPlayer.scene_y) {
                 otherPlayers[newPlayerData.id] = newPlayerData; 
@@ -449,16 +501,22 @@
                 addLogMessage(`Tome notes: ${newPlayerData.name || 'A new sorcerer'} arrives in this area.`, 'event-good');
             }
         });
-        socket.on('player_left', (playerID) => {
+
+        socket.on('player_left', (data) => { // Expecting {id: playerID_left}
+            const playerID = data.id;
+            console.log("Player left:", playerID);
             if (otherPlayers[playerID]) {
+                const leftPlayerName = otherPlayers[playerID].name || 'A sorcerer';
                 delete otherPlayers[playerID];
                 drawGrid();
-                addLogMessage("Tome records: A sorcerer has departed this area.", 'lore');
+                addLogMessage(`Tome records: ${leftPlayerName} has departed this area.`, 'lore');
             }
         });
+
         socket.on('lore_message', (data) => {
             addLogMessage(data.message, data.type || 'lore');
         });
+
         socket.on('weather_update', (weatherData) => {
             const wasRaining = globalWeather.isRaining;
             globalWeather = weatherData; 
@@ -472,6 +530,7 @@
                 }
             }
         });
+
         socket.on('scene_data_update', (sceneData) => {
             currentSceneData = sceneData;
             updateStatus(); 
@@ -494,7 +553,13 @@
 
         let tickFlashTimeout = null;
         socket.on('game_state_update', (allPlayers) => {
-            console.log("Client received game_state_update"); 
+            // This log can be very noisy, consider enabling only for deep debugging
+            // console.log("Client received game_state_update with", allPlayers ? allPlayers.length : 0, "player states."); 
+            if (!selfPlayer || !myPlayerID) {
+                console.warn("Received game_state_update but selfPlayer or myPlayerID is not set. Ignoring.");
+                return;
+            }
+            
             if(tickIndicator) {
                 tickIndicator.classList.add('tick-flash');
                 if(tickFlashTimeout) clearTimeout(tickFlashTimeout);
@@ -510,24 +575,27 @@
                 if (playerData.id === myPlayerID) {
                     selfPlayer = playerData; 
                     foundSelf = true;
-                } else if (selfPlayer && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
+                } else if (playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
+                    // Only track other players if selfPlayer is defined (which it should be if foundSelf becomes true)
                     currentOtherPlayersInMyScene[playerData.id] = playerData;
                 }
             }
             otherPlayers = currentOtherPlayersInMyScene;
 
-            if (!foundSelf && myPlayerID) {
-                updateStatus("Your connection to this world wavers... (bad connection)");
-                addLogMessage("Tome's script flickers: Warning! Your connection to self is unstable.", 'event-bad');
-            } else if (selfPlayer) { 
+            if (!foundSelf) {
+                // This is a problematic state - server sent an update that doesn't include us
+                updateStatus("Your connection to this world wavers... (Desynchronized)");
+                addLogMessage("Tome's script flickers: Warning! Your essence is not found in the latest planar update.", 'event-bad');
+            } else { 
                  updateStatus(); 
             }
 
             if (selfPlayer && prevSelfPlayerState) {
                 const sceneCoordsChanged = selfPlayer.scene_x !== prevSelfPlayerState.scene_x || selfPlayer.scene_y !== prevSelfPlayerState.scene_y;
                 if (sceneCoordsChanged) {
+                    // Repopulate otherPlayers based on the new scene
                     otherPlayers = {}; 
-                    for (const playerData of allPlayers) {
+                    for (const playerData of allPlayers) { // Re-iterate allPlayers as selfPlayer's scene might have changed
                         if (playerData.id !== myPlayerID && playerData.scene_x === selfPlayer.scene_x && playerData.scene_y === selfPlayer.scene_y) {
                             otherPlayers[playerData.id] = playerData;
                         }
@@ -539,20 +607,28 @@
                     const turned = selfPlayer.char !== prevSelfPlayerState.char;
 
                     if (movedX || movedY) {
-                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                        addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
+                        // Message for local move is handled by command parser if useLocalCommands is true
+                        // This message is for server-confirmed moves
+                        if (!useLocalCommands) { 
+                            let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                            addLogMessage(`Tome traces your path: You move within scene (${selfPlayer.scene_x},${selfPlayer.scene_y}) to (${selfPlayer.x}, ${selfPlayer.y}), facing ${facingDirectionWord}.`, 'lore');
+                        }
                         if (!isDragging) requestAnimationFrame(centerViewOnPlayer); 
                     } else if (turned) {
-                        let facingDirectionWord = getDirectionWord(selfPlayer.char);
-                        addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
+                         if (!useLocalCommands) {
+                            let facingDirectionWord = getDirectionWord(selfPlayer.char);
+                            addLogMessage(`Tome observes: You turn to face ${facingDirectionWord} at (${selfPlayer.x},${selfPlayer.y}) in scene (${selfPlayer.scene_x},${selfPlayer.scene_y}).`, 'lore');
+                        }
                          if (!isDragging) requestAnimationFrame(centerViewOnPlayer); 
                     }
                 }
             }
-            if (selfPlayer) prevSelfPlayerState = { ...selfPlayer };
+            if (selfPlayer) prevSelfPlayerState = { ...selfPlayer }; // Deep copy for next comparison
             
             drawGrid(); 
             if (!charSizeEstimated && selfPlayer && gameCanvas.textContent && !gameCanvas.textContent.startsWith("The mists") && !gameCanvas.textContent.startsWith("Initializing Realm...")) {
+                // This might be redundant if document.fonts.ready handles initial estimation well
+                console.log("Attempting char size estimation post game_state_update due to !charSizeEstimated");
                 requestAnimationFrame(() => { 
                     estimateCharacterSize();
                     if(!isDragging) centerViewOnPlayer(); 
@@ -568,12 +644,14 @@
         }
         socket.on('action_queued', (data) => { addLogMessage("Tome confirms: " + data.message, "system");});
         socket.on('action_failed', (data) => { addLogMessage("Tome shakes its pages: " + data.message, 'event-bad'); });
-        socket.on('disconnect', () => { 
-            updateStatus("Severed from the Ethereal Plane! (Disconnected)");
-            addLogMessage("Tome wails: Disconnected from the server! The weave unravels!", 'event-bad');
+        
+        socket.on('disconnect', (reason) => { 
+            console.log("Socket.IO disconnected. Reason:", reason);
+            updateStatus(`Severed from the Ethereal Plane! (${reason})`);
+            addLogMessage(`Tome wails: Disconnected! Reason: ${reason}. The weave unravels!`, 'event-bad');
             selfPlayer = null; otherPlayers = {}; prevSelfPlayerState = null;
             stopRainEffect(); 
-            drawGrid();
+            drawGrid(); // Will show "Mists obscure..."
         });
 
         const ACTION_ALIASES = {
@@ -602,31 +680,35 @@
         }
         function parseDirection(directionStr, curFacing) {
             directionStr = directionStr.toLowerCase();
-            let result = {char: curFacing, dx: 0, dy: 0, isValid: false};
+            let result = {char: curFacing, dx: 0, dy: 0, isValid: false}; // Default to no change if invalid
             for (const dirKey in DIRECTION_ALIASES) {
                 const config = DIRECTION_ALIASES[dirKey];
                 if (config.aliases.includes(directionStr)) {
                     if (config.relative) {
                         result.isValid = true;
+                        const [currentDx, currentDy] = get_dx_dy_from_direction_str(curFacing);
+                        if (currentDx === 0 && currentDy === 0 && !['^','v','<','>'].includes(curFacing)) { // Player not facing a valid direction
+                            result.isValid = false; // Cannot move relative if not facing a cardinal direction
+                            break;
+                        }
                         if (dirKey === "forward") {
                             result.char = curFacing;
-                            const [dx, dy] = get_dx_dy_from_direction_str(curFacing);
-                            result.dx = dx; result.dy = dy;
-                            if (dx === 0 && dy === 0 && !['^','v','<','>'].includes(curFacing)) result.isValid = false;
+                            result.dx = currentDx; result.dy = currentDy;
                         } else if (dirKey === "backward") {
+                            // Turn 180 degrees and set dx/dy for one step in that new direction
                             if      (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
                             else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
                             else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
                             else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
-                            else result.isValid = false;
+                            else result.isValid = false; // Should not happen if initial check passed
                         }
-                    } else {
+                    } else { // Absolute direction
                         result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true};
                     }
                     return result;
                 }
             }
-            return result;
+            return result; // Returns with isValid: false if no match
         }
 
         commandInput.addEventListener('keydown', (event) => {
@@ -648,7 +730,7 @@
                 return;
             }
             const inputText = commandInput.textContent.trim();
-            commandInput.innerHTML = '';
+            commandInput.innerHTML = ''; // Clear input
 
             if (!inputText) return;
             
@@ -656,13 +738,15 @@
             let actionWord = parts[0];
             let messageContent = parts.length > 1 ? parts.slice(1).join(' ') : null;
 
-            if (actionWord.startsWith("'")) {
+            // Handle chat shortcuts ' and !
+            if (actionWord.startsWith("'") && actionWord.length > 1) { // 'say something
                 messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim();
                 actionWord = "say";
-            } else if (actionWord.startsWith("!")) {
+            } else if (actionWord.startsWith("!") && actionWord.length > 1) { // !shout something
                  messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim();
                 actionWord = "shout";
             }
+
 
             addLogMessage(`Tome jots down: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
 
@@ -677,22 +761,28 @@
             let shouldEmit = true; 
 
             if (useLocalCommands && (canonicalAction === "move" || canonicalAction === "look")) {
-                shouldEmit = false; 
-                const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char);
+                shouldEmit = false; // Process locally, do not send to server
+                const effectiveTargetWord = messageContent || (canonicalAction === "move" ? "forward" : selfPlayer.char); // Look defaults to current facing if no direction given
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
 
                 if (dirResult.isValid) {
-                    let newX = selfPlayer.x + (canonicalAction === "move" ? dirResult.dx : 0);
-                    let newY = selfPlayer.y + (canonicalAction === "move" ? dirResult.dy : 0);
-                    
-                    newX = Math.max(0, Math.min(GRID_WIDTH - 1, newX));
-                    newY = Math.max(0, Math.min(GRID_HEIGHT - 1, newY));
+                    let newX = selfPlayer.x;
+                    let newY = selfPlayer.y;
 
+                    if (canonicalAction === "move") {
+                        newX += dirResult.dx;
+                        newY += dirResult.dy;
+                        
+                        // Boundary checks (local move does not transition scenes)
+                        newX = Math.max(0, Math.min(GRID_WIDTH - 1, newX));
+                        newY = Math.max(0, Math.min(GRID_HEIGHT - 1, newY));
+                    }
+                    
                     selfPlayer.x = newX;
                     selfPlayer.y = newY;
-                    selfPlayer.char = dirResult.char;
+                    selfPlayer.char = dirResult.char; // Update facing direction
                     
-                    addLogMessage(`Tome (Local): You ${canonicalAction} ${effectiveTargetWord}.`, 'system');
+                    addLogMessage(`Tome (Local): You ${canonicalAction} ${getDirectionWord(dirResult.char)}.`, 'system');
                     drawGrid();
                     if (!isDragging) requestAnimationFrame(centerViewOnPlayer);
                     updateStatus();
@@ -700,7 +790,7 @@
                     addLogMessage(`Tome frowns (Local): Your path to "${effectiveTargetWord}" is unclear.`, 'event-bad');
                 }
             } else if (canonicalAction === "move") { 
-                const effectiveTargetWord = messageContent || "forward";
+                const effectiveTargetWord = messageContent || "forward"; // Default to "forward" if no direction given
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
                     commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
@@ -709,22 +799,22 @@
                     shouldEmit = false;
                 }
             } else if (canonicalAction === "look") { 
-                 const effectiveTargetWord = messageContent || "forward"; 
+                const effectiveTargetWord = messageContent || selfPlayer.char; // Default to current facing if no direction given for look
                 const dirResult = parseDirection(effectiveTargetWord, selfPlayer.char);
                 if (dirResult.isValid) {
-                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char }; 
-                    addLogMessage(`Tome's gaze follows yours: You peer ${effectiveTargetWord}.`, 'lore');
+                    commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char }; // Look only changes char, no dx/dy for server movement
+                    // Server will handle any log messages for server-side look
                 } else { 
                     addLogMessage(`Tome squints: You try to peer towards "${effectiveTargetWord}", but your vision blurs.`, 'event-bad');
                     shouldEmit = false;
                 }
             } else if (canonicalAction === "help") { 
-                addLogMessage("Tome patiently explains:\nTo MOVE, try: 'move north', 'go w', 'run forward', etc.\nTo LOOK: 'look east', 'face s', 'turn backward'.\nTo CAST: 'cast [spell name]'.\nTo DRINK: 'drink' or 'drink potion'.\nTo SPEAK: 'say [message]' or '[message] starting with single quote (').\nTo SHOUT: 'shout [message]' or '[message] starting with exclamation mark (!).\nMy knowledge expands as your journey unfolds.", 'system');
+                addLogMessage("Tome patiently explains:\nTo MOVE, try: 'move north', 'go w', 'run forward', etc.\nTo LOOK: 'look east', 'face s', 'turn backward'.\nTo CAST: 'cast [spell name] [direction if applicable]'.\nTo DRINK: 'drink' or 'drink potion'.\nTo SPEAK: 'say [message]' or simply '[message] (starting with single quote ').\nTo SHOUT: 'shout [message]' or simply ![message] (starting with exclamation mark).\nMy knowledge expands as your journey unfolds.", 'system');
                 shouldEmit = false; 
             } else if (canonicalAction === "cast") { 
                  if (messageContent) {
-                    commandToSend.details = { spellName: messageContent }; 
-                    addLogMessage(`Tome focuses: You begin to channel energy for "${messageContent}"...`, 'spell-cast');
+                    commandToSend.details = { spellName: messageContent.split(' ')[0], targetDirection: messageContent.split(' ').length > 1 ? messageContent.split(' ')[1] : null }; 
+                    // Server will confirm targeting and mana
                  } else { 
                     addLogMessage(`Tome asks: Cast what, O Wizard? You must name the incantation.`, 'event-bad');
                     shouldEmit = false;
@@ -734,8 +824,8 @@
                     addLogMessage(`Tome queries: Drink what specifically? If a potion, just 'drink' or 'drink potion'.`, 'event-bad');
                     shouldEmit = false; 
                 } else {
-                    commandToSend.type = 'drink_potion';
-                    addLogMessage("Tome observes: You reach for a potion...", 'system');
+                    commandToSend.type = 'drink_potion'; // Standardize type for server
+                    // Server will handle potion logic and messages
                 }
             } else if (canonicalAction === "say" || canonicalAction === "shout") {
                 if (messageContent && messageContent.length > 0) {
@@ -745,17 +835,19 @@
                     shouldEmit = false;
                 }
             }
-            else { 
-                addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding.`, 'event-bad');
+            else { // Catch-all for actions not fully implemented on client parsing side
+                addLogMessage(`Tome sighs: The arcane art of "${canonicalAction}" is yet beyond your grasp, or perhaps my understanding of your intent.`, 'event-bad');
                 shouldEmit = false;
             }
 
             if (shouldEmit) {
+                console.log("Emitting command to server:", commandToSend);
                 socket.emit('queue_command', commandToSend);
             }
             commandInput.focus();
         });
         
+        // Debug functions (can be removed or kept for testing)
         window.toggleRainDebug = function() { 
             const wasRaining = globalWeather.isRaining; 
             globalWeather.isRaining = !globalWeather.isRaining;
@@ -770,38 +862,32 @@
         };
          window.toggleInsideDebug = function() { 
             currentSceneData.InsideID = currentSceneData.InsideID === 0 ? 1 : 0;
-            currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld" : "A Cozy Hut"; 
+            currentSceneData.name = currentSceneData.InsideID === 0 ? "The Overworld (Debug)" : "A Cozy Hut (Debug)"; 
             if(showDebugInfo) addLogMessage(`Tome notes (DEBUG): You are now ${currentSceneData.InsideID === 0 ? 'Outdoors' : 'Indoors ('+currentSceneData.name+')'}.`, "system");
             updateStatus();
             updateWeatherEffects();
         };
         
+        // --- Initial Page Load Setup ---
         gameCanvas.textContent = "Initializing Realm...";
         if (commandInput) { commandInput.focus(); }
         
+        // Load preferences from localStorage (done again here for clarity, could be a function)
         const savedDebugInfoOnLoad = localStorage.getItem('showDebugInfo');
-        if (savedDebugInfoOnLoad !== null) { showDebugInfo = JSON.parse(savedDebugInfoOnLoad); } 
-        else { showDebugInfo = false; }
+        showDebugInfo = savedDebugInfoOnLoad !== null ? JSON.parse(savedDebugInfoOnLoad) : false;
         debugInfoToggle.checked = showDebugInfo;
         rainIntensityControl.style.display = showDebugInfo ? 'block' : 'none';
 
-
         const savedLocalCommandsOnLoad = localStorage.getItem('useLocalCommands');
-        if (savedLocalCommandsOnLoad !== null) { useLocalCommands = JSON.parse(savedLocalCommandsOnLoad); }
-        else { useLocalCommands = true; } 
+        useLocalCommands = savedLocalCommandsOnLoad !== null ? JSON.parse(savedLocalCommandsOnLoad) : true;
         localCommandsToggle.checked = useLocalCommands;
 
-        const savedRainIntensity = localStorage.getItem('rainIntensity');
-        if (savedRainIntensity !== null) { 
-            globalWeather.intensity = parseFloat(savedRainIntensity);
-        } else {
-             globalWeather.intensity = 0.1; 
-        }
+        const savedRainIntensityOnLoad = localStorage.getItem('rainIntensity');
+        globalWeather.intensity = savedRainIntensityOnLoad !== null ? parseFloat(savedRainIntensityOnLoad) : 0.1;
         rainIntensitySlider.value = globalWeather.intensity;
 
-
-        updateStatus(); 
-        updateWeatherEffects();
+        updateStatus("Awaiting connection to the Ethereal Plane..."); // Initial status before socket connection
+        updateWeatherEffects(); // Initial weather setup based on defaults
         addLogMessage("Tome unfurls its pages: Welcome, Wizard. The Ethereal Waves await your command.", 'welcome-message');
 
     </script>
