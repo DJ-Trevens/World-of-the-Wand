@@ -31,9 +31,8 @@ PIXIE_PROXIMITY_FOR_BOOST = 3
 BASE_MANA_REGEN_PER_TICK = 0.5 
 TICKS_PER_MANA_REGEN_CYCLE = 3
 
-# Sensory System Constants (can be tuned)
-# SENSE_SIGHT_RANGE is effectively MAX_VIEW_DISTANCE due to current visibility checks
-SENSE_SOUND_RANGE_MAX = 8 
+SENSE_SIGHT_RANGE = MAX_VIEW_DISTANCE
+SENSE_SOUND_RANGE_MAX = 8
 SENSE_SMELL_RANGE_MAX = 6
 SENSE_MAGIC_RANGE_MAX = 5 
 
@@ -48,36 +47,23 @@ class ManaPixie:
         self.x = initial_x if initial_x is not None else random.randint(0, GRID_WIDTH - 1)
         self.y = initial_y if initial_y is not None else random.randint(0, GRID_HEIGHT - 1)
         self.name = f"Pixie-{self.id[:4]}"
-        
         self.sensory_cues = {
-            'sight': [ # (description_key, relevance, effective_range - range usually MAX_VIEW_DISTANCE for sight)
-                ('SENSORY.PIXIE_SIGHT_SHIMMER', 0.8, MAX_VIEW_DISTANCE),
-                ('SENSORY.PIXIE_SIGHT_DART', 0.6, MAX_VIEW_DISTANCE)
-            ],
-            'sound': [
-                ('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5), 
-                ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)
-            ],
-            'smell': [
-                ('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2) 
-            ],
-            'magic': [
-                ('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4) 
-            ]
+            'sight': [('SENSORY.PIXIE_SIGHT_SHIMMER', 0.8, SENSE_SIGHT_RANGE), ('SENSORY.PIXIE_SIGHT_DART', 0.6, SENSE_SIGHT_RANGE)],
+            'sound': [('SENSORY.PIXIE_SOUND_CHIME', 0.7, 5), ('SENSORY.PIXIE_SOUND_WINGS', 0.4, 3)],
+            'smell': [('SENSORY.PIXIE_SMELL_OZONE', 0.3, 2)],
+            'magic': [('SENSORY.PIXIE_MAGIC_AURA', 0.9, 4)]
         }
-        self.is_hidden = False 
+        self.is_hidden = False
 
     def get_public_data(self):
         return {'id': self.id, 'name': self.name, 'char': self.char, 'x': self.x, 'y': self.y, 
                 'scene_x': self.scene_x, 'scene_y': self.scene_y}
 
     def wander(self, scene):
-        if random.random() < 0.3: # 30% chance to attempt a move
+        if random.random() < 0.3:
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
-
             new_x, new_y = self.x + dx, self.y + dy
-
             if 0 <= new_x < GRID_WIDTH and 0 <= new_y < GRID_HEIGHT:
                 tile_type = scene.get_tile_type(new_x, new_y)
                 if tile_type != TILE_WALL and not scene.is_npc_at(new_x, new_y, exclude_id=self.id):
@@ -232,6 +218,7 @@ class GameManager:
         self.queued_actions = {}; self.socketio = socketio_instance
         self.server_is_raining = SERVER_IS_RAINING
         self.ticks_until_mana_regen = TICKS_PER_MANA_REGEN_CYCLE
+        self.loop_is_actually_running_flag = False # Initialize the flag
 
     def spawn_initial_npcs(self):
         scene_0_0 = self.get_or_create_scene(0,0)
@@ -265,11 +252,16 @@ class GameManager:
         return self.scenes[scene_coords]
 
     def add_player(self, sid):
-        name = get_player_name(sid); player = Player(sid, name); self.players[sid] = player
+        name = get_player_name(sid); player = Player(sid, name)
+        print(f"[{os.getpid()}] GM Add Player: Creating player {name} ({sid}).")
+        self.players[sid] = player
         scene = self.get_or_create_scene(player.scene_x, player.scene_y); scene.add_player(sid)
+        print(f"[{os.getpid()}] GM Add Player: Added {name} to scene ({player.scene_x},{player.scene_y}). Total players: {len(self.players)}")
         new_player_public_data = player.get_public_data()
         for other_sid_in_scene in scene.get_player_sids():
-            if other_sid_in_scene != sid: self.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
+            if other_sid_in_scene != sid: 
+                print(f"[{os.getpid()}] GM Add Player: Notifying {other_sid_in_scene} about new player {name}.")
+                self.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
         return player
 
     def remove_player(self, sid):
@@ -307,16 +299,15 @@ class GameManager:
             for other_sid in new_scene_obj.get_player_sids():
                 if other_sid != player.id: self.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
 
-    def is_player_visible_to_observer(self, obs_p, target_p):
+    def is_player_visible_to_observer(self, obs_p, target_p): # True LoS/FOV would go here
         if not obs_p or not target_p: return False
         if obs_p.id == target_p.id: return False
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return abs(obs_p.x - target_p.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_p.y) <= MAX_VIEW_DISTANCE
     
-    def is_npc_visible_to_observer(self, obs_p, target_npc): # Placeholder for true FOV
+    def is_npc_visible_to_observer(self, obs_p, target_npc): # True LoS/FOV would go here
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
-        # For now, simple distance. A real FOV algorithm would go here.
         return abs(obs_p.x - target_npc.x) <= MAX_VIEW_DISTANCE and abs(obs_p.y - target_npc.y) <= MAX_VIEW_DISTANCE
 
     def get_visible_players_for_observer(self, observer_player):
@@ -356,31 +347,21 @@ class GameManager:
         for npc_id in scene.get_npc_ids():
             npc = self.get_npc(npc_id)
             if not npc or npc.is_hidden: continue
-
             is_visible_flag = self.is_npc_visible_to_observer(player, npc)
             distance = abs(player.x - npc.x) + abs(player.y - npc.y)
-
             if is_visible_flag:
-                # For 'look' command, client will primarily use visible_npcs.
-                # For passive perception, we might still add a very strong/obvious sight cue.
                 for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
-                    if random.random() < (relevance * 0.05) and cue_key not in perceived_cues_this_tick: # Very low chance for passive "noticing" visual
+                    if random.random() < (relevance * 0.05) and cue_key not in perceived_cues_this_tick:
                         self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
-                        perceived_cues_this_tick.add(cue_key)
-                        break 
-            else: # Not directly visible, process other senses
+                        perceived_cues_this_tick.add(cue_key); break 
+            else: 
                 for sense_type in ['sound', 'smell', 'magic']:
                     for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
                         if distance <= cue_range:
-                            perception_chance = relevance * (1 - (distance / (cue_range + 1.0))) * 0.5 # Base 50% chance at point blank for relevance 1
+                            perception_chance = relevance * (1 - (distance / (cue_range + 1.0))) * 0.5 
                             if random.random() < perception_chance and cue_key not in perceived_cues_this_tick:
-                                self.socketio.emit('lore_message', 
-                                                   {'messageKey': cue_key, 
-                                                    'placeholders': {'npcName': npc.name, 'direction': self.get_general_direction(player, npc)}, 
-                                                    'type': f'sensory-{sense_type}'}, 
-                                                   room=player.id)
-                                perceived_cues_this_tick.add(cue_key)
-                                break 
+                                self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name, 'direction': self.get_general_direction(player, npc)}, 'type': f'sensory-{sense_type}'}, room=player.id)
+                                perceived_cues_this_tick.add(cue_key); break 
                         if cue_key in perceived_cues_this_tick: break 
 
     def process_actions(self):
@@ -394,7 +375,6 @@ class GameManager:
             if action_type == 'move' or action_type == 'look':
                 dx, dy = details.get('dx', 0), details.get('dy', 0)
                 new_char_for_player = details.get('newChar', player.char)
-                
                 if action_type == 'move' and (dx != 0 or dy != 0):
                     target_x, target_y = player.x + dx, player.y + dy
                     scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
@@ -402,23 +382,18 @@ class GameManager:
                     if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT:
                         tile_type_at_target = scene_of_player.get_tile_type(target_x, target_y)
                         npc_at_target = self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
-
                         if tile_type_at_target == TILE_WALL: self.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False
                         elif npc_at_target and isinstance(npc_at_target, ManaPixie):
                             if npc_at_target.attempt_evade(player.x, player.y, scene_of_player): self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_MOVED_AWAY', 'type': 'system', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id)
                             else: self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
                         elif tile_type_at_target == TILE_WATER: player.set_wet_status(True, self.socketio, reason="water_tile")
-                    
                     if can_move_to_tile: player.update_position(dx, dy, new_char_for_player, self, self.socketio)
                     elif player.char != new_char_for_player : player.char = new_char_for_player 
                 else: 
-                    player.update_position(dx, dy, new_char_for_player, self, self.socketio) # This will update char
+                    player.update_position(dx, dy, new_char_for_player, self, self.socketio)
                     if action_type == 'look': 
                         scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
-                        # Server-side sensory for non-visuals on 'look' action
                         self.process_sensory_perception(player, scene_of_player) 
-                        # Client will also do its own "you see X" based on visible_npcs and direction
-
             elif action_type == 'build_wall':
                 dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
                 scene = self.get_or_create_scene(player.scene_x, player.scene_y)
@@ -427,7 +402,6 @@ class GameManager:
                 elif self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y) or self.get_player_at(target_x, target_y, player.scene_x, player.scene_y): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
                 elif not player.has_wall_items(): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_NO_MATERIALS', 'type': 'event-bad'}, room=player.id)
                 else: player.use_wall_item(); scene.set_tile_type(target_x, target_y, TILE_WALL); self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good'}, room=player.id)
-            
             elif action_type == 'destroy_wall':
                 dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
                 scene = self.get_or_create_scene(player.scene_x, player.scene_y)
@@ -435,9 +409,7 @@ class GameManager:
                 elif scene.get_tile_type(target_x, target_y) != TILE_WALL: self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_WALL', 'type': 'event-bad'}, room=player.id)
                 elif not player.can_afford_mana(DESTROY_WALL_MANA_COST): self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_MANA', 'placeholders': {'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-bad'}, room=player.id)
                 else: player.spend_mana(DESTROY_WALL_MANA_COST); player.add_wall_item(); scene.set_tile_type(target_x, target_y, TILE_FLOOR); self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good'}, room=player.id)
-            
             elif action_type == 'drink_potion': player.drink_potion(self.socketio)
-            
             elif action_type == 'say':
                 message_text = details.get('message', '')
                 if message_text: 
@@ -446,30 +418,17 @@ class GameManager:
                     if player_scene_coords in self.scenes: 
                         scene = self.scenes[player_scene_coords] 
                         for target_sid in scene.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
-            
             elif action_type == 'shout':
                 message_text = details.get('message', '')
                 if message_text:
                     if player.spend_mana(SHOUT_MANA_COST):
-                        chat_data = { 
-                            'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 
-                            'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" 
-                        }
+                        chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
                         for target_player_obj in list(self.players.values()):
-                            if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
-                               abs(target_player_obj.scene_y - player.scene_y) <= 1:
+                            if abs(target_player_obj.scene_x - player.scene_x) <= 1 and abs(target_player_obj.scene_y - player.scene_y) <= 1:
                                 self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                        self.socketio.emit('lore_message', {
-                            'messageKey': 'LORE.VOICE_BOOM_SHOUT', 
-                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system',
-                            'message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!"
-                        }, room=player.id)
+                        self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system','message': f"Your voice booms, costing {SHOUT_MANA_COST} mana!"}, room=player.id)
                     else:
-                        self.socketio.emit('lore_message', {
-                            'messageKey': 'LORE.LACK_MANA_SHOUT', 
-                            'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad',
-                            'message': f"You need {SHOUT_MANA_COST} mana to shout."
-                        }, room=player.id)
+                        self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad','message': f"You need {SHOUT_MANA_COST} mana to shout."}, room=player.id)
             processed_sids.add(sid_action)
 
 # --- App Setup & SocketIO ---
@@ -491,39 +450,35 @@ def game_loop():
     my_pid = os.getpid()
     print(f">>>> [{my_pid}] game_loop THREAD ENTERED (Tick rate: {GAME_TICK_RATE}s) <<<<")
     
-    # Initialize a flag on game_manager if it doesn't exist, to confirm loop is running
     if not hasattr(game_manager, 'loop_is_actually_running_flag'):
         game_manager.loop_is_actually_running_flag = False
 
     try:
-        game_manager.loop_is_actually_running_flag = True # Set flag now that we are in the try
+        game_manager.loop_is_actually_running_flag = True
         print(f"[{my_pid}] game_loop: Flag 'loop_is_actually_running_flag' SET to True.")
         
         game_manager.spawn_initial_npcs()
         print(f"[{my_pid}] game_loop: Initial NPCs spawned (or attempted).")
         
         loop_count = 0
-        while True: # THE MAIN LOOP
+        while True:
             loop_count += 1
-            print(f"====== [{my_pid}] TOP OF GAME LOOP TICK {loop_count} ======") # Very visible start of tick
+            print(f"====== [{my_pid}] TOP OF GAME LOOP TICK {loop_count} ======") 
 
             loop_start_time = time.time()
             
-            # Section 1: Action Processing
             try:
-                print(f"[{my_pid}] Tick {loop_count}: Calling process_actions(). Players: {len(game_manager.players)}, Queued: {len(game_manager.queued_actions)}")
+                # print(f"[{my_pid}] Tick {loop_count}: Calling process_actions(). Players: {len(game_manager.players)}, Queued: {len(game_manager.queued_actions)}")
                 game_manager.process_actions()
-                print(f"[{my_pid}] Tick {loop_count}: Finished process_actions().")
+                # print(f"[{my_pid}] Tick {loop_count}: Finished process_actions().")
             except Exception as e_proc_actions:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in process_actions: {e_proc_actions} !!!!!!")
-                traceback.print_exc() # Print full traceback for this specific section
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in process_actions: {e_proc_actions} !!!!!!"; traceback.print_exc())
 
-            # Section 2: Mana Regen
             try:
                 game_manager.ticks_until_mana_regen -=1
                 if game_manager.ticks_until_mana_regen <= 0:
-                    print(f"[{my_pid}] Tick {loop_count}: Processing mana regeneration.")
-                    for player_obj in list(game_manager.players.values()): # Iterate copy
+                    # print(f"[{my_pid}] Tick {loop_count}: Processing mana regeneration.")
+                    for player_obj in list(game_manager.players.values()):
                         pixie_boost_for_player = 0
                         player_scene_obj = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                         for npc_id in player_scene_obj.get_npc_ids():
@@ -533,116 +488,79 @@ def game_loop():
                                 if dist <= PIXIE_PROXIMITY_FOR_BOOST: pixie_boost_for_player += PIXIE_MANA_REGEN_BOOST
                         player_obj.regenerate_mana(BASE_MANA_REGEN_PER_TICK, pixie_boost_for_player, sio)
                     game_manager.ticks_until_mana_regen = TICKS_PER_MANA_REGEN_CYCLE
-                    print(f"[{my_pid}] Tick {loop_count}: Finished mana regeneration.")
+                    # print(f"[{my_pid}] Tick {loop_count}: Finished mana regeneration.")
             except Exception as e_mana_regen:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in mana_regen: {e_mana_regen} !!!!!!")
-                traceback.print_exc()
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in mana_regen: {e_mana_regen} !!!!!!"; traceback.print_exc())
 
-            # Section 3: Rain & Wetness
             try:
                 if game_manager.server_is_raining:
                     for player_obj in list(game_manager.players.values()): 
                         player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                         if not player_scene.is_indoors: 
                             if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
-                # Drying logic (example)
-                for player_obj in list(game_manager.players.values()):
+                for player_obj in list(game_manager.players.values()): # Drying logic
                     player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                    if player_scene.is_indoors and player_obj.is_wet: 
-                        player_obj.set_wet_status(False, sio, reason="indoors")
-                # print(f"[{my_pid}] Tick {loop_count}: Processed rain/wetness.") # Can be verbose
+                    if player_scene.is_indoors and player_obj.is_wet: player_obj.set_wet_status(False, sio, reason="indoors")
             except Exception as e_wetness:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in rain/wetness: {e_wetness} !!!!!!")
-                traceback.print_exc()
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in rain/wetness: {e_wetness} !!!!!!"; traceback.print_exc())
 
-            # Section 4: Passive Sensory Perception
             try:
                 if loop_count % 5 == 0: 
-                    # print(f"[{my_pid}] Tick {loop_count}: Processing passive sensory perception.") # Can be verbose
                     for player_obj in list(game_manager.players.values()):
                         scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                         game_manager.process_sensory_perception(player_obj, scene_of_player)
             except Exception as e_sensory:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in sensory perception: {e_sensory} !!!!!!")
-                traceback.print_exc()
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in sensory perception: {e_sensory} !!!!!!"; traceback.print_exc())
 
-            # Section 5: Emit game updates
             try:
                 if game_manager.players:
-                    # print(f"[{my_pid}] Tick {loop_count}: Found {len(game_manager.players)} players. Preparing to send updates.") # Verbose if needed
                     current_players_snapshot = list(game_manager.players.values())
                     num_updates_sent_this_tick = 0
                     for recipient_player in current_players_snapshot:
                         if recipient_player.id not in game_manager.players: continue
-                        
                         self_data_payload = recipient_player.get_full_data()
                         visible_others_payload = game_manager.get_visible_players_for_observer(recipient_player)
                         visible_npcs_payload = game_manager.get_visible_npcs_for_observer(recipient_player)
                         current_scene_obj = game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y)
                         visible_terrain_payload = current_scene_obj.get_terrain_for_payload() 
                         payload_for_client = {
-                            'self_player_data': self_data_payload,
-                            'visible_other_players': visible_others_payload,
-                            'visible_npcs': visible_npcs_payload,
-                            'visible_terrain': visible_terrain_payload, 
+                            'self_player_data': self_data_payload, 'visible_other_players': visible_others_payload,
+                            'visible_npcs': visible_npcs_payload, 'visible_terrain': visible_terrain_payload, 
                         }
-                        # CRITICAL LOG:
-                        print(f"-----> [{my_pid}] Tick {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----")
-                        sio.emit('game_update', payload_for_client, room=recipient_player.id)
-                        num_updates_sent_this_tick +=1
-                    
+                        # print(f"-----> [{my_pid}] Tick {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----") # Keep for debug
+                        sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_this_tick +=1
                     if num_updates_sent_this_tick > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Tick {loop_count}: Successfully sent 'game_update' to {num_updates_sent_this_tick} players this tick.")
-                    elif len(current_players_snapshot) > 0 and num_updates_sent_this_tick == 0:
-                         print(f"[{my_pid}] Tick {loop_count}: Players present, but NO 'game_update' was successfully emitted this tick.")
+                    elif len(current_players_snapshot) > 0 and num_updates_sent_this_tick == 0 and loop_count % 10 == 1 : print(f"[{my_pid}] Tick {loop_count}: Players present, but NO 'game_update' was successfully emitted this tick.")
                 else:
                     if loop_count % 30 == 1 :print(f"[{my_pid}] Tick {loop_count}: No players in game_manager to send updates to.")
             except Exception as e_emit_section:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!")
-                traceback.print_exc()
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!"; traceback.print_exc())
             
-            # Section 6: Sleep
-            print(f"[{my_pid}] Tick {loop_count}: Preparing for sleep. loop_start_time = {loop_start_time}")
-            elapsed_time = -1.0 
-            sleep_duration = -1.0 
-
+            elapsed_time = -1.0; sleep_duration = -1.0 
             try:
                 current_time_before_elapsed = time.time()
-                # print(f"[{my_pid}] Tick {loop_count}: Current time before elapsed calc: {current_time_before_elapsed}")
                 elapsed_time = current_time_before_elapsed - loop_start_time
-                # print(f"[{my_pid}] Tick {loop_count}: Calculated elapsed_time: {elapsed_time:.4f}s")
-                
                 sleep_duration = GAME_TICK_RATE - elapsed_time
-                print(f"[{my_pid}] Tick {loop_count}: Calculated sleep_duration: {sleep_duration:.4f}s")
-
+                # print(f"[{my_pid}] Tick {loop_count}: Calculated sleep_duration: {sleep_duration:.4f}s") # Verbose
                 if sleep_duration > 0: 
-                    print(f"[{my_pid}] Tick {loop_count}: >>> Attempting to sio.sleep({sleep_duration:.4f}s)")
-                    try:
-                        sio.sleep(sleep_duration) # This is eventlet.sleep.greenlet.sleep()
-                        print(f"[{my_pid}] Tick {loop_count}: <<< Successfully returned from sio.sleep()")
-                    except Exception as e_sio_sleep:
-                        print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION DURING sio.sleep itself: {e_sio_sleep} !!!!!!")
-                        traceback.print_exc()
-                        # If sleep fails, as a fallback, do a small, standard time.sleep to prevent a tight busy loop
-                        # This might impact eventlet's performance if it happens often, but helps debug if sio.sleep is the issue
-                        print(f"[{my_pid}] Tick {loop_count}: FALLBACK: Attempting time.sleep({max(0.001, sleep_duration)})")
-                        time.sleep(max(0.001, sleep_duration)) # ensure positive, non-zero sleep
-                        print(f"[{my_pid}] Tick {loop_count}: FALLBACK: Returned from time.sleep()")
-
-                elif sleep_duration < -0.1: # Allow for minor overrun without spamming logs
+                    # print(f"[{my_pid}] Tick {loop_count}: >>> Attempting to sio.sleep({sleep_duration:.4f}s)") # Verbose
+                    sio.sleep(sleep_duration)
+                    # print(f"[{my_pid}] Tick {loop_count}: <<< Successfully returned from sio.sleep()") # Verbose
+                elif sleep_duration < -0.1: 
                     print(f"!!! [{my_pid}] GAME LOOP OVERRUN (pre-sleep check): Tick {loop_count} took {elapsed_time:.4f}s. No sleep.")
-                else: # sleep_duration is between -0.1 and 0.0
-                    print(f"[{my_pid}] Tick {loop_count}: Sleep duration is very small or zero ({sleep_duration:.4f}s), minimal/no sleep.")
-                    sio.sleep(0.001) # Still yield control very briefly
-
-            except TypeError as e_sleep_type:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic (outside sio.sleep call): {e_sleep_type} !!!!!!")
-                print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}")
-                traceback.print_exc()
-            except Exception as e_sleep_generic:
-                print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic (outside sio.sleep call): {e_sleep_generic} !!!!!!")
-                traceback.print_exc()
-
-            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Ensure this prints
+                else: 
+                    # print(f"[{my_pid}] Tick {loop_count}: Sleep duration is very small or zero ({sleep_duration:.4f}s), minimal/no sleep.") # Verbose
+                    sio.sleep(0.001) 
+            except TypeError as e_sleep_type: print(f"!!!!!! [{my_pid}] Tick {loop_count}: TypeError during sleep logic: {e_sleep_type} !!!!!!"); print(f"Values at error: loop_start_time={loop_start_time}, elapsed_time={elapsed_time}, sleep_duration={sleep_duration}"); traceback.print_exc()
+            except Exception as e_sleep_generic: print(f"!!!!!! [{my_pid}] Tick {loop_count}: Generic Exception during sleep logic: {e_sleep_generic} !!!!!!"); traceback.print_exc()
+            # print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Can be verbose if loop runs ok
+    except Exception as e_loop_main: 
+        print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
+        if hasattr(game_manager, 'loop_is_actually_running_flag'): game_manager.loop_is_actually_running_flag = False 
+        traceback.print_exc()
+    finally:
+        if hasattr(game_manager, 'loop_is_actually_running_flag'): game_manager.loop_is_actually_running_flag = False 
+        print(f"!!!!!!!! [{my_pid}] GAME LOOP THREAD EXITED UNEXPECTEDLY (FLAG SET TO FALSE) !!!!!!!!!")
 
 # --- SocketIO Event Handlers ---
 @sio.on('connect')
@@ -652,13 +570,10 @@ def handle_connect_event(auth=None):
     player_full_data = player.get_full_data()
     visible_to_new_player = game_manager.get_visible_players_for_observer(player)
     visible_npcs_to_new_player = game_manager.get_visible_npcs_for_observer(player)
-    
     emit_ctx('initial_game_data', {
-        'player_data': player_full_data,
-        'other_players_in_scene': visible_to_new_player,
-        'visible_npcs': visible_npcs_to_new_player,
-        'grid_width': GRID_WIDTH, 'grid_height': GRID_HEIGHT, 'tick_rate': GAME_TICK_RATE,
-        'default_rain_intensity': DEFAULT_RAIN_INTENSITY 
+        'player_data': player_full_data, 'other_players_in_scene': visible_to_new_player,
+        'visible_npcs': visible_npcs_to_new_player, 'grid_width': GRID_WIDTH, 'grid_height': GRID_HEIGHT, 
+        'tick_rate': GAME_TICK_RATE, 'default_rain_intensity': DEFAULT_RAIN_INTENSITY 
     })
     emit_ctx('lore_message', {'messageKey': "LORE.WELCOME_INITIAL", 'type': 'welcome-message'}, room=sid)
     print(f"[{pid}] Connect: {player.name} ({sid}). Players: {len(game_manager.players)}")
