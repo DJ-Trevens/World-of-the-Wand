@@ -16,14 +16,15 @@
     --text-primary-dark: #D1D5DB; 
     --border-color-dark: #40434B;     
     
-    --highlight-blue-dark: var(--glow-tome-mana-dark); /* Simulated heartbeat */
+    --highlight-blue-dark: var(--glow-tome-mana-dark);
     --highlight-green-dark: #34D399;  
-    --highlight-red-dark: #F87171;    /* Server heartbeat */
+    --highlight-red-dark: #F87171;    
 
     --heart-inactive-dark: #4B5563;
     --heart-shadow-dark: #111827;
 
-    --command-text-focus-bg-dark: #374151; /* Will be themed purple-ish now */
+    --command-text-bg-dark: #E1D7C5; /* Slightly darker parchment for input */
+    --command-text-focus-bg-dark: #F0E6D2; /* Lighter parchment for focus */
     --command-button-bg-dark: var(--text-tome-mana-dark);
     --command-button-text-dark: var(--bg-tome-dark);
     --command-button-border-dark: var(--text-tome-mana-dark); 
@@ -49,14 +50,15 @@
     --text-primary-light: #374151; 
     --border-color-light: #D1C7AC;     
     
-    --highlight-blue-light: var(--glow-tome-mana-light); /* Simulated heartbeat */
+    --highlight-blue-light: var(--glow-tome-mana-light);
     --highlight-green-light: #10B981;  
-    --highlight-red-light: #EF4444;    /* Server heartbeat */
+    --highlight-red-light: #EF4444;    
 
     --heart-inactive-light: #9CA3AF;
     --heart-shadow-light: #E5E7EB;   
 
-    --command-text-focus-bg-light: #E5E7EB; /* Will be themed purple-ish now */
+    --command-text-bg-light: #F0EAD6; /* Parchment-like for light theme input */
+    --command-text-focus-bg-light: #FFF9EF; 
     --command-button-bg-light: var(--text-tome-mana-light);
     --command-button-text-light: var(--bg-tome-light);
     --command-button-border-light: var(--text-tome-mana-light); 
@@ -99,6 +101,7 @@
     --highlight-red: var(--highlight-red-dark);
     --heart-inactive: var(--heart-inactive-dark); 
     --heart-shadow: var(--heart-shadow-dark);     
+    --command-text-bg: var(--command-text-bg-dark);
     --command-text-focus-bg: var(--command-text-focus-bg-dark);
     --command-button-bg: var(--command-button-bg-dark);
     --command-button-text: var(--command-button-text-dark);
@@ -127,6 +130,7 @@ body.light-theme {
     --highlight-red: var(--highlight-red-light);
     --heart-inactive: var(--heart-inactive-light); 
     --heart-shadow: var(--heart-shadow-light);     
+    --command-text-bg: var(--command-text-bg-light);
     --command-text-focus-bg: var(--command-text-focus-bg-light);
     --command-button-bg: var(--command-button-bg-light);
     --command-button-text: var(--command-button-text-light);
@@ -240,6 +244,7 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     overflow: hidden; 
     cursor: grab; padding: 0; 
     transition: background-color 0.3s ease; 
+    margin-bottom: 0; /* Input box is no longer here */
 }
 #gameCanvasContainer:active { cursor: grabbing; }
 
@@ -253,12 +258,11 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
 @keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
-/* Input box now in left panel */
-#commandInputBox { 
-    padding: 8px 10px 8px 15px; /* Adjusted padding */
+#commandInputBox { /* Now in left panel */
+    padding: 8px 10px 8px 15px; 
     background-color: var(--bg-tome); 
     border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--bg-tome) 40%);
-    border-radius: 0 0 3px 6px; /* Match left-panel's bottom rounding */
+    border-radius: 0 0 0 6px; 
     flex-shrink: 0; 
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
 }
@@ -275,14 +279,16 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
     box-shadow: 0 0 2px var(--heart-shadow); 
 }
-#wizardHeartIndicator { /* Specifically for the one in command input if re-added */
-    margin-right: 10px;
-}
-#serverHeartbeatIndicator.heartbeat-flash { /* For server updates */
+/* This specific ID might not be used if the only indicator is in debug */
+#wizardHeartIndicator.heartbeat-flash { 
     background-color: var(--highlight-red); 
     box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red); 
 }
-#simulatedHeartbeatIndicator.heartbeat-flash { /* For client-side simulated updates */
+#serverHeartbeatIndicator.heartbeat-flash { 
+    background-color: var(--highlight-red); 
+    box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red); 
+}
+#simulatedHeartbeatIndicator.heartbeat-flash {
     background-color: var(--highlight-blue); 
     box-shadow: 0 0 6px var(--highlight-blue), 0 0 10px var(--highlight-blue);
 }
@@ -290,9 +296,9 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 
 #commandForm label { color: var(--text-tome-ink); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
 #commandText { 
-    background-color: color-mix(in srgb, var(--bg-tome) 90%, #000000 10%); 
+    background-color: var(--command-text-bg); /* Themed background */
     color: var(--text-tome-ink); 
-    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent); 
+    border: 1px solid color-mix(in srgb, var(--text-tome-ink) 20%, transparent); 
     padding: 8px 10px; 
     border-radius: 3px; 
     font-size: 1em; flex-grow: 1; font-family: var(--font-game); 
@@ -300,7 +306,7 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 }
 #commandText:focus { 
     outline: none; border-color: var(--text-tome-mana); 
-    background-color: color-mix(in srgb, var(--bg-tome) 98%, white); 
+    background-color: var(--command-text-focus-bg); 
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-tome-mana) 40%, transparent);
 }
 #commandForm button { 
@@ -314,7 +320,7 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 }
 #commandForm button:hover, #commandForm button:focus-visible {
     background-color: var(--command-button-hover-bg); 
-    color: var(--command-button-text); /* Assuming text color remains same on hover */
+    color: var(--command-button-text); 
     text-shadow: 0 0 5px var(--glow-tome-mana), 0 0 8px var(--glow-tome-mana);
     border-color: var(--command-button-hover-bg);
     outline: none;
@@ -336,30 +342,34 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
 .debug-master-toggle {
     padding-bottom: 5px; 
     margin-bottom: 5px;
+    /* border-bottom: 1px solid var(--border-color); Removed to make it cleaner */
 }
 .debug-master-toggle label {
     font-size: 0.9em;
     font-weight: bold;
     cursor: pointer;
-    display: flex; /* For checkbox alignment */
+    display: flex; 
     align-items: center;
 }
 .debug-master-toggle input[type="checkbox"] {
     margin-right: 6px;
+    transform: scale(1.1); /* Slightly larger master toggle */
 }
 
 #debugAndAuxiliaryPanel { 
-    display: none; /* Initially hidden, JS will show it based on checkbox */
-    flex-direction: column; 
+    /* display:none; JS handles this */
+    flex-direction: column; /* Content inside this panel will stack if not overridden by .debug-panel-container */
     padding-top: 8px; 
     color: var(--text-primary);
 }
 .debug-panel-container {
     display: flex;
-    flex-direction: column; /* Stack info and config */
-    gap: 15px; 
+    flex-direction: row; /* This makes info and config side-by-side */
+    justify-content: space-between;
+    gap: 20px; 
 }
 .debug-info-side {
+    flex: 1; /* Takes up available space on the left for stats */
     font-size: 0.8em; 
     line-height: 1.6; 
     text-align: left; 
@@ -377,7 +387,9 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     align-items: center;
 }
 .debug-config-side {
-    margin-top: 10px; /* Space it from the info if stacked */
+    flex: 1; /* Allow config to take space too, or set a flex-basis */
+    /* flex-basis: 220px; Give config side a more fixed width if preferred */
+    flex-shrink: 0; 
     display: flex;
     flex-direction: column;
     align-items: flex-start; 
@@ -389,26 +401,26 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     width: 100%; 
     font-size: 0.85em;
 }
-.debug-config-side .debug-control-item label {
-    margin-right: 5px;
-    white-space: nowrap;
+.debug-config-side label { /* General label styling within config */
+     margin-right: 5px;
+     white-space: nowrap;
 }
-.debug-config-side .debug-control-item input[type="range"] {
+.debug-config-side input[type="range"] {
     flex-grow: 1; 
-    accent-color: var(--text-tome-mana); /* Theme the slider */
+    accent-color: var(--text-tome-mana); 
 }
 .debug-config-side #themeToggle { 
     padding: 4px 8px; 
     font-size: 1.1em; 
-    background-color: var(--border-color); /* Use border color for button bg */
+    background-color: var(--border-color); 
     color: var(--text-primary);
     border: 1px solid var(--command-button-border);
+    align-self: flex-start; /* Align to the start of its flex container */
 }
 .debug-config-side #themeToggle:hover {
     background-color: var(--text-tome-mana);
     color: var(--bg-tome);
 }
-
 hr.debug-hr {
     border: none;
     border-top: 1px solid var(--border-color);
@@ -433,7 +445,7 @@ hr.debug-hr {
     #bottomRightPanelOuter { margin-top: 5px;}
     #debugAndAuxiliaryPanel { min-height: 80px; } 
     .debug-panel-container {
-        flex-direction: column; 
+        flex-direction: column; /* Stack debug sections on mobile */
     }
     .debug-config-side {
         margin-top: 15px; 
