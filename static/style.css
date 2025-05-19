@@ -199,7 +199,17 @@ body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: n
     margin-top: 10px; /* Add some space above it if .right-panel has gap:0 */
 }
 #commandForm { display: flex; align-items: center; width: 100%; }
-#tickIndicator { width: 14px; height: 14px; background-color: var(--tick-inactive); border-radius: 50%; margin-right: 12px; display: inline-block; transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; box-shadow: 0 0 3px var(--tick-shadow); }
+#tickIndicator { 
+    width: 14px; /* Or your preferred size */
+    height: 14px; /* Or your preferred size */
+    background-color: var(--tick-inactive); 
+    border-radius: 50%; 
+    margin-right: 12px; 
+    display: inline-block; /* Important */
+    vertical-align: middle; /* Aligns it nicely with text */
+    transition: background-color 0.1s ease-out, box-shadow 0.1s ease-out; 
+    box-shadow: 0 0 3px var(--tick-shadow); 
+}
 #tickIndicator.tick-flash { background-color: var(--highlight-green); box-shadow: 0 0 10px var(--highlight-green), 0 0 15px var(--highlight-green); }
 #commandForm label { color: var(--text-primary); font-weight: 500; text-shadow: none; margin-right: 5px; font-size: 0.9em; display: flex; align-items: center; transition: color 0.3s ease; }
 #commandText { background-color: var(--border-color); color: var(--text-primary); border: 1px solid var(--border-color); padding: 10px 12px; border-radius: 4px; font-size: 1em; flex-grow: 1; font-family: var(--font-game); transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease; }
