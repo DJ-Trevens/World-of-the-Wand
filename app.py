@@ -490,72 +490,134 @@ def health_check_route(): return "OK", 200
 def game_loop():
     my_pid = os.getpid()
     print(f">>>> [{my_pid}] game_loop THREAD ENTERED (Tick rate: {GAME_TICK_RATE}s) <<<<")
-    game_manager.spawn_initial_npcs()
-    loop_count = 0
+    
+    # Initialize a flag on game_manager if it doesn't exist, to confirm loop is running
+    if not hasattr(game_manager, 'loop_is_actually_running_flag'):
+        game_manager.loop_is_actually_running_flag = False
+
     try:
-        while True:
-            loop_start_time = time.time()
+        game_manager.loop_is_actually_running_flag = True # Set flag now that we are in the try
+        print(f"[{my_pid}] game_loop: Flag 'loop_is_actually_running_flag' SET to True.")
+        
+        game_manager.spawn_initial_npcs()
+        print(f"[{my_pid}] game_loop: Initial NPCs spawned (or attempted).")
+        
+        loop_count = 0
+        while True: # THE MAIN LOOP
             loop_count += 1
-            game_manager.ticks_until_mana_regen -=1
+            print(f"====== [{my_pid}] TOP OF GAME LOOP TICK {loop_count} ======") # Very visible start of tick
 
-            if loop_count % 20 == 1:
-                 print(f"---- [{my_pid}] Tick {loop_count} ---- Players: {len(game_manager.players)} NPCs: {len(game_manager.npcs)} Actions: {len(game_manager.queued_actions)} Rain: {game_manager.server_is_raining} ----")
-
-            for npc in list(game_manager.npcs.values()):
-                if isinstance(npc, ManaPixie):
-                    scene_of_npc = game_manager.get_or_create_scene(npc.scene_x, npc.scene_y)
-                    npc.wander(scene_of_npc)
+            loop_start_time = time.time()
             
-            game_manager.process_actions()
+            # Section 1: Action Processing
+            try:
+                print(f"[{my_pid}] Tick {loop_count}: Calling process_actions(). Players: {len(game_manager.players)}, Queued: {len(game_manager.queued_actions)}")
+                game_manager.process_actions()
+                print(f"[{my_pid}] Tick {loop_count}: Finished process_actions().")
+            except Exception as e_proc_actions:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in process_actions: {e_proc_actions} !!!!!!")
+                traceback.print_exc() # Print full traceback for this specific section
 
-            if game_manager.ticks_until_mana_regen <= 0:
+            # Section 2: Mana Regen
+            try:
+                game_manager.ticks_until_mana_regen -=1
+                if game_manager.ticks_until_mana_regen <= 0:
+                    print(f"[{my_pid}] Tick {loop_count}: Processing mana regeneration.")
+                    for player_obj in list(game_manager.players.values()): # Iterate copy
+                        pixie_boost_for_player = 0
+                        player_scene_obj = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+                        for npc_id in player_scene_obj.get_npc_ids():
+                            npc = game_manager.get_npc(npc_id)
+                            if npc and isinstance(npc, ManaPixie):
+                                dist = abs(player_obj.x - npc.x) + abs(player_obj.y - npc.y)
+                                if dist <= PIXIE_PROXIMITY_FOR_BOOST: pixie_boost_for_player += PIXIE_MANA_REGEN_BOOST
+                        player_obj.regenerate_mana(BASE_MANA_REGEN_PER_TICK, pixie_boost_for_player, sio)
+                    game_manager.ticks_until_mana_regen = TICKS_PER_MANA_REGEN_CYCLE
+                    print(f"[{my_pid}] Tick {loop_count}: Finished mana regeneration.")
+            except Exception as e_mana_regen:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in mana_regen: {e_mana_regen} !!!!!!")
+                traceback.print_exc()
+
+            # Section 3: Rain & Wetness
+            try:
+                if game_manager.server_is_raining:
+                    for player_obj in list(game_manager.players.values()): 
+                        player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+                        if not player_scene.is_indoors: 
+                            if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
+                # Drying logic (example)
                 for player_obj in list(game_manager.players.values()):
-                    pixie_boost_for_player = 0
-                    player_scene_obj = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                    for npc_id in player_scene_obj.get_npc_ids():
-                        npc = game_manager.get_npc(npc_id)
-                        if npc and isinstance(npc, ManaPixie):
-                            dist = abs(player_obj.x - npc.x) + abs(player_obj.y - npc.y)
-                            if dist <= PIXIE_PROXIMITY_FOR_BOOST: pixie_boost_for_player += PIXIE_MANA_REGEN_BOOST
-                    player_obj.regenerate_mana(BASE_MANA_REGEN_PER_TICK, pixie_boost_for_player, sio)
-                game_manager.ticks_until_mana_regen = TICKS_PER_MANA_REGEN_CYCLE
-
-            if game_manager.server_is_raining:
-                for player_obj in list(game_manager.players.values()): 
                     player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                    if not player_scene.is_indoors: 
-                        if not player_obj.is_wet: player_obj.set_wet_status(True, sio, reason="rain")
-            
-            if loop_count % 5 == 0: # Passive sensory perception check (less frequent)
-                for player_obj in list(game_manager.players.values()):
-                    scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-                    game_manager.process_sensory_perception(player_obj, scene_of_player)
+                    if player_scene.is_indoors and player_obj.is_wet: 
+                        player_obj.set_wet_status(False, sio, reason="indoors")
+                # print(f"[{my_pid}] Tick {loop_count}: Processed rain/wetness.") # Can be verbose
+            except Exception as e_wetness:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in rain/wetness: {e_wetness} !!!!!!")
+                traceback.print_exc()
 
-            if game_manager.players:
-                current_players_snapshot = list(game_manager.players.values())
-                num_updates_sent_successfully = 0
-                for recipient_player in current_players_snapshot:
-                    if recipient_player.id not in game_manager.players: continue
-                    self_data_payload = recipient_player.get_full_data()
-                    visible_others_payload = game_manager.get_visible_players_for_observer(recipient_player)
-                    visible_npcs_payload = game_manager.get_visible_npcs_for_observer(recipient_player)
-                    current_scene_obj = game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y)
-                    visible_terrain_payload = current_scene_obj.get_terrain_for_payload() 
-                    payload_for_client = {
-                        'self_player_data': self_data_payload,
-                        'visible_other_players': visible_others_payload,
-                        'visible_npcs': visible_npcs_payload,
-                        'visible_terrain': visible_terrain_payload, 
-                    }
-                    try: sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_successfully +=1
-                    except Exception as e_emit: print(f"!!! [{my_pid}] Tick {loop_count}: ERROR during sio.emit for SID {recipient_player.id}: {e_emit}"); traceback.print_exc()
-                if num_updates_sent_successfully > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Tick {loop_count}: Completed sending 'game_update' to {num_updates_sent_successfully} players.")
+            # Section 4: Passive Sensory Perception
+            try:
+                if loop_count % 5 == 0: 
+                    # print(f"[{my_pid}] Tick {loop_count}: Processing passive sensory perception.") # Can be verbose
+                    for player_obj in list(game_manager.players.values()):
+                        scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+                        game_manager.process_sensory_perception(player_obj, scene_of_player)
+            except Exception as e_sensory:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in sensory perception: {e_sensory} !!!!!!")
+                traceback.print_exc()
+
+            # Section 5: Emit game updates
+            try:
+                if game_manager.players:
+                    # print(f"[{my_pid}] Tick {loop_count}: Found {len(game_manager.players)} players. Preparing to send updates.") # Verbose if needed
+                    current_players_snapshot = list(game_manager.players.values())
+                    num_updates_sent_this_tick = 0
+                    for recipient_player in current_players_snapshot:
+                        if recipient_player.id not in game_manager.players: continue
+                        
+                        self_data_payload = recipient_player.get_full_data()
+                        visible_others_payload = game_manager.get_visible_players_for_observer(recipient_player)
+                        visible_npcs_payload = game_manager.get_visible_npcs_for_observer(recipient_player)
+                        current_scene_obj = game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y)
+                        visible_terrain_payload = current_scene_obj.get_terrain_for_payload() 
+                        payload_for_client = {
+                            'self_player_data': self_data_payload,
+                            'visible_other_players': visible_others_payload,
+                            'visible_npcs': visible_npcs_payload,
+                            'visible_terrain': visible_terrain_payload, 
+                        }
+                        # CRITICAL LOG:
+                        print(f"-----> [{my_pid}] Tick {loop_count}: EMITTING 'game_update' to {recipient_player.name} ({recipient_player.id}) <-----")
+                        sio.emit('game_update', payload_for_client, room=recipient_player.id)
+                        num_updates_sent_this_tick +=1
+                    
+                    if num_updates_sent_this_tick > 0 and loop_count % 10 == 1: print(f"[{my_pid}] Tick {loop_count}: Successfully sent 'game_update' to {num_updates_sent_this_tick} players this tick.")
+                    elif len(current_players_snapshot) > 0 and num_updates_sent_this_tick == 0:
+                         print(f"[{my_pid}] Tick {loop_count}: Players present, but NO 'game_update' was successfully emitted this tick.")
+                else:
+                    if loop_count % 30 == 1 :print(f"[{my_pid}] Tick {loop_count}: No players in game_manager to send updates to.")
+            except Exception as e_emit_section:
+                print(f"!!!!!! [{my_pid}] Tick {loop_count}: EXCEPTION in emit game_updates section: {e_emit_section} !!!!!!")
+                traceback.print_exc()
             
+            # Section 6: Sleep
             elapsed_time = time.time() - loop_start_time
             sleep_duration = GAME_TICK_RATE - elapsed_time
-            if sleep_duration > 0: sio.sleep(sleep_duration)
-            elif sleep_duration < -0.05: print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s (ran over by {-sleep_duration:.4f}s).")
-    except Exception as e_loop: print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN GAME_LOOP (PID: {my_pid}): {e_loop} !!!!!!!!!"); traceback.print_exc()
+            # print(f"[{my_pid}] Tick {loop_count}: Elapsed {elapsed_time:.4f}s, Sleep duration: {sleep_duration:.4f}s") # Verbose
+            if sleep_duration > 0: 
+                sio.sleep(sleep_duration)
+            elif sleep_duration < -0.1: # Increased threshold for overrun warning
+                print(f"!!! [{my_pid}] GAME LOOP OVERRUN: Tick {loop_count} took {elapsed_time:.4f}s.")
+            
+            print(f"====== [{my_pid}] BOTTOM OF GAME LOOP TICK {loop_count} ======\n") # Very visible end of tick
+
+    except Exception as e_loop_main: 
+        print(f"!!!!!!!! [{my_pid}] FATAL ERROR IN OUTER GAME_LOOP (PID: {my_pid}): {e_loop_main} !!!!!!!!!")
+        game_manager.loop_is_actually_running_flag = False # Clear flag on fatal error
+        traceback.print_exc()
+    finally:
+        game_manager.loop_is_actually_running_flag = False # Ensure flag is cleared if loop exits for any reason
+        print(f"!!!!!!!! [{my_pid}] GAME LOOP THREAD EXITED UNEXPECTEDLY !!!!!!!!!")
 
 # --- SocketIO Event Handlers ---
 @sio.on('connect')
