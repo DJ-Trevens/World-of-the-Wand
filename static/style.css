@@ -3,69 +3,69 @@
 :root {
     --game-zoom: 1.4;
 
-    /* --- Dark Theme (for UI elements OUTSIDE canvas) --- */
-    --bg-primary-dark: #1a202c;   
-    --bg-secondary-dark: #2d3748; 
-    --bg-tome-dark: #f7fafc;      
-    --bg-tome-cover-dark: #4a3b32;
+    /* --- UI Dark Theme (for elements OUTSIDE canvas) --- */
+    --bg-primary-dark: #1E1F22;   
+    --bg-secondary-dark: #2C2F33; 
+    --bg-tome-dark: #F0E6D2; /* Aged Parchment */    
+    --bg-tome-cover-dark: #4A3B32; /* Dark Leather */
     
-    --text-tome-ink-dark: #1A202C;    
-    --text-tome-mana-dark: #7f5ad5;   
-    --glow-tome-mana-dark: #9f7aea;   
+    --text-tome-ink-dark: #3A2A1A; /* Dark Sepia Ink */  
+    --text-tome-mana-dark: #8B5CF6; /* Vibrant Purple */   
+    --glow-tome-mana-dark: #A78BFA; /* Lighter Purple Glow */   
     
-    --text-primary-dark: #E2E8F0; 
-    --border-color-dark: #4A5568;     
+    --text-primary-dark: #D1D5DB; /* Light Gray */
+    --border-color-dark: #40434B;     
     
     --highlight-blue-dark: var(--glow-tome-mana-dark);
-    --highlight-green-dark: #48BB78;  
-    --highlight-red-dark: #F56565;    
+    --highlight-green-dark: #34D399;  /* Emerald Green */
+    --highlight-red-dark: #F87171;    /* Soft Red */
 
-    --tick-inactive-dark: #4A5568; 
-    --tick-shadow-dark: #171923;  
-    --command-text-focus-bg-dark: #4A5568; 
-    --command-button-border-dark: #4A5568; 
-    --raindrop-base-dark: 160, 174, 192; 
+    --tick-inactive-dark: #4B5563; 
+    --tick-shadow-dark: #111827;  
+    --command-text-focus-bg-dark: #374151; 
+    --command-button-border-dark: #4B5563; 
+    --raindrop-base-dark: 156, 163, 175; /* Grey raindrop */
 
-    /* --- Light Theme (for UI elements OUTSIDE canvas) --- */
-    --bg-primary-light: #FDFBF6;   
-    --bg-secondary-light: #EFEAE2; 
-    --bg-tome-light: #FFFFFF;      
-    --bg-tome-cover-light: #8B4513;
+    /* --- UI Light Theme (for elements OUTSIDE canvas) --- */
+    --bg-primary-light: #FBF5E9;   /* Light Parchment/Cream */
+    --bg-secondary-light: #FFFFFF; 
+    --bg-tome-light: #FFF9EF;      /* Very Light Parchment */
+    --bg-tome-cover-light: #A0522D; /* Sienna Brown Leather */
     
-    --text-tome-ink-light: #3A3226;       
-    --text-tome-mana-light: #6B46C1;   
-    --glow-tome-mana-light: #805AD5;   
+    --text-tome-ink-light: #5D4037; /* Dark Brown Ink */       
+    --text-tome-mana-light: #7C3AED; /* Deep Purple */   
+    --glow-tome-mana-light: #9333EA; /* Brighter Deep Purple Glow */   
     
-    --text-primary-light: #2D3748; 
-    --border-color-light: #D1C7AC;     
+    --text-primary-light: #374151; /* Dark Slate Gray */
+    --border-color-light: #D1C7AC; /* Desaturated Brown/Beige */     
     
     --highlight-blue-light: var(--glow-tome-mana-light);
-    --highlight-green-light: #38A169;  
-    --highlight-red-light: #C53030;    
+    --highlight-green-light: #10B981;  /* Brighter Emerald */
+    --highlight-red-light: #EF4444;    /* Clearer Red */
 
-    --tick-inactive-light: #A0AEC0;
-    --tick-shadow-light: #E2E8F0;   
-    --command-text-focus-bg-light: #E2E8F0; 
-    --command-button-border-light: #A0AEC0; 
-    --raindrop-base-light: 100, 116, 139; 
+    --tick-inactive-light: #9CA3AF;
+    --tick-shadow-light: #E5E7EB;   
+    --command-text-focus-bg-light: #E5E7EB; 
+    --command-button-border-light: #9CA3AF; 
+    --raindrop-base-light: 107, 114, 128; /* Darker grey raindrop for light bg */
 
     /* --- CONSISTENT Canvas Grid Colors (Dark Background, Light Chars) --- */
-    /* To be used regardless of body theme */
-    --canvas-bg-consistent: #1f2937; /* Dark gray/blue - formerly light theme's canvas bg */
-    --text-game-floor-consistent: #9CA3AF; /* Light Gray */
-    --text-game-wall-consistent:  #E5E7EB; /* Lighter Gray / Off-white */
-    --text-game-water-consistent: #3b82f6; /* Bright Blue */
-    --text-game-fog-consistent:   #4B5563; /* Medium Gray for fog on dark bg */
-    --text-game-self-consistent:  #34D399; /* Teal/Green */
-    --text-game-other-consistent: #FBBF24; /* Amber/Yellow */
-    --text-game-wet-tint-consistent: rgba(59, 130, 246, 0.3); /* Light blueish tint */
+    /* Used by JS for canvas drawing, regardless of body theme */
+    --canvas-bg-consistent: #202225; /* Very Dark Desaturated Indigo/Charcoal */
+    --text-game-floor-consistent: #4F545C; /* Darker, subtle grey for floor dots */
+    --text-game-wall-consistent:  #7289DA; /* Magical Stone Purple/Blue */
+    --text-game-water-consistent: #4DD0E1; /* Tealish Blue */
+    --text-game-fog-consistent:   #2C2F33; /* Slightly Lighter Dark Grey for fog chars */
+    --text-game-self-consistent:  #FEE75C; /* Golden Yellow */
+    --text-game-other-consistent: #7FFFD4; /* Aquamarine/Teal */
+    --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25); /* Subtle Tealish tint */
 
 
     --font-tome: 'EB Garamond', serif;
     --font-ui: 'Roboto', sans-serif;
     --font-game: 'Consolas', 'Courier New', monospace;
 
-    /* Apply Dark Theme by Default for UI elements */
+    /* Apply Dark UI Theme by Default for elements OUTSIDE canvas */
     --bg-primary: var(--bg-primary-dark);
     --bg-secondary: var(--bg-secondary-dark);
     --bg-tome: var(--bg-tome-dark);
@@ -84,8 +84,7 @@
     --command-button-border: var(--command-button-border-dark);
     --raindrop-base-rgb: var(--raindrop-base-dark);
 
-    /* Canvas colors will be set directly from -consistent variables in JS */
-    /* but gameCanvasContainer can use a consistent bg too */
+    /* Canvas container will use the consistent dark background */
     --canvas-bg: var(--canvas-bg-consistent); 
 }
 
@@ -109,7 +108,7 @@ body.light-theme {
     --command-button-border: var(--command-button-border-light);
     --raindrop-base-rgb: var(--raindrop-base-light);
 
-    /* Canvas grid colors remain consistent (dark background) */
+    /* Canvas container background remains consistent (dark) */
     --canvas-bg: var(--canvas-bg-consistent);
 }
 
@@ -123,22 +122,22 @@ body {
 body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
 .main-ui-container { display: flex; flex-grow: 1; width: 100%; height: 100%; padding: 15px; box-sizing: border-box; gap: 15px; position: relative; }
 .left-panel, .right-panel { display: flex; flex-direction: column; height: 100%; overflow: hidden; box-sizing: border-box; background-color: var(--bg-secondary); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); transition: background-color 0.3s ease; }
-.left-panel { flex-basis: 40%; flex-shrink: 1; min-width: 300px; padding: 12px; background-color: var(--bg-tome-cover); border: 3px solid #4a3b32; border-radius: 10px 4px 4px 10px; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
-body.light-theme .left-panel { border-color: #7A3D0D; }
+.left-panel { flex-basis: 40%; flex-shrink: 1; min-width: 300px; padding: 12px; background-color: var(--bg-tome-cover); border: 3px solid color-mix(in srgb, var(--bg-tome-cover) 70%, black); border-radius: 10px 4px 4px 10px; position: relative; transition: background-color 0.3s ease, border-color 0.3s ease; }
+
 .left-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 15px; background: linear-gradient(to right, rgba(0,0,0,0.2), rgba(0,0,0,0.05)); border-radius: 10px 0 0 10px; }
 .right-panel { flex-basis: 60%; flex-shrink: 1; min-width: 350px; gap: 15px; padding: 15px; display: flex; flex-direction: column; }
-#commandLog { background-color: var(--bg-tome); font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; padding: 25px 30px 25px 20px; border-radius: 3px 6px 6px 3px; overflow-y: auto; flex-grow: 1; border: 1px solid #d1c7ac; box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); position: relative; scrollbar-width: none; -ms-overflow-style: none;  transition: background-color 0.3s ease, border-color 0.3s ease; }
-body.light-theme #commandLog { border-color: #E0D6B8; }
+#commandLog { background-color: var(--bg-tome); font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65; padding: 25px 30px 25px 20px; border-radius: 3px 6px 6px 3px; overflow-y: auto; flex-grow: 1; border: 1px solid color-mix(in srgb, var(--bg-tome) 80%, black); box-shadow: inset 3px 0 8px rgba(0,0,0,0.15); position: relative; scrollbar-width: none; -ms-overflow-style: none;  transition: background-color 0.3s ease, border-color 0.3s ease; }
+
 #commandLog::-webkit-scrollbar { display: none; }
-.log-entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed rgba(80, 70, 60, 0.15); word-wrap: break-word; white-space: pre-wrap; }
+.log-entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed color-mix(in srgb, var(--text-tome-ink) 30%, transparent); word-wrap: break-word; white-space: pre-wrap; }
 .log-entry:last-child { border-bottom: none; }
 .log-style-ink { color: var(--text-tome-ink); font-weight: 500; transition: color 0.3s ease; }
 .log-style-mana {
     color: var(--text-tome-mana);
     font-weight: 700; 
-    text-shadow: 0 0 5px var(--glow-tome-mana), 
-                 0 0 10px var(--glow-tome-mana),
-                 0 0 15px color-mix(in srgb, var(--glow-tome-mana) 50%, transparent); 
+    text-shadow: 0 0 6px var(--glow-tome-mana), 
+                 0 0 12px var(--glow-tome-mana),
+                 0 0 18px color-mix(in srgb, var(--glow-tome-mana) 40%, transparent); 
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
 .log-type-lore {} .log-type-system { font-style: italic; } .log-type-event-good {} .log-type-event-bad { font-weight: bold; } 
@@ -154,7 +153,7 @@ body.light-theme #commandLog { border-color: #E0D6B8; }
 #gameCanvasContainer { 
     position: relative; flex-grow: 1; min-height: 150px; 
     display: flex; align-items: center; justify-content: center; 
-    background-color: var(--canvas-bg); /* Use the consistent canvas background */
+    background-color: var(--canvas-bg); 
     border-radius: 6px; overflow: hidden; 
     border: 1px solid var(--border-color); 
     cursor: grab; padding: 0; 
