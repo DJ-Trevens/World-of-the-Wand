@@ -16,8 +16,8 @@ import psycopg2 # For PostgreSQL
 from urllib.parse import urlparse # For parsing DATABASE_URL
 
 # --- Game Settings ---
-GRID_WIDTH = 20
-GRID_HEIGHT = 15
+GRID_WIDTH = 27
+GRID_HEIGHT = 17
 GAME_HEARTBEAT_RATE = 0.75
 SHOUT_MANA_COST = 5
 MAX_VIEW_DISTANCE = 8
