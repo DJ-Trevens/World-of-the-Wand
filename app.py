@@ -17,7 +17,7 @@ import math
 GRID_WIDTH, GRID_HEIGHT, GAME_HEARTBEAT_RATE, SHOUT_MANA_COST, MAX_VIEW_DISTANCE = 20, 15, 0.75, 5, 8
 _game_loop_started_in_this_process = False
 DESTROY_WALL_MANA_COST = 10
-CHOP_TREE_MANA_COST = 15 # New cost for chopping trees
+CHOP_TREE_MANA_COST = 15
 INITIAL_WALL_ITEMS = 77
 INITIAL_POTIONS = 77
 
@@ -33,7 +33,7 @@ PIXIE_MANA_REGEN_BOOST = 1
 PIXIE_PROXIMITY_FOR_BOOST = 3
 
 ELF_CHAR = 'E'
-TREE_CHAR = '\u2663' # Unicode for Club symbol (♣), often used for trees
+TREE_CHAR = '\u2663'
 
 BASE_MANA_REGEN_PER_HEARTBEAT_CYCLE = 0.5
 HEARTBEATS_PER_MANA_REGEN_CYCLE = 3
@@ -59,9 +59,12 @@ if not app.logger.handlers:
     stream_handler.setFormatter(formatter)
     app.logger.addHandler(stream_handler)
 app.logger.setLevel(log_level)
-app.logger.info(f"Logger configured at level: {logging.getLevelName(log_level)}")
+# Moved initial log message to after game_manager is potentially initialized or app context is more stable.
 
 sio = SocketIO(logger=False, engineio_logger=False, async_mode="eventlet")
+
+# --- Global Game Manager Placeholder ---
+game_manager_instance = None # Will be initialized by get_game_manager()
 
 def get_player_name(sid): return f"Wizard-{sid[:4]}"
 
@@ -74,19 +77,24 @@ class Tree:
         self.scene_y = scene_y
         self.x = x
         self.y = y
-        self.name = f"Ancient Tree-{self.id[:4]}" # Generic name
+        self.species = "Oak"
+        self.is_ancient = True
+        self.is_coniferous = False
         self.is_chopped_down = False
-        self.elf_guardian_ids = [] # IDs of elves tied to this tree
+        self.name = f"{self.species}-{self.id[:4]}"
+        self.lore_name = f"{self.is_chopped_down and 'felled ' or ''}{self.is_ancient and 'ancient ' or ''}{self.species}"
+        self.elf_guardian_ids = []
 
     def get_public_data(self):
         return {
             'id': self.id, 'type': self.type, 'char': self.char,
             'x': self.x, 'y': self.y,
             'scene_x': self.scene_x, 'scene_y': self.scene_y,
-            'is_chopped_down': self.is_chopped_down
+            'is_chopped_down': self.is_chopped_down,
+            'name': self.name, 'lore_name': self.lore_name
         }
 
-class ManaPixie: # ... (largely same as before, added self.type) ...
+class ManaPixie:
     def __init__(self, scene_x, scene_y, initial_x=None, initial_y=None):
         self.id = str(uuid.uuid4())
         self.type = "ManaPixie"
@@ -111,7 +119,7 @@ class ManaPixie: # ... (largely same as before, added self.type) ...
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
             new_x, new_y = self.x + dx, self.y + dy
-            if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id): # Use generic is_entity_at
+            if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id):
                 self.x, self.y = new_x, new_y
     def attempt_evade(self, player_x, player_y, scene):
         possible_moves = []
@@ -120,95 +128,77 @@ class ManaPixie: # ... (largely same as before, added self.type) ...
                 if dx_evade == 0 and dy_evade == 0: continue
                 evade_x, evade_y = self.x + dx_evade, self.y + dy_evade
                 if scene.is_walkable(evade_x, evade_y) and \
-                   not scene.is_entity_at(evade_x, evade_y, exclude_id=self.id): # Use generic is_entity_at
+                   not scene.is_entity_at(evade_x, evade_y, exclude_id=self.id):
                     possible_moves.append((evade_x, evade_y))
         if possible_moves:
             self.x, self.y = random.choice(possible_moves); return True
         return False
 
-
 class Elf:
     def __init__(self, scene_x, scene_y, initial_x=None, initial_y=None, home_tree_id=None):
         self.id = str(uuid.uuid4())
         self.type = "Elf"
+        self.race = "Wood"
         self.char = ELF_CHAR
         self.scene_x = scene_x
         self.scene_y = scene_y
         self.x = initial_x if initial_x is not None else random.randint(0, GRID_WIDTH - 1)
         self.y = initial_y if initial_y is not None else random.randint(0, GRID_HEIGHT - 1)
         self.name = f"Elf-{self.id[:4]}"
+        self.lore_name = f"{self.race} Elf"
         self.home_tree_id = home_tree_id
-        self.state = "wandering_near_tree" # Initial state
-        self.max_health = 30 # Elves are not sturdy
+        self.state = "wandering_near_tree"
+        self.max_health = 30
         self.current_health = self.max_health
-        self.is_sneaking = False # For future use
+        self.is_sneaking = False
         self.sensory_cues = {
             'sight': [('SENSORY.ELF_SIGHT_GRACEFUL', 0.7, SENSE_SIGHT_RANGE)],
             'sound': [('SENSORY.ELF_SOUND_RUSTLE', 0.5, 4), ('SENSORY.ELF_SOUND_SOFT_SONG', 0.2, 6)],
             'smell': [('SENSORY.ELF_SMELL_PINE', 0.4, 3)],
             'magic': [('SENSORY.ELF_MAGIC_NATURE', 0.6, 3)]
         }
-        self.is_hidden = False # For rendering logic if at tree
+        self.is_hidden_by_tree = False # Default, updated by GameManager before sending client data
 
     def get_public_data(self):
         return {
             'id': self.id, 'name': self.name, 'char': self.char, 'type': self.type,
             'x': self.x, 'y': self.y, 'scene_x': self.scene_x, 'scene_y': self.scene_y,
             'is_sneaking': self.is_sneaking, 'state': self.state,
-            'is_hidden_by_tree': getattr(self, 'is_hidden_by_tree', False) # Updated by GM before sending
+            'is_hidden_by_tree': self.is_hidden_by_tree
         }
-
-    def update_ai(self, scene, game_manager):
+    def update_ai(self, scene, game_manager): # game_manager passed directly
         home_tree = game_manager.get_tree(self.home_tree_id) if self.home_tree_id else None
-
         if self.state == "distressed_no_tree":
-            # Future: Wander aimlessly or mourn
-            if random.random() < 0.05: # Small chance to just move a bit
-                self.wander_randomly(scene)
+            if random.random() < 0.05: self.wander_randomly(scene)
             return
-
         if self.state == "wandering_near_tree":
             if home_tree and not home_tree.is_chopped_down:
                 self.wander_near_tree(scene, home_tree)
-            else: # Tree is gone or never assigned
-                self.state = "distressed_no_tree" # Or just wander_randomly
+            else:
+                self.state = "distressed_no_tree"
                 self.wander_randomly(scene)
-
-        # Future states: "fleeing_to_tree", "sneaking", "attacking"
-        # For now, if an elf is at their home tree, we'll set a flag for rendering
+        # Update is_hidden_by_tree based on current position and tree state
         if home_tree and not home_tree.is_chopped_down and self.x == home_tree.x and self.y == home_tree.y:
             self.is_hidden_by_tree = True
         else:
             self.is_hidden_by_tree = False
-
-
     def wander_near_tree(self, scene, tree):
         WANDER_RADIUS_FROM_TREE = 4
-        if random.random() < 0.2: # Chance to move
-            # Try to move towards tree if too far, or randomly if close
+        if random.random() < 0.2:
             dist_to_tree = math.sqrt((self.x - tree.x)**2 + (self.y - tree.y)**2)
-
-            if dist_to_tree > WANDER_RADIUS_FROM_TREE: # Move towards tree
-                dx = 0
+            dx = 0; dy = 0
+            if dist_to_tree > WANDER_RADIUS_FROM_TREE:
                 if self.x < tree.x: dx = 1
                 elif self.x > tree.x: dx = -1
-                dy = 0
                 if self.y < tree.y: dy = 1
                 elif self.y > tree.y: dy = -1
-            else: # Wander randomly within radius
-                dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
-
-            if dx == 0 and dy == 0: return # No movement
+            else: dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
+            if dx == 0 and dy == 0: return
             new_x, new_y = self.x + dx, self.y + dy
-
-            # Ensure new position is within overall wander radius as well
-            if math.sqrt((new_x - tree.x)**2 + (new_y - tree.y)**2) > WANDER_RADIUS_FROM_TREE + 1: # Allow one step outside
-                return # Don't move if it takes too far
-
+            if math.sqrt((new_x - tree.x)**2 + (new_y - tree.y)**2) > WANDER_RADIUS_FROM_TREE + 1: return
             if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id):
                 self.x, self.y = new_x, new_y
-
-    def wander_randomly(self, scene): # Generic wander if no tree or tree is gone
+    def wander_randomly(self, scene):
         if random.random() < 0.15:
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
@@ -216,7 +206,7 @@ class Elf:
             if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id):
                 self.x, self.y = new_x, new_y
 
-class Player: # ... (same as before) ...
+class Player:
     def __init__(self, sid, name):
         self.id = sid; self.name = name; self.scene_x = 0; self.scene_y = 0
         self.x = GRID_WIDTH // 2; self.y = GRID_HEIGHT // 2
@@ -246,14 +236,15 @@ class Player: # ... (same as before) ...
             self.scene_y += 1; self.y = 0; scene_changed_flag = True
             if not transition_key: transition_key = 'LORE.SCENE_TRANSITION_SOUTH'
         else: self.y = ny
+        char_changed = self.char != new_char
         self.char = new_char
         if scene_changed_flag:
             game_manager.handle_player_scene_change(self, old_scene_x, old_scene_y)
             if transition_key: socketio_instance.emit('lore_message', {'messageKey': transition_key, 'placeholders': {'scene_x': self.scene_x, 'scene_y': self.scene_y}, 'type': 'system'}, room=self.id)
-        elif self.x != original_x_tile or self.y != original_y_tile or self.char != new_char :
+        elif self.x != original_x_tile or self.y != original_y_tile or char_changed :
             current_scene = game_manager.get_or_create_scene(self.scene_x, self.scene_y)
             self.visible_tiles_cache = game_manager.calculate_fov(self.x, self.y, current_scene, SENSE_SIGHT_RANGE)
-        return scene_changed_flag or (self.x != original_x_tile or self.y != original_y_tile or self.char != new_char)
+        return scene_changed_flag or (self.x != original_x_tile or self.y != original_y_tile or char_changed)
     def drink_potion(self, socketio_instance):
         if self.potions > 0: self.potions -= 1; self.current_health = min(self.max_health, self.current_health + 15); socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_SUCCESS', 'type': 'event-good'}, room=self.id); return True
         else: socketio_instance.emit('lore_message', {'messageKey': 'LORE.POTION_DRINK_FAIL_EMPTY', 'type': 'event-bad'}, room=self.id); return False
@@ -292,17 +283,17 @@ class Player: # ... (same as before) ...
                 'current_mana': int(self.current_mana), 'potions': self.potions, 'gold': self.gold,
                 'walls': self.walls, 'is_wet': self.is_wet}
 
-
-class Scene: # ... (same as before, but is_entity_at added) ...
+class Scene:
     def __init__(self, scene_x, scene_y, name_generator_func=None):
         self.scene_x = scene_x; self.scene_y = scene_y
         self.name = f"Area ({scene_x},{scene_y})"
         if name_generator_func: self.name = name_generator_func(scene_x, scene_y)
         self.players_sids = set(); self.npc_ids = set()
-        self.tree_ids = set() # NEW: Store IDs of trees in this scene
+        self.tree_ids = set()
         self.terrain_grid = [[TILE_FLOOR for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.is_indoors = False
-        self.game_manager_ref = None
+        self.game_manager_ref = get_game_manager() # Ensure ref is set on creation
+
     def add_player(self, player_sid): self.players_sids.add(player_sid)
     def remove_player(self, player_sid): self.players_sids.discard(player_sid)
     def get_player_sids(self): return list(self.players_sids)
@@ -310,28 +301,28 @@ class Scene: # ... (same as before, but is_entity_at added) ...
     def remove_npc(self, npc_id): self.npc_ids.discard(npc_id)
     def get_npc_ids(self): return list(self.npc_ids)
     def add_tree(self, tree_id): self.tree_ids.add(tree_id)
-    def remove_tree(self, tree_id): self.tree_ids.discard(tree_id) # If trees can be removed
+    def remove_tree(self, tree_id): self.tree_ids.discard(tree_id)
     def get_tree_ids(self): return list(self.tree_ids)
     def get_tile_type(self, x, y):
         if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH: return self.terrain_grid[y][x]
         return TILE_WALL
     def is_transparent(self, x, y):
         if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT): return False
-        # Also consider trees as non-transparent for FOV calculation if they block sight
-        if self.game_manager_ref and self.game_manager_ref.get_tree_at(x,y, self.scene_x, self.scene_y):
-            tree = self.game_manager_ref.get_tree_at(x,y, self.scene_x, self.scene_y)
+        gm = get_game_manager()
+        if gm and gm.get_tree_at(x,y, self.scene_x, self.scene_y):
+            tree = gm.get_tree_at(x,y, self.scene_x, self.scene_y)
             if tree and not tree.is_chopped_down:
-                return False # Unchopped trees block LoS
+                return False
         tile_type = self.terrain_grid[y][x]
         return tile_type == TILE_FLOOR or tile_type == TILE_WATER
     def is_walkable(self, x, y):
         if not (0 <= x < GRID_WIDTH and 0 <= y < GRID_HEIGHT): return False
         tile_type = self.get_tile_type(x,y)
-        # Check if an unchopped tree is at the location
-        if self.game_manager_ref:
-            tree_at_loc = self.game_manager_ref.get_tree_at(x, y, self.scene_x, self.scene_y)
+        gm = get_game_manager()
+        if gm:
+            tree_at_loc = gm.get_tree_at(x, y, self.scene_x, self.scene_y)
             if tree_at_loc and not tree_at_loc.is_chopped_down:
-                return False # Cannot walk onto an unchopped tree tile
+                return False
         return tile_type == TILE_FLOOR or tile_type == TILE_WATER
     def set_tile_type(self, x, y, tile_type):
         if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH: self.terrain_grid[y][x] = tile_type; return True
@@ -345,33 +336,35 @@ class Scene: # ... (same as before, but is_entity_at added) ...
                     if tile_type == TILE_WALL: terrain_data['walls'].append({'x': c_idx, 'y': r_idx})
                     elif tile_type == TILE_WATER: terrain_data['water'].append({'x': c_idx, 'y': r_idx})
         return terrain_data
-    def is_entity_at(self, x, y, exclude_id=None): # Generic check for any entity (NPC or Player)
+    def is_entity_at(self, x, y, exclude_id=None):
+        gm = get_game_manager()
         if self.is_npc_at(x,y, exclude_id): return True
-        if self.is_player_at(x,y): return True # exclude_id not applicable for players in this simple check
-        # Could also check for trees if they are considered entities that block movement for some
-        tree = self.game_manager_ref.get_tree_at(x,y,self.scene_x, self.scene_y)
+        if self.is_player_at(x,y): return True
+        tree = gm.get_tree_at(x,y,self.scene_x, self.scene_y)
         if tree and not tree.is_chopped_down and tree.id != exclude_id:
-             return True # Unchopped trees block general entity movement
+             return True
         return False
     def is_npc_at(self, x, y, exclude_id=None):
-        if not self.game_manager_ref: return False
+        gm = get_game_manager()
+        if not gm: return False
         for npc_id_in_scene in self.npc_ids:
             if exclude_id and npc_id_in_scene == exclude_id: continue
-            npc = self.game_manager_ref.get_npc(npc_id_in_scene)
+            npc = gm.get_npc(npc_id_in_scene)
             if npc and npc.x == x and npc.y == y: return True
         return False
     def is_player_at(self, x, y, player_id_to_check=None):
-        if not self.game_manager_ref: return False
+        gm = get_game_manager()
+        if not gm: return False
         for player_sid_in_scene in self.players_sids:
-            player = self.game_manager_ref.get_player(player_sid_in_scene)
+            player = gm.get_player(player_sid_in_scene)
             if player and player.x == x and player.y == y: return True
         return False
 
-class GameManager: # Updated for Trees
+class GameManager:
     def __init__(self, socketio_instance):
         self.players = {}; self.scenes = {}
         self.all_npcs = {}
-        self.all_trees = {} # NEW: Store all trees by ID
+        self.all_trees = {}
         self.queued_actions = {}; self.socketio = socketio_instance
         self.server_is_raining = SERVER_IS_RAINING
         self.heartbeats_until_mana_regen = HEARTBEATS_PER_MANA_REGEN_CYCLE
@@ -382,13 +375,13 @@ class GameManager: # Updated for Trees
             (1,  0,  0,  1), (0,  1,  1,  0), (0, -1,  1,  0), (-1,  0,  0,  1),
             (-1,  0,  0, -1), (0, -1, -1,  0), (0,  1, -1,  0), (1,  0,  0, -1)
         ]
-    def calculate_fov(self, observer_x, observer_y, scene, radius): # ... same ...
+    def calculate_fov(self, observer_x, observer_y, scene, radius):
         visible_tiles = set()
         visible_tiles.add((observer_x, observer_y))
         for octant in range(8):
             self._cast_light_octant(observer_x, observer_y, radius, 1, 1.0, 0.0, octant, scene, visible_tiles)
         return visible_tiles
-    def _cast_light_octant(self, cx, cy, radius, row_depth, start_slope, end_slope, octant, scene, visible_tiles): # ... same ...
+    def _cast_light_octant(self, cx, cy, radius, row_depth, start_slope, end_slope, octant, scene, visible_tiles):
         xx, xy, yx, yy = self._fov_octant_transforms[octant]
         radius_squared = radius * radius
         if start_slope < end_slope: return
@@ -405,7 +398,7 @@ class GameManager: # Updated for Trees
                 if start_slope < right_slope: continue
                 elif end_slope > left_slope: break
                 if (dx * dx + dy * dy) < radius_squared: visible_tiles.add((map_x, map_y))
-                if not scene.is_transparent(map_x, map_y): # This now checks trees too
+                if not scene.is_transparent(map_x, map_y):
                     if blocked_for_row: continue
                     else:
                         blocked_for_row = True
@@ -420,7 +413,7 @@ class GameManager: # Updated for Trees
     def spawn_initial_npcs_and_entities(self):
         scene_0_0 = self.get_or_create_scene(0,0)
         # Spawn Pixies
-        for i in range(2): # Reduced pixies for clarity
+        for i in range(2):
             px, py = random.randint(0, GRID_WIDTH-1), random.randint(0, GRID_HEIGHT-1)
             while not scene_0_0.is_walkable(px,py) or scene_0_0.is_entity_at(px,py):
                  px, py = random.randint(0, GRID_WIDTH-1), random.randint(0, GRID_HEIGHT-1)
@@ -430,8 +423,8 @@ class GameManager: # Updated for Trees
 
         # Spawn One Test Tree
         tree_x, tree_y = 5, 5
-        while not scene_0_0.is_walkable(tree_x, tree_y) or scene_0_0.is_entity_at(tree_x,tree_y): # Ensure tree spawns on clear ground
-            tree_x, tree_y = random.randint(2, GRID_WIDTH-3), random.randint(2, GRID_HEIGHT-3) # Avoid edges
+        while not scene_0_0.is_walkable(tree_x, tree_y) or scene_0_0.is_entity_at(tree_x,tree_y):
+            tree_x, tree_y = random.randint(2, GRID_WIDTH-3), random.randint(2, GRID_HEIGHT-3)
         test_tree = Tree(0,0, tree_x, tree_y)
         self.all_trees[test_tree.id] = test_tree
         scene_0_0.add_tree(test_tree.id)
@@ -439,22 +432,17 @@ class GameManager: # Updated for Trees
 
         # Spawn Elves near the tree
         for i in range(2):
-            # Spawn elves on the tree tile itself initially for testing rendering
             ex, ey = test_tree.x, test_tree.y
-            # Ensure not spawning ON another elf, even if on tree tile
             elf_already_here = False
-            for elf_id in test_tree.elf_guardian_ids:
-                existing_elf = self.get_npc(elf_id)
+            for elf_id_guard in test_tree.elf_guardian_ids: # Corrected variable name
+                existing_elf = self.get_npc(elf_id_guard)
                 if existing_elf and existing_elf.x == ex and existing_elf.y == ey:
-                    elf_already_here = True
-                    break
-            if elf_already_here: # if first elf is on tree, spawn second next to it.
+                    elf_already_here = True; break
+            if elf_already_here:
                  ex, ey = tree_x + random.choice([-1,1]), tree_y + random.choice([-1,1])
                  while not scene_0_0.is_walkable(ex,ey) or scene_0_0.is_entity_at(ex,ey):
                      ex, ey = tree_x + random.choice([-1,0,1]), tree_y + random.choice([-1,0,1])
-                     if ex == tree_x and ey == tree_y : ex, ey = tree_x+1, tree_y # try again
-
-
+                     if ex == tree_x and ey == tree_y : ex, ey = tree_x+1, tree_y
             elf = Elf(0,0, initial_x=ex, initial_y=ey, home_tree_id=test_tree.id)
             self.all_npcs[elf.id] = elf
             scene_0_0.add_npc(elf.id)
@@ -470,15 +458,13 @@ class GameManager: # Updated for Trees
         return None
     def get_visible_trees_for_observer(self, observer_player):
         visible_trees_data = []
-        # Trees are static, their visibility depends purely on player's FOV
-        for tree_id in self.get_or_create_scene(observer_player.scene_x, observer_player.scene_y).get_tree_ids():
-            tree = self.get_tree(tree_id)
+        gm = get_game_manager()
+        for tree_id in gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y).get_tree_ids():
+            tree = gm.get_tree(tree_id)
             if tree and (tree.x, tree.y) in observer_player.visible_tiles_cache:
                 visible_trees_data.append(tree.get_public_data())
         return visible_trees_data
-
-    # ... (rest of GameManager methods like setup_spawn_shrine, get_or_create_scene, etc. remain the same)
-    def setup_spawn_shrine(self, scene_obj): # ... same ...
+    def setup_spawn_shrine(self, scene_obj):
         mid_x, mid_y = GRID_WIDTH // 2, GRID_HEIGHT // 2; shrine_size = 2
         for i in range(-shrine_size, shrine_size + 1):
             scene_obj.set_tile_type(mid_x + i, mid_y - shrine_size, TILE_WALL)
@@ -490,113 +476,118 @@ class GameManager: # Updated for Trees
         scene_obj.set_tile_type(mid_x - (shrine_size + 2), mid_y, TILE_WATER)
         scene_obj.set_tile_type(mid_x - (shrine_size + 2), mid_y + 1, TILE_WATER)
         scene_obj.set_tile_type(mid_x + (shrine_size + 2), mid_y -1, TILE_WATER)
-    def get_or_create_scene(self, scene_x, scene_y): # ... same ...
+    def get_or_create_scene(self, scene_x, scene_y):
         scene_coords = (scene_x, scene_y)
-        if scene_coords not in self.scenes:
+        gm = get_game_manager()
+        if scene_coords not in gm.scenes: # Access via gm
             new_scene = Scene(scene_x, scene_y)
-            new_scene.game_manager_ref = self
+            # new_scene.game_manager_ref is set in Scene constructor now
             if scene_x == 0 and scene_y == 0:
-                self.setup_spawn_shrine(new_scene)
-            self.scenes[scene_coords] = new_scene
+                gm.setup_spawn_shrine(new_scene) # Access via gm
+            gm.scenes[scene_coords] = new_scene
             app.logger.info(f"Created new scene at ({scene_x},{scene_y}): {new_scene.name}")
-        return self.scenes[scene_coords]
-    def add_player(self, sid): # ... same ...
+        return gm.scenes[scene_coords]
+    def add_player(self, sid):
         name = get_player_name(sid); player = Player(sid, name)
         app.logger.info(f"GM Add Player: Creating player {name} ({sid}).")
-        self.players[sid] = player
-        scene = self.get_or_create_scene(player.scene_x, player.scene_y); scene.add_player(sid)
-        player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene, SENSE_SIGHT_RANGE)
-        app.logger.info(f"GM Add Player: Added {name} to scene ({player.scene_x},{player.scene_y}). Total players: {len(self.players)}")
+        gm = get_game_manager()
+        gm.players[sid] = player
+        scene = gm.get_or_create_scene(player.scene_x, player.scene_y); scene.add_player(sid)
+        player.visible_tiles_cache = gm.calculate_fov(player.x, player.y, scene, SENSE_SIGHT_RANGE)
+        app.logger.info(f"GM Add Player: Added {name} to scene ({player.scene_x},{player.scene_y}). Total players: {len(gm.players)}")
         new_player_public_data = player.get_public_data()
         for other_sid_in_scene in scene.get_player_sids():
             if other_sid_in_scene != sid:
-                other_player = self.get_player(other_sid_in_scene)
-                if other_player and self.is_player_visible_to_observer(other_player, player):
-                     self.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
+                other_player = gm.get_player(other_sid_in_scene)
+                if other_player and gm.is_player_visible_to_observer(other_player, player):
+                     gm.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
         return player
-    def remove_player(self, sid): # ... same ...
-        player = self.players.pop(sid, None)
-        if sid in self.queued_actions: del self.queued_actions[sid]
+    def remove_player(self, sid):
+        gm = get_game_manager()
+        player = gm.players.pop(sid, None)
+        if sid in gm.queued_actions: del gm.queued_actions[sid]
         if player:
             old_scene_coords = (player.scene_x, player.scene_y)
-            if old_scene_coords in self.scenes:
-                scene = self.scenes[old_scene_coords]; scene.remove_player(sid)
+            if old_scene_coords in gm.scenes:
+                scene = gm.scenes[old_scene_coords]; scene.remove_player(sid)
                 app.logger.info(f"Removed {player.name} from scene {old_scene_coords}. Players in scene: {len(scene.get_player_sids())}")
                 for other_sid_in_scene in scene.get_player_sids():
-                     self.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene)
+                     gm.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene)
             return player
         return None
-    def get_player(self, sid): return self.players.get(sid) # ... same ...
-    def get_npc_at(self, x, y, scene_x, scene_y): # ... same ...
-        for npc_obj in self.all_npcs.values():
+    def get_player(self, sid): return get_game_manager().players.get(sid)
+    def get_npc(self, npc_id): return get_game_manager().all_npcs.get(npc_id)
+    def get_npc_at(self, x, y, scene_x, scene_y):
+        gm = get_game_manager()
+        for npc_obj in gm.all_npcs.values():
             if npc_obj.scene_x == scene_x and npc_obj.scene_y == scene_y and npc_obj.x == x and npc_obj.y == y:
                 return npc_obj
         return None
-    def get_player_at(self, x, y, scene_x, scene_y): # ... same ...
-        for player_obj in self.players.values():
+    def get_player_at(self, x, y, scene_x, scene_y):
+        gm = get_game_manager()
+        for player_obj in gm.players.values():
             if player_obj.scene_x == scene_x and player_obj.scene_y == scene_y and player_obj.x == x and player_obj.y == y:
                 return player_obj
         return None
-    def handle_player_scene_change(self, player, old_scene_x, old_scene_y): # ... same ...
+    def handle_player_scene_change(self, player, old_scene_x, old_scene_y):
+        gm = get_game_manager()
         old_scene_coords = (old_scene_x, old_scene_y); new_scene_coords = (player.scene_x, player.scene_y)
         if old_scene_coords != new_scene_coords:
-            if old_scene_coords in self.scenes:
-                old_scene_obj = self.scenes[old_scene_coords]; old_scene_obj.remove_player(player.id)
+            if old_scene_coords in gm.scenes:
+                old_scene_obj = gm.scenes[old_scene_coords]; old_scene_obj.remove_player(player.id)
                 app.logger.info(f"Player {player.name} left scene {old_scene_coords}.")
                 for other_sid in old_scene_obj.get_player_sids():
-                    self.socketio.emit('player_exited_your_scene', {'id': player.id, 'name': player.name}, room=other_sid)
-            new_scene_obj = self.get_or_create_scene(player.scene_x, player.scene_y); new_scene_obj.add_player(player.id)
-            player.visible_tiles_cache = self.calculate_fov(player.x, player.y, new_scene_obj, SENSE_SIGHT_RANGE)
+                    gm.socketio.emit('player_exited_your_scene', {'id': player.id, 'name': player.name}, room=other_sid)
+            new_scene_obj = gm.get_or_create_scene(player.scene_x, player.scene_y); new_scene_obj.add_player(player.id)
+            player.visible_tiles_cache = gm.calculate_fov(player.x, player.y, new_scene_obj, SENSE_SIGHT_RANGE)
             app.logger.info(f"Player {player.name} entered scene {new_scene_coords}. Terrain: {new_scene_obj.name}")
             player_public_data_for_new_scene = player.get_public_data()
             for other_sid in new_scene_obj.get_player_sids():
                 if other_sid != player.id:
-                    other_player = self.get_player(other_sid)
-                    if other_player and self.is_player_visible_to_observer(other_player, player):
-                        self.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
-    def is_player_visible_to_observer(self, obs_p, target_p): # ... same ...
+                    other_player = gm.get_player(other_sid)
+                    if other_player and gm.is_player_visible_to_observer(other_player, player):
+                        gm.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
+    def is_player_visible_to_observer(self, obs_p, target_p):
         if not obs_p or not target_p: return False
         if obs_p.id == target_p.id: return False
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return (target_p.x, target_p.y) in obs_p.visible_tiles_cache
-    def is_npc_visible_to_observer(self, obs_p, target_npc): # ... same, but consider sneak
+    def is_npc_visible_to_observer(self, obs_p, target_npc):
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
         if hasattr(target_npc, 'is_sneaking') and target_npc.is_sneaking:
-             return False # Sneaking NPCs are not visible by default FOV
+             return False
         return (target_npc.x, target_npc.y) in obs_p.visible_tiles_cache
-    def get_visible_players_for_observer(self, observer_player): # ... same ...
+    def get_visible_players_for_observer(self, observer_player):
         visible_others = []
-        scene = self.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
+        gm = get_game_manager()
+        scene = gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
         for target_sid in scene.get_player_sids():
             if target_sid == observer_player.id: continue
-            target_player = self.get_player(target_sid)
+            target_player = gm.get_player(target_sid)
             if target_player and (target_player.x, target_player.y) in observer_player.visible_tiles_cache:
                 visible_others.append(target_player.get_public_data())
         return visible_others
-    def get_visible_npcs_for_observer(self, observer_player): # Updated for sneaking and is_hidden_by_tree
+    def get_visible_npcs_for_observer(self, observer_player):
         visible_npcs_data = []
-        scene = self.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
+        gm = get_game_manager()
+        scene = gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
         for npc_id in scene.get_npc_ids():
-            npc = self.get_npc(npc_id)
+            npc = gm.get_npc(npc_id)
             if not npc: continue
-
-            # Update npc.is_hidden_by_tree before sending data
             if isinstance(npc, Elf) and npc.home_tree_id:
-                home_tree = self.get_tree(npc.home_tree_id)
+                home_tree = gm.get_tree(npc.home_tree_id)
                 if home_tree and not home_tree.is_chopped_down and npc.x == home_tree.x and npc.y == home_tree.y:
                     npc.is_hidden_by_tree = True
                 else:
                     npc.is_hidden_by_tree = False
             else:
-                npc.is_hidden_by_tree = False
-
-
-            if self.is_npc_visible_to_observer(observer_player, npc): # This now considers sneaking
-                   visible_npcs_data.append(npc.get_public_data()) # get_public_data includes is_hidden_by_tree
+                npc.is_hidden_by_tree = False # Ensure attribute exists for all NPCs sent
+            if gm.is_npc_visible_to_observer(observer_player, npc):
+                   visible_npcs_data.append(npc.get_public_data())
         return visible_npcs_data
-    def get_target_coordinates(self, player, dx, dy): return player.x + dx, player.y + dy # ... same ...
-    def get_general_direction(self, observer, target): # ... same ...
+    def get_target_coordinates(self, player, dx, dy): return player.x + dx, player.y + dy
+    def get_general_direction(self, observer, target):
         dx = target.x - observer.x; dy = target.y - observer.y
         if abs(dx) > abs(dy): return "to the east" if dx > 0 else "to the west"
         elif abs(dy) > abs(dx): return "to the south" if dy > 0 else "to the north"
@@ -607,209 +598,208 @@ class GameManager: # Updated for Trees
             elif dx > 0 and dy < 0: return "to the northeast"
             elif dx < 0 and dy < 0: return "to the northwest"
             return "nearby"
-    def process_sensory_perception(self, player, scene): # ... same ...
+    def process_sensory_perception(self, player, scene):
         perceived_cues_this_tick = set()
+        gm = get_game_manager()
         for npc_id in scene.get_npc_ids():
-            npc = self.get_npc(npc_id)
-            if not npc or npc.is_hidden: continue # General hidden flag
-            if hasattr(npc, 'is_hidden_by_tree') and npc.is_hidden_by_tree: continue # Elves hidden by trees don't give sight cues
-
+            npc = gm.get_npc(npc_id)
+            if not npc or npc.is_hidden: continue
+            if hasattr(npc, 'is_hidden_by_tree') and npc.is_hidden_by_tree: continue
             is_visible_flag = (npc.x, npc.y) in player.visible_tiles_cache
-            if hasattr(npc, 'is_sneaking') and npc.is_sneaking: is_visible_flag = False # Override FOV if sneaking
-
+            if hasattr(npc, 'is_sneaking') and npc.is_sneaking: is_visible_flag = False
             distance = abs(player.x - npc.x) + abs(player.y - npc.y)
             if is_visible_flag:
                 for cue_key, relevance, _ in npc.sensory_cues.get('sight', []):
                     if random.random() < (relevance * 0.05) and cue_key not in perceived_cues_this_tick:
-                        self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
+                        gm.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name}, 'type': 'sensory-sight'}, room=player.id)
                         perceived_cues_this_tick.add(cue_key); break
-            else: # NPC not directly visible (either by FOV or sneaking), rely on other senses
+            else:
                 for sense_type in ['sound', 'smell', 'magic']:
                     for cue_key, relevance, cue_range in npc.sensory_cues.get(sense_type, []):
                         if distance <= cue_range:
                             perception_chance = relevance * (1 - (distance / (cue_range + 1.0))) * 0.5
                             if random.random() < perception_chance and cue_key not in perceived_cues_this_tick:
-                                self.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name, 'direction': self.get_general_direction(player, npc)}, 'type': f'sensory-{sense_type}'}, room=player.id)
+                                gm.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name, 'direction': gm.get_general_direction(player, npc)}, 'type': f'sensory-{sense_type}'}, room=player.id)
                                 perceived_cues_this_tick.add(cue_key); break
                         if cue_key in perceived_cues_this_tick: break
-    def process_actions(self,): # Updated for chop_tree
-        current_actions_to_process = dict(self.queued_actions); self.queued_actions.clear(); processed_sids = set()
+    def process_actions(self,):
+        gm = get_game_manager()
+        current_actions_to_process = dict(gm.queued_actions); gm.queued_actions.clear(); processed_sids = set()
         for sid_action, action_data in current_actions_to_process.items():
             if sid_action in processed_sids : continue
-            player = self.get_player(sid_action);
+            player = gm.get_player(sid_action);
             if not player: app.logger.warning(f"Action from non-existent player SID {sid_action}"); continue
             action_type = action_data.get('type'); details = action_data.get('details', {})
             app.logger.debug(f"Processing action for {player.name}: {action_type} with details {details}")
-            scene_of_player = self.get_or_create_scene(player.scene_x, player.scene_y)
-
-            if action_type == 'move' or action_type == 'look': # Logic mostly same, relies on Player.update_position for FOV
+            scene_of_player = gm.get_or_create_scene(player.scene_x, player.scene_y)
+            if action_type == 'move' or action_type == 'look':
                 dx, dy = details.get('dx', 0), details.get('dy', 0)
                 new_char_for_player = details.get('newChar', player.char)
                 if action_type == 'move':
                     target_x, target_y = player.x + dx, player.y + dy
                     can_move_to_tile = True
                     if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT:
-                        if not scene_of_player.is_walkable(target_x, target_y): # is_walkable now considers unchopped trees
-                            self.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False # Generic blocked message
+                        if not scene_of_player.is_walkable(target_x, target_y):
+                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False
                         else:
-                            npc_at_target = self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
+                            npc_at_target = gm.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
                             if npc_at_target and isinstance(npc_at_target, ManaPixie):
                                 if npc_at_target.attempt_evade(player.x, player.y, scene_of_player):
-                                    self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_MOVED_AWAY', 'type': 'system', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id)
+                                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_MOVED_AWAY', 'type': 'system', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id)
                                 else:
-                                    self.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
-                            elif npc_at_target : # Other NPC types block by default for now
-                                 self.socketio.emit('lore_message', {'messageKey': 'LORE.NPC_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'npcName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
+                                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.PIXIE_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'pixieName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
+                            elif npc_at_target :
+                                 gm.socketio.emit('lore_message', {'messageKey': 'LORE.NPC_BLOCKED_PATH', 'type': 'event-bad', 'placeholders':{'npcName': npc_at_target.name}}, room=player.id); can_move_to_tile = False
                             elif scene_of_player.get_tile_type(target_x, target_y) == TILE_WATER:
-                                player.set_wet_status(True, self.socketio, reason="water_tile")
+                                player.set_wet_status(True, gm.socketio, reason="water_tile")
                     if can_move_to_tile:
-                         player.update_position(dx, dy, new_char_for_player, self, self.socketio)
-                    elif player.char != new_char_for_player: # Turn if move blocked
+                         player.update_position(dx, dy, new_char_for_player, gm, gm.socketio)
+                    elif player.char != new_char_for_player:
                         player.char = new_char_for_player
-                        player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
+                        player.visible_tiles_cache = gm.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
                 elif action_type == 'look':
                     if player.char != new_char_for_player: player.char = new_char_for_player
-                    player.visible_tiles_cache = self.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
-                    self.process_sensory_perception(player, scene_of_player)
+                    player.visible_tiles_cache = gm.calculate_fov(player.x, player.y, scene_of_player, SENSE_SIGHT_RANGE)
+                    gm.process_sensory_perception(player, scene_of_player)
             elif action_type == 'chop_tree':
                 dx, dy = details.get('dx', 0), details.get('dy', 0)
-                target_x, target_y = self.get_target_coordinates(player, dx, dy)
-                tree_to_chop = self.get_tree_at(target_x, target_y, player.scene_x, player.scene_y)
-
+                target_x, target_y = gm.get_target_coordinates(player, dx, dy)
+                tree_to_chop = gm.get_tree_at(target_x, target_y, player.scene_x, player.scene_y)
                 if not tree_to_chop:
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_NO_TREE', 'type': 'event-bad'}, room=player.id)
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_NO_TREE', 'type': 'event-bad'}, room=player.id)
                 elif tree_to_chop.is_chopped_down:
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_ALREADY_CHOPPED', 'type': 'event-bad'}, room=player.id)
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_ALREADY_CHOPPED', 'type': 'event-bad'}, room=player.id)
                 elif not player.can_afford_mana(CHOP_TREE_MANA_COST):
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_NO_MANA', 'placeholders': {'manaCost': CHOP_TREE_MANA_COST}, 'type': 'event-bad'}, room=player.id)
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_FAIL_NO_MANA', 'placeholders': {'manaCost': CHOP_TREE_MANA_COST}, 'type': 'event-bad'}, room=player.id)
                 else:
                     player.spend_mana(CHOP_TREE_MANA_COST)
                     tree_to_chop.is_chopped_down = True
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_SUCCESS', 'placeholders': {'treeName': tree_to_chop.name, 'manaCost': CHOP_TREE_MANA_COST}, 'type': 'event-good'}, room=player.id)
-                    # Player gets some wood? (future item)
-                    # Notify Elves
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_SUCCESS', 'placeholders': {'treeName': tree_to_chop.name, 'manaCost': CHOP_TREE_MANA_COST}, 'type': 'event-good'}, room=player.id)
                     for elf_id in tree_to_chop.elf_guardian_ids:
-                        elf = self.get_npc(elf_id)
+                        elf = gm.get_npc(elf_id)
                         if elf and isinstance(elf, Elf):
                             elf.state = "distressed_no_tree"
-                            # Send a message to the player from the elf's perspective if the elf is nearby/visible?
-                            # Or a general world message about elven sorrow.
-                            self.socketio.emit('lore_message', {'messageKey': 'LORE.ELF_TREE_DESTROYED_REACTION', 'placeholders': {'elfName': elf.name}, 'type': 'system-event-negative'}, room=player.id) # Generic if player can't see specific elf
-                    # Recalculate FOV for everyone in the scene as transparency changed
+                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ELF_TREE_DESTROYED_REACTION', 'placeholders': {'elfName': elf.name}, 'type': 'system-event-negative'}, room=player.id)
                     for p_sid in scene_of_player.get_player_sids():
-                        p = self.get_player(p_sid)
-                        if p: p.visible_tiles_cache = self.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
-
-            # ... (build_wall, destroy_wall, drink_potion, say, shout are same) ...
+                        p = gm.get_player(p_sid)
+                        if p: p.visible_tiles_cache = gm.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
             elif action_type == 'build_wall':
-                dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
-                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad'}, room=player.id)
-                elif not scene_of_player.is_walkable(target_x, target_y) or scene_of_player.get_tile_type(target_x, target_y) != TILE_FLOOR: self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
-                elif self.get_npc_at(target_x, target_y, player.scene_x, player.scene_y) or self.get_player_at(target_x, target_y, player.scene_x, player.scene_y): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
-                elif not player.has_wall_items(): self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_NO_MATERIALS', 'type': 'event-bad'}, room=player.id)
+                dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = gm.get_target_coordinates(player, dx, dy)
+                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT): gm.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad'}, room=player.id)
+                elif not scene_of_player.is_walkable(target_x, target_y) or scene_of_player.get_tile_type(target_x, target_y) != TILE_FLOOR: gm.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
+                elif gm.get_npc_at(target_x, target_y, player.scene_x, player.scene_y) or gm.get_player_at(target_x, target_y, player.scene_x, player.scene_y): gm.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_OBSTRUCTED', 'type': 'event-bad'}, room=player.id)
+                elif not player.has_wall_items(): gm.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_FAIL_NO_MATERIALS', 'type': 'event-bad'}, room=player.id)
                 else:
                     player.use_wall_item(); scene_of_player.set_tile_type(target_x, target_y, TILE_WALL)
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good'}, room=player.id)
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.BUILD_SUCCESS', 'placeholders': {'walls': player.walls}, 'type': 'event-good'}, room=player.id)
                     for p_sid in scene_of_player.get_player_sids():
-                        p = self.get_player(p_sid)
-                        if p: p.visible_tiles_cache = self.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
+                        p = gm.get_player(p_sid)
+                        if p: p.visible_tiles_cache = gm.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
             elif action_type == 'destroy_wall':
-                dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = self.get_target_coordinates(player, dx, dy)
-                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT): self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad'}, room=player.id)
-                elif scene_of_player.get_tile_type(target_x, target_y) != TILE_WALL: self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_WALL', 'type': 'event-bad'}, room=player.id)
-                elif not player.can_afford_mana(DESTROY_WALL_MANA_COST): self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_MANA', 'placeholders': {'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-bad'}, room=player.id)
+                dx, dy = details.get('dx', 0), details.get('dy', 0); target_x, target_y = gm.get_target_coordinates(player, dx, dy)
+                if not (0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT): gm.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_OUT_OF_BOUNDS', 'type': 'event-bad'}, room=player.id)
+                elif scene_of_player.get_tile_type(target_x, target_y) != TILE_WALL: gm.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_WALL', 'type': 'event-bad'}, room=player.id)
+                elif not player.can_afford_mana(DESTROY_WALL_MANA_COST): gm.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_FAIL_NO_MANA', 'placeholders': {'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-bad'}, room=player.id)
                 else:
                     player.spend_mana(DESTROY_WALL_MANA_COST); player.add_wall_item(); scene_of_player.set_tile_type(target_x, target_y, TILE_FLOOR)
-                    self.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good'}, room=player.id)
+                    gm.socketio.emit('lore_message', {'messageKey': 'LORE.DESTROY_SUCCESS', 'placeholders': {'walls': player.walls, 'manaCost': DESTROY_WALL_MANA_COST}, 'type': 'event-good'}, room=player.id)
                     for p_sid in scene_of_player.get_player_sids():
-                        p = self.get_player(p_sid)
-                        if p: p.visible_tiles_cache = self.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
-            elif action_type == 'drink_potion': player.drink_potion(self.socketio)
+                        p = gm.get_player(p_sid)
+                        if p: p.visible_tiles_cache = gm.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
+            elif action_type == 'drink_potion': player.drink_potion(gm.socketio)
             elif action_type == 'say':
                 message_text = details.get('message', '');
                 if message_text:
                     chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'say', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
-                    if (player.scene_x, player.scene_y) in self.scenes:
-                        for target_sid in scene_of_player.get_player_sids(): self.socketio.emit('chat_message', chat_data, room=target_sid)
+                    if (player.scene_x, player.scene_y) in gm.scenes:
+                        for target_sid in scene_of_player.get_player_sids(): gm.socketio.emit('chat_message', chat_data, room=target_sid)
             elif action_type == 'shout':
                 message_text = details.get('message', '')
                 if message_text:
                     if player.spend_mana(SHOUT_MANA_COST):
                         chat_data = { 'sender_id': player.id, 'sender_name': player.name, 'message': message_text, 'type': 'shout', 'scene_coords': f"({player.scene_x},{player.scene_y})" }
-                        for target_player_obj in list(self.players.values()):
+                        for target_player_obj in list(gm.players.values()):
                             if abs(target_player_obj.scene_x - player.scene_x) <= 1 and \
                                abs(target_player_obj.scene_y - player.scene_y) <= 1:
-                                self.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
-                        self.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system'}, room=player.id)
+                                gm.socketio.emit('chat_message', chat_data, room=target_player_obj.id)
+                        gm.socketio.emit('lore_message', {'messageKey': 'LORE.VOICE_BOOM_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'system'}, room=player.id)
                     else:
-                        self.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad'}, room=player.id)
-
+                        gm.socketio.emit('lore_message', {'messageKey': 'LORE.LACK_MANA_SHOUT', 'placeholders': {'manaCost': SHOUT_MANA_COST}, 'type': 'event-bad'}, room=player.id)
             processed_sids.add(sid_action)
 
-
-# Game Loop, _persistent_game_loop_runner, start_game_loop_for_worker are mostly the same.
-# Key change in _game_loop_iteration_content: call elf.update_ai()
-# Key change in initial/game_update payload: include visible_trees
+def get_game_manager():
+    """Ensures the GameManager instance is created and accessible."""
+    global game_manager_instance
+    if game_manager_instance is None:
+        # This context might be needed if GameManager constructor or sio uses app context features
+        with app.app_context():
+            app.logger.info("GameManager is None, initializing now...")
+            game_manager_instance = GameManager(socketio_instance=sio)
+            # Optionally, attach to app if other parts of Flask need it via current_app
+            # However, for direct calls within this module, game_manager_instance global is fine
+            # setattr(current_app, 'game_manager', game_manager_instance)
+    return game_manager_instance
 
 def _game_loop_iteration_content():
-    game_manager.loop_iteration_count += 1
-    loop_count = game_manager.loop_iteration_count
-    try: game_manager.process_actions()
+    gm = get_game_manager()
+    gm.loop_iteration_count += 1
+    loop_count = gm.loop_iteration_count
+    try: gm.process_actions()
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in process_actions: {e}", exc_info=True)
     try: # Mana Regen
-        game_manager.heartbeats_until_mana_regen -=1
-        if game_manager.heartbeats_until_mana_regen <= 0:
-            for player_obj in list(game_manager.players.values()):
+        gm.heartbeats_until_mana_regen -=1
+        if gm.heartbeats_until_mana_regen <= 0:
+            for player_obj in list(gm.players.values()):
                 pixie_boost_for_player = 0
-                player_scene_obj = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+                player_scene_obj = gm.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                 for npc_id in player_scene_obj.get_npc_ids():
-                    npc = game_manager.get_npc(npc_id)
+                    npc = gm.get_npc(npc_id)
                     if npc and isinstance(npc, ManaPixie):
                         dist = abs(player_obj.x - npc.x) + abs(player_obj.y - npc.y)
                         if dist <= PIXIE_PROXIMITY_FOR_BOOST: pixie_boost_for_player += PIXIE_MANA_REGEN_BOOST
                 player_obj.regenerate_mana(BASE_MANA_REGEN_PER_HEARTBEAT_CYCLE, pixie_boost_for_player, sio)
-            game_manager.heartbeats_until_mana_regen = HEARTBEATS_PER_MANA_REGEN_CYCLE
+            gm.heartbeats_until_mana_regen = HEARTBEATS_PER_MANA_REGEN_CYCLE
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in mana_regen: {e}", exc_info=True)
     try: # Rain/Wetness
-        if game_manager.server_is_raining:
-            for player_obj in list(game_manager.players.values()):
-                player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+        if gm.server_is_raining:
+            for player_obj in list(gm.players.values()):
+                player_scene = gm.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                 if not player_scene.is_indoors and not player_obj.is_wet:
                     player_obj.set_wet_status(True, sio, reason="rain")
-        for player_obj in list(game_manager.players.values()):
-            player_scene = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
-            if player_obj.is_wet and (player_scene.is_indoors or not game_manager.server_is_raining):
+        for player_obj in list(gm.players.values()):
+            player_scene = gm.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+            if player_obj.is_wet and (player_scene.is_indoors or not gm.server_is_raining):
                  player_obj.set_wet_status(False, sio, reason="indoors_or_dry_weather")
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in rain/wetness: {e}", exc_info=True)
     try: # Sensory Perception
         if loop_count % 5 == 0:
-            for player_obj in list(game_manager.players.values()):
-                scene_of_player = game_manager.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
+            for player_obj in list(gm.players.values()):
+                scene_of_player = gm.get_or_create_scene(player_obj.scene_x, player_obj.scene_y)
                 if not player_obj.visible_tiles_cache:
-                     player_obj.visible_tiles_cache = game_manager.calculate_fov(player_obj.x, player_obj.y, scene_of_player, SENSE_SIGHT_RANGE)
-                game_manager.process_sensory_perception(player_obj, scene_of_player)
+                     player_obj.visible_tiles_cache = gm.calculate_fov(player_obj.x, player_obj.y, scene_of_player, SENSE_SIGHT_RANGE)
+                gm.process_sensory_perception(player_obj, scene_of_player)
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in sensory processing: {e}", exc_info=True)
     try: # NPC AI Updates
-        for npc in list(game_manager.all_npcs.values()):
-            scene_of_npc = game_manager.get_or_create_scene(npc.scene_x, npc.scene_y)
-            if hasattr(npc, 'update_ai'): # Elves use update_ai
-                npc.update_ai(scene_of_npc, game_manager)
-            elif hasattr(npc, 'wander'): # Pixies use simple wander
+        for npc in list(gm.all_npcs.values()):
+            scene_of_npc = gm.get_or_create_scene(npc.scene_x, npc.scene_y)
+            if hasattr(npc, 'update_ai'):
+                npc.update_ai(scene_of_npc, gm) # Pass gm instance
+            elif hasattr(npc, 'wander'):
                 npc.wander(scene_of_npc)
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in NPC AI updates: {e}", exc_info=True)
     try: # Game State Emission
-        if game_manager.players:
-            current_players_snapshot = list(game_manager.players.values())
+        if gm.players:
+            current_players_snapshot = list(gm.players.values())
             num_updates_sent_this_heartbeat = 0
             for recipient_player in current_players_snapshot:
-                if recipient_player.id not in game_manager.players: continue
+                if recipient_player.id not in gm.players: continue
                 all_visible_tiles_list = [{'x': tile[0], 'y': tile[1]} for tile in recipient_player.visible_tiles_cache]
                 payload_for_client = {
                     'self_player_data': recipient_player.get_full_data(),
-                    'visible_other_players': game_manager.get_visible_players_for_observer(recipient_player),
-                    'visible_npcs': game_manager.get_visible_npcs_for_observer(recipient_player),
-                    'visible_trees': game_manager.get_visible_trees_for_observer(recipient_player), # NEW
-                    'visible_terrain': game_manager.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y).get_terrain_for_payload(recipient_player.visible_tiles_cache),
+                    'visible_other_players': gm.get_visible_players_for_observer(recipient_player),
+                    'visible_npcs': gm.get_visible_npcs_for_observer(recipient_player),
+                    'visible_trees': gm.get_visible_trees_for_observer(recipient_player),
+                    'visible_terrain': gm.get_or_create_scene(recipient_player.scene_x, recipient_player.scene_y).get_terrain_for_payload(recipient_player.visible_tiles_cache),
                     'all_visible_tiles': all_visible_tiles_list,
                 }
                 sio.emit('game_update', payload_for_client, room=recipient_player.id); num_updates_sent_this_heartbeat +=1
@@ -819,40 +809,44 @@ def _game_loop_iteration_content():
                 app.logger.debug(f"Heartbeat {loop_count}: Players present, but NO 'game_update' emitted.")
     except Exception as e: app.logger.error(f"Heartbeat {loop_count}: EXCEPTION in emitting game updates: {e}", exc_info=True)
 
+
 def _persistent_game_loop_runner():
-    with app.app_context():
+    gm = get_game_manager() # Ensure gm is initialized for this greenlet
+    with app.app_context(): # For logger calls within this function
         my_pid = os.getpid()
         app.logger.info(f"Persistent game loop runner starting in PID {my_pid}...")
-        game_manager.loop_is_actually_running_flag = True
-        game_manager.spawn_initial_npcs_and_entities() # Updated name
+        gm.loop_is_actually_running_flag = True
+        gm.spawn_initial_npcs_and_entities()
         app.logger.info(f"PID {my_pid}: Initial NPCs and entities spawned. Beginning persistent game loop.")
-    while game_manager.loop_is_actually_running_flag:
+
+    while gm.loop_is_actually_running_flag:
         loop_start_time = time.time()
         try:
-            with app.app_context():
-                _game_loop_iteration_content()
+            with app.app_context(): # For logger calls and current_app access within iteration
+                _game_loop_iteration_content() # This will use get_game_manager()
         except Exception as e:
             with app.app_context():
-                app.logger.critical(f"PID {os.getpid()} Heartbeat {game_manager.loop_iteration_count}: CRITICAL UNCAUGHT EXCEPTION: {e}", exc_info=True)
+                app.logger.critical(f"PID {os.getpid()} Heartbeat {gm.loop_iteration_count}: CRITICAL UNCAUGHT EXCEPTION: {e}", exc_info=True)
             eventlet.sleep(1.0)
         elapsed_time = time.time() - loop_start_time
         sleep_duration = GAME_HEARTBEAT_RATE - elapsed_time
         if sleep_duration < 0:
             with app.app_context():
-                app.logger.warning(f"PID {os.getpid()} Heartbeat {game_manager.loop_iteration_count}: Iteration too long ({elapsed_time:.4f}s). No sleep.")
+                app.logger.warning(f"PID {os.getpid()} Heartbeat {gm.loop_iteration_count}: Iteration too long ({elapsed_time:.4f}s). No sleep.")
             sleep_duration = 0.0001
         eventlet.sleep(sleep_duration)
     with app.app_context():
         app.logger.info(f"PID {os.getpid()}: Persistent game loop runner terminating.")
 
-def start_game_loop_for_worker(): # ... same ...
+def start_game_loop_for_worker():
     global _game_loop_started_in_this_process
+    gm = get_game_manager() # Initialize/get GameManager for this worker
     with app.app_context():
         my_pid = os.getpid()
         if not _game_loop_started_in_this_process:
             app.logger.info(f"PID {my_pid} Worker: Attempting to start game loop via _persistent_game_loop_runner...")
             try:
-                game_manager.game_loop_greenlet = eventlet.spawn(_persistent_game_loop_runner)
+                gm.game_loop_greenlet = eventlet.spawn(_persistent_game_loop_runner)
                 _game_loop_started_in_this_process = True
                 app.logger.info(f"PID {my_pid} Worker: Game loop greenlet successfully spawned.")
             except Exception as e:
@@ -868,59 +862,62 @@ sio.init_app(app, path=f"{GAME_PATH_PREFIX}/socket.io")
 @app.route('/')
 def health_check_route(): return "OK", 200
 
-@sio.on('connect') # Updated for visible_trees
+@sio.on('connect')
 def handle_connect_event(auth=None):
+    gm = get_game_manager() # Ensure gm is available
     with app.app_context():
-        player = game_manager.add_player(request.sid)
-        app.logger.info(f"Connect: {player.name} ({request.sid}). Total players: {len(game_manager.players)}")
-        current_scene = game_manager.get_or_create_scene(player.scene_x, player.scene_y)
+        player = gm.add_player(request.sid)
+        app.logger.info(f"Connect: {player.name} ({request.sid}). Total players: {len(gm.players)}")
+        current_scene = gm.get_or_create_scene(player.scene_x, player.scene_y)
         all_visible_tiles_list = [{'x': tile[0], 'y': tile[1]} for tile in player.visible_tiles_cache]
         emit_ctx('initial_game_data', {
             'player_data': player.get_full_data(),
-            'other_players_in_scene': game_manager.get_visible_players_for_observer(player),
-            'visible_npcs': game_manager.get_visible_npcs_for_observer(player),
-            'visible_trees': game_manager.get_visible_trees_for_observer(player), # NEW
+            'other_players_in_scene': gm.get_visible_players_for_observer(player),
+            'visible_npcs': gm.get_visible_npcs_for_observer(player),
+            'visible_trees': gm.get_visible_trees_for_observer(player),
             'visible_terrain': current_scene.get_terrain_for_payload(player.visible_tiles_cache),
             'all_visible_tiles': all_visible_tiles_list,
             'grid_width': GRID_WIDTH, 'grid_height': GRID_HEIGHT,
             'tick_rate': GAME_HEARTBEAT_RATE, 'default_rain_intensity': DEFAULT_RAIN_INTENSITY,
-            'tree_char': TREE_CHAR, 'elf_char': ELF_CHAR # Send chars to client
+            'tree_char': TREE_CHAR, 'elf_char': ELF_CHAR
         })
         emit_ctx('lore_message', {'messageKey': "LORE.WELCOME_INITIAL", 'type': 'welcome-message'}, room=request.sid)
 
-@sio.on('disconnect') # ... same ...
-def handle_disconnect_event():
+@sio.on('disconnect')
+def handle_disconnect_event(*args): # Added *args to accept any arguments
+    gm = get_game_manager() # Ensure gm is available
     with app.app_context():
-        player_left = game_manager.remove_player(request.sid)
+        player_left = gm.remove_player(request.sid)
         if player_left:
-            app.logger.info(f"Disconnect: {player_left.name} ({request.sid}). Total players: {len(game_manager.players)}")
+            app.logger.info(f"Disconnect: {player_left.name} ({request.sid}). Total players: {len(gm.players)}")
         else:
             app.logger.info(f"Disconnect for SID {request.sid} (player not found or already removed).")
 
-@sio.on('queue_player_action') # Updated for chop_tree action
+@sio.on('queue_player_action')
 def handle_queue_player_action(data):
+    gm = get_game_manager() # Ensure gm is available
     with app.app_context():
-        player = game_manager.get_player(request.sid)
+        player = gm.get_player(request.sid)
         if not player:
             app.logger.warning(f"Action received from unknown SID: {request.sid}")
             emit_ctx('action_feedback', {'success': False, 'message': "Player not recognized."}); return
         action_type = data.get('type')
-        valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout', 'build_wall', 'destroy_wall', 'chop_tree'] # Added chop_tree
+        valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout', 'build_wall', 'destroy_wall', 'chop_tree']
         if action_type not in valid_actions:
             app.logger.warning(f"Player {player.name} sent invalid action type: {action_type}")
             emit_ctx('action_feedback', {'success': False, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_FAILED_UNKNOWN_COMMAND', 'placeholders': {'actionWord': action_type}}); return
-        game_manager.queued_actions[request.sid] = data
+        gm.queued_actions[request.sid] = data
         emit_ctx('action_feedback', {'success': True, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_QUEUED'})
 
-if __name__ == '__main__': # ... same ...
-    with app.app_context():
-        app.logger.info(f"Starting Flask-SocketIO server for LOCAL DEVELOPMENT on PID {os.getpid()}...")
-    start_game_loop_for_worker()
+if __name__ == '__main__':
+    app.logger.info(f"Starting Flask-SocketIO server for LOCAL DEVELOPMENT on PID {os.getpid()}...")
+    start_game_loop_for_worker() # This will call get_game_manager()
     sio.run(app,
             debug=app.debug,
             host='0.0.0.0',
             port=int(os.environ.get('PORT', 5000)),
             use_reloader=False)
-else: # ... same ...
-    with app.app_context():
-        app.logger.info(f"App module loaded by WSGI server (e.g., Gunicorn) in PID {os.getpid()}. Game loop to be started by post_fork.")
+else:
+    # When Gunicorn imports this, game_manager_instance is None.
+    # post_fork will call start_game_loop_for_worker, which calls get_game_manager().
+    app.logger.info(f"App module loaded by WSGI server (e.g., Gunicorn) in PID {os.getpid()}. Game loop to be started by post_fork.")
