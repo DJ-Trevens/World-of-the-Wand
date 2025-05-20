@@ -72,12 +72,14 @@
     /* --- CONSISTENT Canvas Grid Colors --- */
     --canvas-bg-consistent: #202225;
     --text-game-floor-consistent: #4F545C;
-    --text-game-wall-consistent:  #8d0505; /* Brick red for walls (for now) */
+    --text-game-wall-consistent:  #2E3238;
     --text-game-water-consistent: #4DD0E1;
-    --text-game-fog-consistent:   #383c42; /* Slightly lighter gray for fog */
+    --text-game-fog-consistent:   #383c42;
     --text-game-self-consistent:  #5DADE2;
     --text-game-other-consistent: #58D68D;
-    --text-game-npc-pixie-consistent: var(--glow-tome-mana-dark);
+    --text-game-npc-pixie-consistent: #DB2777;
+    --text-game-npc-elf-consistent: #A9DFBF; /* Lighter green for Elves */
+    --text-game-tree-consistent: #27AE60;  /* Green for Trees */
     --text-game-wet-tint-consistent: rgba(77, 208, 225, 0.25);
 
 
@@ -143,32 +145,15 @@ body.light-theme {
     --canvas-bg: var(--canvas-bg-consistent);
 }
 
-html {
-    height: 100%;
-    overflow: hidden;
-}
+html { height: 100%; overflow: hidden; }
 body {
     display: flex; height: 100vh; max-height: 100vh; margin: 0;
     font-family: var(--font-ui); background-color: var(--bg-primary);
     color: var(--text-primary); overflow: hidden;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
-body.is-dragging, body.is-dragging * {
-    user-select: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-}
-.main-ui-container {
-    display: flex;
-    flex-grow: 1;
-    width: 100%;
-    height: 100%;
-    padding: 15px;
-    box-sizing: border-box;
-    gap: 15px;
-    position: relative;
-}
+body.is-dragging, body.is-dragging * { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+.main-ui-container { display: flex; flex-grow: 1; width: 100%; height: 100%; padding: 15px; box-sizing: border-box; gap: 15px; position: relative; }
 
 .left-panel {
     display: flex;
@@ -182,55 +167,43 @@ body.is-dragging, body.is-dragging * {
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 .left-panel::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 20px;
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 20px;
     background: linear-gradient(to right, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0) 100%);
     border-radius: 10px 0 0 10px;
     pointer-events: none;
 }
 
 .right-panel {
-    flex-basis: 60%;
-    flex-shrink: 1;
-    min-width: 350px;
+    flex-basis: 60%; flex-shrink: 1; min-width: 350px;
     padding: 0;
-    display: flex;
-    flex-direction: column;
+    display: flex; flex-direction: column;
     background-color: var(--bg-secondary);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     transition: background-color 0.3s ease;
 }
 
-/* Container for commandLog to manage its growth and margin */
 #commandLogContainer {
-    flex-grow: 1; /* Allows this container to take up space */
-    display: flex; /* To make commandLog inside it grow */
+    flex-grow: 1;
+    display: flex;
     flex-direction: column;
-    overflow: hidden; /* Important for child with margin */
-    padding: 10px 10px 0 10px; /* Padding around the log, but not at bottom if footer is there */
+    overflow: hidden;
+    padding: 10px 10px 0 10px;
 }
 
 #commandLog {
     background-color: var(--bg-tome);
-    font-family: var(--font-tome);
-    font-size: 1.2em;
-    font-weight: 500;
-    line-height: 1.65;
+    font-family: var(--font-tome); font-size: 1.2em; font-weight: 500; line-height: 1.65;
     padding: 15px 20px;
     border-radius: 3px;
-    overflow-y: auto; /* Makes the log scrollable */
-    flex-grow: 1; /* Log itself grows within its container */
-    display: flex;
-    flex-direction: column; /* Log entries stack vertically */
+    overflow-y: auto;
+    flex-grow: 1;
+    display: flex; /* Will be toggled with debug panel */
+    flex-direction: column;
     border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black);
     box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
-    scrollbar-width: thin;
-    scrollbar-color: var(--text-tome-ink) var(--bg-tome);
+    scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
     transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
@@ -238,21 +211,9 @@ body.is-dragging, body.is-dragging * {
 #commandLog::-webkit-scrollbar-track { background: var(--bg-tome); }
 #commandLog::-webkit-scrollbar-thumb { background-color: var(--text-tome-ink); border-radius: 4px; border: 2px solid var(--bg-tome); }
 
-.log-entry {
-    margin-bottom: 10px;
-    padding-bottom: 5px;
-    border-bottom: 1px dashed color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
-    word-wrap: break-word;
-    white-space: pre-wrap;
-}
-.log-entry:last-child {
-    border-bottom: none;
-}
-.log-style-ink {
-    color: var(--text-tome-ink);
-    font-weight: 500;
-    transition: color 0.3s ease;
-}
+.log-entry { margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed color-mix(in srgb, var(--text-tome-ink) 30%, transparent); word-wrap: break-word; white-space: pre-wrap; }
+.log-entry:last-child { border-bottom: none; }
+.log-style-ink { color: var(--text-tome-ink); font-weight: 500; transition: color 0.3s ease; }
 .log-style-mana {
     color: var(--text-tome-mana);
     font-weight: 700;
@@ -261,79 +222,41 @@ body.is-dragging, body.is-dragging * {
                  0 0 18px color-mix(in srgb, var(--glow-tome-mana) 40%, transparent);
     transition: color 0.3s ease, text-shadow 0.3s ease;
 }
-.log-type-lore {}
-.log-type-system {
-    font-style: italic;
-}
-.log-type-event-good {}
-.log-type-event-bad {
-    font-weight: bold;
-}
-.log-style-ink.log-type-user-input {
-    opacity: 0.85;
-    color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%);
-    font-weight: 400;
-}
-.log-type-chat-say {}
-.log-type-chat-shout {
-    font-weight: bold;
-}
-.log-type-welcome-message {}
-.log-type-sensory-sight {
-    font-style: italic;
-    color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%);
-}
-.log-type-sensory-sound {
-    font-style: italic;
-    color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%);
-}
-.log-type-sensory-smell {
-    font-style: italic;
-    color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%);
-}
+.log-type-lore {} .log-type-system {} .log-type-event-good {} .log-type-event-bad { font-weight: bold; }
+.log-type-system-event-negative { color: var(--highlight-red); font-style: italic; } /* For elf tree destruction */
+.log-style-ink.log-type-user-input { opacity: 0.85; color: color-mix(in srgb, var(--text-tome-ink) 70%, var(--bg-tome) 30%); font-weight: 400; }
+.log-type-chat-say {} .log-type-chat-shout { font-weight: bold; } .log-type-welcome-message {}
+.log-type-sensory-sight { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-blue) 20%); }
+.log-type-sensory-sound { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-green) 20%); }
+.log-type-sensory-smell { font-style: italic; color: color-mix(in srgb, var(--text-tome-ink) 80%, var(--highlight-red) 20%);}
 
 
 #mainHeaderStatusContainer {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    background-color: rgba(0,0,0,0.25);
-    border-radius: 6px 6px 0 0;
-    padding: 5px 10px;
-    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; background-color: rgba(0,0,0,0.25); border-radius: 6px 6px 0 0;
+    padding: 5px 10px; flex-shrink: 0;
     border-bottom: 1px solid var(--border-color);
     transition: border-color 0.3s ease;
 }
 #mainHeaderStatus {
-    color: var(--text-primary);
-    padding: 5px 0;
+    color: var(--text-primary); padding: 5px 0;
     text-align: center;
-    font-size: 0.9em;
-    line-height: 1.3;
-    flex-grow: 1;
+    font-size: 0.9em; line-height: 1.3; flex-grow: 1;
     transition: color 0.3s ease;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 #gameCanvasContainer {
     position: relative;
     flex-grow: 1;
     min-height: 200px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     background-color: var(--canvas-bg);
     overflow: hidden;
-    cursor: grab;
-    padding: 0;
+    cursor: grab; padding: 0;
     transition: background-color 0.3s ease;
 }
-#gameCanvasContainer:active {
-    cursor: grabbing;
-}
+#gameCanvasContainer:active { cursor: grabbing; }
 
 #gameCanvas {
     transform-origin: 0 0;
@@ -342,30 +265,12 @@ body.is-dragging, body.is-dragging * {
 }
 
 #rainOverlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    overflow: hidden;
-    z-index: 2;
-    display: none; /* Initially hidden, JS controls visibility */
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: hidden; z-index: 2;
+    display: none;
 }
-.raindrop {
-    position: absolute;
-    bottom: 100%;
-    width: 1px;
-    height: 60px;
-    background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3));
-    animation: fall linear infinite;
-    opacity: 0.6;
-}
-@keyframes fall {
-    to {
-        transform: translateY(calc(100vh + 60px));
-    }
-}
+.raindrop { position: absolute; bottom: 100%; width: 1px; height: 60px; background: linear-gradient(to bottom, rgba(var(--raindrop-base-rgb), 0), rgba(var(--raindrop-base-rgb), 0.3)); animation: fall linear infinite; opacity: 0.6; }
+@keyframes fall { to { transform: translateY(calc(100vh + 60px)); } }
 
 #commandInputBox {
     padding: 10px 15px;
@@ -375,15 +280,10 @@ body.is-dragging, body.is-dragging * {
     box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
     transition: background-color 0.3s ease, border-color 0.3s ease;
 }
-#commandForm {
-    display: flex;
-    align-items: center;
-    width: 100%;
-}
+#commandForm { display: flex; align-items: center; width: 100%; }
 
 .heartbeat-indicator-inline {
-    width: 10px;
-    height: 10px;
+    width: 10px; height: 10px;
     background-color: var(--heart-inactive);
     border-radius: 50%;
     margin-right: 6px;
@@ -396,12 +296,15 @@ body.is-dragging, body.is-dragging * {
     background-color: var(--highlight-red);
     box-shadow: 0 0 6px var(--highlight-red), 0 0 10px var(--highlight-red);
 }
+#simulatedHeartbeatIndicator.heartbeat-flash {
+    background-color: var(--highlight-blue);
+    box-shadow: 0 0 6px var(--highlight-blue), 0 0 10px var(--highlight-blue);
+}
 
 #commandForm label {
     color: var(--text-primary);
     font-weight: 500;
-    margin-right: 8px;
-    font-size: 0.9em;
+    margin-right: 8px; font-size: 0.9em;
     transition: color 0.3s ease;
 }
 #commandText {
@@ -410,16 +313,13 @@ body.is-dragging, body.is-dragging * {
     border: 1px solid var(--border-color);
     padding: 8px 10px;
     border-radius: 3px;
-    font-size: 1em;
-    flex-grow: 1;
-    font-family: var(--font-game);
+    font-size: 1em; flex-grow: 1; font-family: var(--font-game);
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
-    min-height: 1.2em; /* Ensure it doesn't collapse too much if empty */
-    line-height: 1.3; /* For contenteditable */
+    min-height: 1.2em;
+    line-height: 1.3;
 }
 #commandText:focus {
-    outline: none;
-    border-color: var(--highlight-blue);
+    outline: none; border-color: var(--highlight-blue);
     background-color: var(--bg-primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-blue) 40%, transparent);
 }
@@ -427,15 +327,9 @@ body.is-dragging, body.is-dragging * {
     background-color: var(--highlight-blue);
     color: var(--bg-primary);
     border: 1px solid var(--highlight-blue);
-    padding: 8px 15px;
-    margin-left: 10px;
-    cursor: pointer;
-    border-radius: 3px;
-    font-weight: 500;
-    font-family: var(--font-ui);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-size: 0.9em;
+    padding: 8px 15px; margin-left: 10px; cursor: pointer; border-radius: 3px;
+    font-weight: 500; font-family: var(--font-ui); text-transform: uppercase;
+    letter-spacing: 0.5px; font-size: 0.9em;
     transition: background-color 0.2s ease, color 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
 }
 #commandForm button:hover, #commandForm button:focus-visible {
@@ -451,7 +345,7 @@ body.is-dragging, body.is-dragging * {
 .left-panel-footer {
     flex-shrink: 0;
     padding: 10px;
-    margin-top: auto; /* Pushes this to the bottom of the left-panel flex container */
+    margin-top: auto;
     border-top: 1px solid color-mix(in srgb, var(--bg-tome-cover) 60%, var(--text-tome-ink) 40%);
     background-color: var(--bg-tome-cover);
 }
@@ -470,34 +364,30 @@ body.is-dragging, body.is-dragging * {
 }
 
 #debugAndAuxiliaryPanel {
-    display: none; /* Initially hidden, JS toggles */
-    flex-direction: column;
+    display: none; /* JS toggles to 'flex' */
+    flex-direction: column; /* Children stack, inner content will scroll */
     flex-grow: 1;
     background-color: var(--bg-tome);
     color: var(--text-tome-ink);
     border-radius: 3px;
-    overflow: hidden;
-    margin: 10px; /* Consistent margin with commandLog */
+    overflow: hidden; /* Crucial: parent has overflow hidden, child scrolls */
+    margin: 10px; /* Margin inside left-panel to not touch edges */
     border: 1px solid color-mix(in srgb, var(--bg-tome) 85%, black);
     box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
 }
-.debug-panel-content {
+.debug-panel-content { /* This is the new scrollable wrapper */
     padding: 15px 20px;
-    overflow-y: auto; /* Makes this part scrollable */
-    flex-grow: 1;
+    overflow-y: auto;
+    flex-grow: 1; /* Takes up space within #debugAndAuxiliaryPanel */
     font-family: var(--font-ui);
     font-size: 0.9em;
     line-height: 1.5;
-    scrollbar-width: thin;
-    scrollbar-color: var(--text-tome-ink) var(--bg-tome);
+    scrollbar-width: thin; scrollbar-color: var(--text-tome-ink) var(--bg-tome);
 }
 .debug-panel-content::-webkit-scrollbar { width: 8px; }
 .debug-panel-content::-webkit-scrollbar-track { background: var(--bg-tome); }
-.debug-panel-content::-webkit-scrollbar-thumb {
-    background-color: var(--text-tome-ink);
-    border-radius: 4px;
-    border: 2px solid var(--bg-tome);
-}
+.debug-panel-content::-webkit-scrollbar-thumb { background-color: var(--text-tome-ink); border-radius: 4px; border: 2px solid var(--bg-tome); }
+
 
 .debug-section { margin-bottom: 15px; }
 .debug-section:last-child { margin-bottom: 0; }
@@ -511,19 +401,18 @@ body.is-dragging, body.is-dragging * {
     font-weight: 700;
     font-size: 1.1em;
 }
-/* For items in stats and context sections to stack vertically */
 .debug-info-section div, .debug-context-section div {
-    margin-bottom: 6px; /* Space between each stat/context line */
-    display: block; /* Each item on its own line */
+    margin-bottom: 6px;
+    display: block; /* Stack label and value */
     line-height: 1.4;
 }
-.debug-context-section span {
+.debug-info-section div span, .debug-context-section div span { /* Value part of the stat/context */
     font-weight: 500;
-    margin-left: 0; /* No longer side-by-side with label */
+    margin-left: 10px; /* Indent the value slightly for readability */
     color: color-mix(in srgb, var(--text-tome-ink) 80%, black);
-    display: block; /* Ensure value is on new line or part of block */
-    padding-left: 10px; /* Indent value slightly if desired */
+    display: inline; /* Keep span on same line as its implicit label if short, or wrap naturally */
 }
+
 
 .debug-config-section .debug-control-item {
     display: flex;
@@ -532,20 +421,20 @@ body.is-dragging, body.is-dragging * {
     margin-bottom: 10px;
     width: 100%;
 }
-.debug-config-section label {
+.debug-config-section label { /* Label for controls like slider, toggle */
      margin-right: 10px;
      white-space: nowrap;
-     flex-shrink: 0; /* Prevent label from shrinking */
+     flex-shrink: 0;
 }
 .debug-config-section input[type="range"] {
     flex-grow: 1;
-    max-width: 150px;
+    max-width: 150px; /* Limit slider width */
     accent-color: var(--text-tome-mana);
 }
 .debug-config-section input[type="checkbox"] {
     accent-color: var(--text-tome-mana);
     transform: scale(1.1);
-    margin-left: auto; /* Pushes checkbox to the right if label is short */
+    /* margin-left: auto; No longer needed if label is on left, input on right */
 }
 .debug-config-section #themeToggle {
     padding: 4px 8px;
@@ -554,6 +443,7 @@ body.is-dragging, body.is-dragging * {
     color: var(--text-tome-ink);
     border: 1px solid color-mix(in srgb, var(--text-tome-ink) 30%, transparent);
     border-radius: 3px;
+    /* margin-left: auto; If you want it pushed fully right */
 }
 .debug-config-section #themeToggle:hover {
     background-color: var(--text-tome-mana);
@@ -563,16 +453,15 @@ body.is-dragging, body.is-dragging * {
 @media (max-width: 800px) {
     .main-ui-container { flex-direction: column; padding: 10px; gap: 10px; }
     .left-panel {
-        flex-basis: auto; /* Let content define height */
-        min-height: 25vh; /* Ensure it has some minimum height */
-        max-height: 40vh; /* Prevent it from taking too much space */
+        flex-basis: auto;
+        min-height: 25vh;
+        max-height: 40vh;
         width: 100%;
         min-width: unset;
         order: 2;
     }
     #commandLogContainer, #debugAndAuxiliaryPanel { margin: 5px; }
     #commandLog, .debug-panel-content { padding: 10px 15px; }
-
 
     .right-panel {
         flex-grow: 1; width:100%;
