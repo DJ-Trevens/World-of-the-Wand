@@ -1043,6 +1043,7 @@ def get_game_manager():
     global game_manager_instance
     if game_manager_instance is None:
         with app.app_context(): # Ensures logging and other app features are available during init
+             init_db_tables()
              app.logger.info("Initializing GameManager instance for this worker/process...")
              game_manager_instance = GameManager(sio_inst = sio)
     return game_manager_instance
