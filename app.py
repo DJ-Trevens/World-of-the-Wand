@@ -1044,7 +1044,7 @@ def get_game_manager():
     if game_manager_instance is None:
         with app.app_context(): # Ensures logging and other app features are available during init
              app.logger.info("Initializing GameManager instance for this worker/process...")
-             game_manager_instance = GameManager(socketio_instance=sio)
+             game_manager_instance = GameManager(sio_inst = sio)
     return game_manager_instance
 
 def _game_loop_iteration_content():
