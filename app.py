@@ -12,14 +12,16 @@ import traceback
 import uuid
 import logging
 import math
+import psycopg2 # For PostgreSQL
+from urllib.parse import urlparse # For parsing DATABASE_URL
 
 # --- Game Settings ---
 GRID_WIDTH, GRID_HEIGHT, GAME_HEARTBEAT_RATE, SHOUT_MANA_COST, MAX_VIEW_DISTANCE = 20, 15, 0.75, 5, 8
 _game_loop_started_in_this_process = False
 DESTROY_WALL_MANA_COST = 10
 CHOP_TREE_MANA_COST = 15
-INITIAL_WALL_ITEMS = 77
-INITIAL_POTIONS = 77
+INITIAL_POTIONS_DB = 3 # Default for new players in DB
+INITIAL_WALL_ITEMS_DB = 3 # Default for new players in DB
 
 TILE_FLOOR = 0
 TILE_WALL = 1
@@ -48,7 +50,11 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'a_deep_and_binding_secret_for_dev')
 GAME_PATH_PREFIX = '/world-of-the-wand'
 
+# --- Database Configuration ---
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
 # --- Logging Configuration ---
+# (Same as before)
 if not app.debug or "gunicorn" in os.environ.get("SERVER_SOFTWARE", "").lower():
     log_level = logging.INFO
 else:
@@ -59,31 +65,93 @@ if not app.logger.handlers:
     stream_handler.setFormatter(formatter)
     app.logger.addHandler(stream_handler)
 app.logger.setLevel(log_level)
-# Moved initial log message to after game_manager is potentially initialized or app context is more stable.
+
 
 sio = SocketIO(logger=False, engineio_logger=False, async_mode="eventlet")
+game_manager_instance = None
 
-# --- Global Game Manager Placeholder ---
-game_manager_instance = None # Will be initialized by get_game_manager()
+def get_player_name(sid): return f"Wizard-{sid[:4]}" # Simple name from SID
 
-def get_player_name(sid): return f"Wizard-{sid[:4]}"
 
-class Tree:
-    def __init__(self, scene_x, scene_y, x, y):
-        self.id = str(uuid.uuid4())
+# --- Database Helper Functions ---
+def get_db_connection():
+    if not DATABASE_URL:
+        app.logger.error("DATABASE_URL environment variable not set.")
+        return None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except Exception as e:
+        app.logger.error(f"Error connecting to database: {e}", exc_info=True)
+        return None
+
+def init_db_tables():
+    conn = get_db_connection()
+    if not conn:
+        app.logger.error("Cannot initialize DB tables: No database connection.")
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS players (
+                    player_id VARCHAR(255) PRIMARY KEY,
+                    name VARCHAR(255),
+                    scene_x INTEGER DEFAULT 0,
+                    scene_y INTEGER DEFAULT 0,
+                    x INTEGER DEFAULT %s,
+                    y INTEGER DEFAULT %s,
+                    char VARCHAR(1) DEFAULT '^',
+                    current_health INTEGER DEFAULT 100,
+                    max_health INTEGER DEFAULT 100,
+                    current_mana REAL DEFAULT 175.0,
+                    max_mana INTEGER DEFAULT 175,
+                    potions INTEGER DEFAULT %s,
+                    walls INTEGER DEFAULT %s,
+                    gold INTEGER DEFAULT 0,
+                    is_wet BOOLEAN DEFAULT FALSE,
+                    last_seen TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+            """, (GRID_WIDTH // 2, GRID_HEIGHT // 2, INITIAL_POTIONS_DB, INITIAL_WALL_ITEMS_DB))
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS trees (
+                    tree_id VARCHAR(255) PRIMARY KEY,
+                    scene_x INTEGER,
+                    scene_y INTEGER,
+                    x INTEGER,
+                    y INTEGER,
+                    species VARCHAR(50),
+                    is_ancient BOOLEAN,
+                    is_chopped_down BOOLEAN DEFAULT FALSE,
+                    name VARCHAR(255),
+                    lore_name VARCHAR(255),
+                    elf_guardian_ids TEXT DEFAULT '' -- Comma-separated string of elf IDs
+                );
+            """)
+            # Add more tables here (NPCs, scene_objects, etc.) as needed
+            conn.commit()
+        app.logger.info("Database tables checked/created successfully.")
+    except Exception as e:
+        app.logger.error(f"Error initializing database tables: {e}", exc_info=True)
+    finally:
+        if conn: conn.close()
+
+class Tree: # ... (Tree class, elf_guardian_ids is now a list in code, TEXT in DB) ...
+    def __init__(self, scene_x, scene_y, x, y, tree_id=None, species="Oak", is_ancient=True, is_chopped_down=False, name=None, elf_guardian_ids_str=""):
+        self.id = tree_id if tree_id else str(uuid.uuid4())
         self.type = "Tree"
         self.char = TREE_CHAR
         self.scene_x = scene_x
         self.scene_y = scene_y
         self.x = x
         self.y = y
-        self.species = "Oak"
-        self.is_ancient = True
-        self.is_coniferous = False
-        self.is_chopped_down = False
-        self.name = f"{self.species}-{self.id[:4]}"
+        self.species = species
+        self.is_ancient = is_ancient
+        self.is_chopped_down = is_chopped_down
+        self.name = name if name else f"{self.species}-{self.id[:4]}"
         self.lore_name = f"{self.is_chopped_down and 'felled ' or ''}{self.is_ancient and 'ancient ' or ''}{self.species}"
-        self.elf_guardian_ids = []
+        self.elf_guardian_ids = [eid.strip() for eid in elf_guardian_ids_str.split(',') if eid.strip()] if elf_guardian_ids_str else []
+
 
     def get_public_data(self):
         return {
@@ -93,8 +161,27 @@ class Tree:
             'is_chopped_down': self.is_chopped_down,
             'name': self.name, 'lore_name': self.lore_name
         }
+    def save_to_db(self):
+        conn = get_db_connection()
+        if not conn: return
+        try:
+            with conn.cursor() as cur:
+                elf_ids_str = ",".join(self.elf_guardian_ids)
+                cur.execute("""
+                    INSERT INTO trees (tree_id, scene_x, scene_y, x, y, species, is_ancient, is_chopped_down, name, lore_name, elf_guardian_ids)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (tree_id) DO UPDATE SET
+                        is_chopped_down = EXCLUDED.is_chopped_down,
+                        elf_guardian_ids = EXCLUDED.elf_guardian_ids;
+                """, (self.id, self.scene_x, self.scene_y, self.x, self.y, self.species, self.is_ancient, self.is_chopped_down, self.name, self.lore_name, elf_ids_str))
+                conn.commit()
+        except Exception as e:
+            app.logger.error(f"Error saving tree {self.id} to DB: {e}", exc_info=True)
+        finally:
+            if conn: conn.close()
 
-class ManaPixie:
+
+class ManaPixie: # ... (same as before) ...
     def __init__(self, scene_x, scene_y, initial_x=None, initial_y=None):
         self.id = str(uuid.uuid4())
         self.type = "ManaPixie"
@@ -119,7 +206,7 @@ class ManaPixie:
             dx, dy = random.choice([-1, 0, 1]), random.choice([-1, 0, 1])
             if dx == 0 and dy == 0: return
             new_x, new_y = self.x + dx, self.y + dy
-            if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id):
+            if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id): # Use generic is_entity_at
                 self.x, self.y = new_x, new_y
     def attempt_evade(self, player_x, player_y, scene):
         possible_moves = []
@@ -128,13 +215,13 @@ class ManaPixie:
                 if dx_evade == 0 and dy_evade == 0: continue
                 evade_x, evade_y = self.x + dx_evade, self.y + dy_evade
                 if scene.is_walkable(evade_x, evade_y) and \
-                   not scene.is_entity_at(evade_x, evade_y, exclude_id=self.id):
+                   not scene.is_entity_at(evade_x, evade_y, exclude_id=self.id): # Use generic is_entity_at
                     possible_moves.append((evade_x, evade_y))
         if possible_moves:
             self.x, self.y = random.choice(possible_moves); return True
         return False
 
-class Elf:
+class Elf: # ... (same, no DB methods needed here yet, state is managed by GM) ...
     def __init__(self, scene_x, scene_y, initial_x=None, initial_y=None, home_tree_id=None):
         self.id = str(uuid.uuid4())
         self.type = "Elf"
@@ -157,8 +244,7 @@ class Elf:
             'smell': [('SENSORY.ELF_SMELL_PINE', 0.4, 3)],
             'magic': [('SENSORY.ELF_MAGIC_NATURE', 0.6, 3)]
         }
-        self.is_hidden_by_tree = False # Default, updated by GameManager before sending client data
-
+        self.is_hidden_by_tree = False
     def get_public_data(self):
         return {
             'id': self.id, 'name': self.name, 'char': self.char, 'type': self.type,
@@ -166,7 +252,7 @@ class Elf:
             'is_sneaking': self.is_sneaking, 'state': self.state,
             'is_hidden_by_tree': self.is_hidden_by_tree
         }
-    def update_ai(self, scene, game_manager): # game_manager passed directly
+    def update_ai(self, scene, game_manager):
         home_tree = game_manager.get_tree(self.home_tree_id) if self.home_tree_id else None
         if self.state == "distressed_no_tree":
             if random.random() < 0.05: self.wander_randomly(scene)
@@ -177,7 +263,6 @@ class Elf:
             else:
                 self.state = "distressed_no_tree"
                 self.wander_randomly(scene)
-        # Update is_hidden_by_tree based on current position and tree state
         if home_tree and not home_tree.is_chopped_down and self.x == home_tree.x and self.y == home_tree.y:
             self.is_hidden_by_tree = True
         else:
@@ -206,17 +291,69 @@ class Elf:
             if scene.is_walkable(new_x, new_y) and not scene.is_entity_at(new_x, new_y, exclude_id=self.id):
                 self.x, self.y = new_x, new_y
 
-class Player:
-    def __init__(self, sid, name):
-        self.id = sid; self.name = name; self.scene_x = 0; self.scene_y = 0
-        self.x = GRID_WIDTH // 2; self.y = GRID_HEIGHT // 2
-        self.char = random.choice(['^', 'v', '<', '>'])
-        self.max_health = 100; self.current_health = 100
-        self.max_mana = 175; self.current_mana = 175.0
-        self.potions = INITIAL_POTIONS; self.gold = 0; self.walls = INITIAL_WALL_ITEMS
-        self.is_wet = False; self.time_became_wet = 0
-        self.mana_regen_accumulator = 0.0
-        self.visible_tiles_cache = set()
+class Player: # Modified for DB interaction
+    def __init__(self, sid, name, db_data=None):
+        self.id = sid # SID is the primary key for now
+        self.name = name
+        if db_data:
+            # Load from db_data (dictionary from DB row)
+            self.scene_x = db_data.get('scene_x', 0)
+            self.scene_y = db_data.get('scene_y', 0)
+            self.x = db_data.get('x', GRID_WIDTH // 2)
+            self.y = db_data.get('y', GRID_HEIGHT // 2)
+            self.char = db_data.get('char', random.choice(['^', 'v', '<', '>']))
+            self.current_health = db_data.get('current_health', 100)
+            self.max_health = db_data.get('max_health', 100)
+            self.current_mana = float(db_data.get('current_mana', 175.0))
+            self.max_mana = db_data.get('max_mana', 175)
+            self.potions = db_data.get('potions', INITIAL_POTIONS_DB)
+            self.walls = db_data.get('walls', INITIAL_WALL_ITEMS_DB)
+            self.gold = db_data.get('gold', 0)
+            self.is_wet = db_data.get('is_wet', False)
+        else: # Default values for a new player
+            self.scene_x = 0
+            self.scene_y = 0
+            self.x = GRID_WIDTH // 2
+            self.y = GRID_HEIGHT // 2
+            self.char = random.choice(['^', 'v', '<', '>'])
+            self.max_health = 100; self.current_health = 100
+            self.max_mana = 175; self.current_mana = 175.0
+            self.potions = INITIAL_POTIONS_DB
+            self.walls = INITIAL_WALL_ITEMS_DB
+            self.gold = 0
+            self.is_wet = False
+
+        self.time_became_wet = 0 # Transient state
+        self.mana_regen_accumulator = 0.0 # Transient state
+        self.visible_tiles_cache = set() # Transient state
+
+    def save_to_db(self):
+        conn = get_db_connection()
+        if not conn: return
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO players (player_id, name, scene_x, scene_y, x, y, char, current_health, max_health, current_mana, max_mana, potions, walls, gold, is_wet, last_seen)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (player_id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        scene_x = EXCLUDED.scene_x, scene_y = EXCLUDED.scene_y,
+                        x = EXCLUDED.x, y = EXCLUDED.y, char = EXCLUDED.char,
+                        current_health = EXCLUDED.current_health, max_health = EXCLUDED.max_health,
+                        current_mana = EXCLUDED.current_mana, max_mana = EXCLUDED.max_mana,
+                        potions = EXCLUDED.potions, walls = EXCLUDED.walls, gold = EXCLUDED.gold,
+                        is_wet = EXCLUDED.is_wet, last_seen = CURRENT_TIMESTAMP;
+                """, (self.id, self.name, self.scene_x, self.scene_y, self.x, self.y, self.char,
+                      self.current_health, self.max_health, self.current_mana, self.max_mana,
+                      self.potions, self.walls, self.gold, self.is_wet))
+                conn.commit()
+            app.logger.debug(f"Saved player {self.name} ({self.id}) to DB.")
+        except Exception as e:
+            app.logger.error(f"Error saving player {self.name} ({self.id}) to DB: {e}", exc_info=True)
+        finally:
+            if conn: conn.close()
+
+    # ... (rest of Player methods: update_position, drink_potion, etc. are the same) ...
     def update_position(self, dx, dy, new_char, game_manager, socketio_instance):
         old_scene_x, old_scene_y = self.scene_x, self.scene_y
         original_x_tile, original_y_tile = self.x, self.y
@@ -276,14 +413,15 @@ class Player:
     def get_public_data(self):
         return {'id': self.id, 'name': self.name, 'x': self.x, 'y': self.y, 'char': self.char,
                 'scene_x': self.scene_x, 'scene_y': self.scene_y, 'is_wet': self.is_wet}
-    def get_full_data(self):
+    def get_full_data(self): # Ensure this reflects what's in DB and current state
         return {'id': self.id, 'name': self.name, 'scene_x': self.scene_x, 'scene_y': self.scene_y,
                 'x': self.x, 'y': self.y, 'char': self.char, 'max_health': self.max_health,
                 'current_health': self.current_health, 'max_mana': self.max_mana,
                 'current_mana': int(self.current_mana), 'potions': self.potions, 'gold': self.gold,
                 'walls': self.walls, 'is_wet': self.is_wet}
 
-class Scene:
+
+class Scene: # ... (same as before) ...
     def __init__(self, scene_x, scene_y, name_generator_func=None):
         self.scene_x = scene_x; self.scene_y = scene_y
         self.name = f"Area ({scene_x},{scene_y})"
@@ -293,7 +431,6 @@ class Scene:
         self.terrain_grid = [[TILE_FLOOR for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
         self.is_indoors = False
         self.game_manager_ref = get_game_manager() # Ensure ref is set on creation
-
     def add_player(self, player_sid): self.players_sids.add(player_sid)
     def remove_player(self, player_sid): self.players_sids.discard(player_sid)
     def get_player_sids(self): return list(self.players_sids)
@@ -301,7 +438,7 @@ class Scene:
     def remove_npc(self, npc_id): self.npc_ids.discard(npc_id)
     def get_npc_ids(self): return list(self.npc_ids)
     def add_tree(self, tree_id): self.tree_ids.add(tree_id)
-    def remove_tree(self, tree_id): self.tree_ids.discard(tree_id)
+    def remove_tree(self, tree_id): self.tree_ids.discard(tree_id) # If trees can be removed
     def get_tree_ids(self): return list(self.tree_ids)
     def get_tile_type(self, x, y):
         if 0 <= y < GRID_HEIGHT and 0 <= x < GRID_WIDTH: return self.terrain_grid[y][x]
@@ -336,13 +473,13 @@ class Scene:
                     if tile_type == TILE_WALL: terrain_data['walls'].append({'x': c_idx, 'y': r_idx})
                     elif tile_type == TILE_WATER: terrain_data['water'].append({'x': c_idx, 'y': r_idx})
         return terrain_data
-    def is_entity_at(self, x, y, exclude_id=None):
+    def is_entity_at(self, x, y, exclude_id=None): # Generic check for any entity (NPC or Player)
         gm = get_game_manager()
         if self.is_npc_at(x,y, exclude_id): return True
-        if self.is_player_at(x,y): return True
+        if self.is_player_at(x,y): return True # exclude_id not applicable for players in this simple check
         tree = gm.get_tree_at(x,y,self.scene_x, self.scene_y)
         if tree and not tree.is_chopped_down and tree.id != exclude_id:
-             return True
+             return True # Unchopped trees block general entity movement
         return False
     def is_npc_at(self, x, y, exclude_id=None):
         gm = get_game_manager()
@@ -360,7 +497,7 @@ class Scene:
             if player and player.x == x and player.y == y: return True
         return False
 
-class GameManager:
+class GameManager: # ... (same structure, DB methods added)
     def __init__(self, socketio_instance):
         self.players = {}; self.scenes = {}
         self.all_npcs = {}
@@ -375,6 +512,28 @@ class GameManager:
             (1,  0,  0,  1), (0,  1,  1,  0), (0, -1,  1,  0), (-1,  0,  0,  1),
             (-1,  0,  0, -1), (0, -1, -1,  0), (0,  1, -1,  0), (1,  0,  0, -1)
         ]
+        self.load_all_trees_from_db() # Load trees on startup
+
+    def load_all_trees_from_db(self):
+        conn = get_db_connection()
+        if not conn: return
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT tree_id, scene_x, scene_y, x, y, species, is_ancient, is_chopped_down, name, lore_name, elf_guardian_ids FROM trees")
+                for row in cur.fetchall():
+                    tree_id, scene_x, scene_y, x, y, species, is_ancient, is_chopped, name, lore_name, elf_ids_str = row
+                    tree = Tree(scene_x, scene_y, x, y, tree_id, species, is_ancient, is_chopped, name, elf_ids_str)
+                    self.all_trees[tree.id] = tree
+                    # Ensure tree is added to its scene's list
+                    scene = self.get_or_create_scene(scene_x, scene_y) # This uses get_game_manager implicitly
+                    if tree.id not in scene.tree_ids:
+                        scene.add_tree(tree.id)
+                app.logger.info(f"Loaded {len(self.all_trees)} trees from database.")
+        except Exception as e:
+            app.logger.error(f"Error loading trees from DB: {e}", exc_info=True)
+        finally:
+            if conn: conn.close()
+
     def calculate_fov(self, observer_x, observer_y, scene, radius):
         visible_tiles = set()
         visible_tiles.add((observer_x, observer_y))
@@ -410,44 +569,50 @@ class GameManager:
                         start_slope = right_slope
             if blocked_for_row: break
 
-    def spawn_initial_npcs_and_entities(self):
+    def spawn_initial_npcs_and_entities(self): # For initial DB population if empty
         scene_0_0 = self.get_or_create_scene(0,0)
-        # Spawn Pixies
+        # Spawn Pixies (these are not persisted by default in this example)
         for i in range(2):
             px, py = random.randint(0, GRID_WIDTH-1), random.randint(0, GRID_HEIGHT-1)
             while not scene_0_0.is_walkable(px,py) or scene_0_0.is_entity_at(px,py):
                  px, py = random.randint(0, GRID_WIDTH-1), random.randint(0, GRID_HEIGHT-1)
             pixie = ManaPixie(0, 0, initial_x=px, initial_y=py)
             self.all_npcs[pixie.id] = pixie; scene_0_0.add_npc(pixie.id)
-            app.logger.info(f"Spawned {pixie.type} {pixie.name} at S(0,0) T({pixie.x},{pixie.y})")
+            app.logger.info(f"Spawned transient {pixie.type} {pixie.name} at S(0,0) T({pixie.x},{pixie.y})")
 
-        # Spawn One Test Tree
-        tree_x, tree_y = 5, 5
-        while not scene_0_0.is_walkable(tree_x, tree_y) or scene_0_0.is_entity_at(tree_x,tree_y):
-            tree_x, tree_y = random.randint(2, GRID_WIDTH-3), random.randint(2, GRID_HEIGHT-3)
-        test_tree = Tree(0,0, tree_x, tree_y)
-        self.all_trees[test_tree.id] = test_tree
-        scene_0_0.add_tree(test_tree.id)
-        app.logger.info(f"Spawned {test_tree.type} {test_tree.name} at S(0,0) T({test_tree.x},{test_tree.y})")
+        # Spawn One Test Tree if no trees exist in DB for this scene (or at all)
+        if not any(t for t in self.all_trees.values() if t.scene_x == 0 and t.scene_y == 0):
+            tree_x, tree_y = 5, 5
+            while not scene_0_0.is_walkable(tree_x, tree_y) or scene_0_0.is_entity_at(tree_x,tree_y):
+                tree_x, tree_y = random.randint(2, GRID_WIDTH-3), random.randint(2, GRID_HEIGHT-3)
+            test_tree = Tree(0,0, tree_x, tree_y)
+            test_tree.save_to_db() # Save to DB
+            self.all_trees[test_tree.id] = test_tree
+            scene_0_0.add_tree(test_tree.id)
+            app.logger.info(f"Spawned and saved {test_tree.type} {test_tree.name} at S(0,0) T({test_tree.x},{test_tree.y})")
 
-        # Spawn Elves near the tree
-        for i in range(2):
-            ex, ey = test_tree.x, test_tree.y
-            elf_already_here = False
-            for elf_id_guard in test_tree.elf_guardian_ids: # Corrected variable name
-                existing_elf = self.get_npc(elf_id_guard)
-                if existing_elf and existing_elf.x == ex and existing_elf.y == ey:
-                    elf_already_here = True; break
-            if elf_already_here:
-                 ex, ey = tree_x + random.choice([-1,1]), tree_y + random.choice([-1,1])
-                 while not scene_0_0.is_walkable(ex,ey) or scene_0_0.is_entity_at(ex,ey):
-                     ex, ey = tree_x + random.choice([-1,0,1]), tree_y + random.choice([-1,0,1])
-                     if ex == tree_x and ey == tree_y : ex, ey = tree_x+1, tree_y
-            elf = Elf(0,0, initial_x=ex, initial_y=ey, home_tree_id=test_tree.id)
-            self.all_npcs[elf.id] = elf
-            scene_0_0.add_npc(elf.id)
-            test_tree.elf_guardian_ids.append(elf.id)
-            app.logger.info(f"Spawned {elf.type} {elf.name} (Guardian of {test_tree.name}) at S(0,0) T({elf.x},{elf.y})")
+            # Spawn Elves near the tree (these are not persisted by default)
+            for i in range(2):
+                ex, ey = test_tree.x, test_tree.y
+                elf_already_here = False
+                for elf_id_guard in test_tree.elf_guardian_ids:
+                    existing_elf = self.get_npc(elf_id_guard)
+                    if existing_elf and existing_elf.x == ex and existing_elf.y == ey:
+                        elf_already_here = True; break
+                if elf_already_here:
+                     ex, ey = tree_x + random.choice([-1,1]), tree_y + random.choice([-1,1])
+                     while not scene_0_0.is_walkable(ex,ey) or scene_0_0.is_entity_at(ex,ey):
+                         ex, ey = tree_x + random.choice([-1,0,1]), tree_y + random.choice([-1,0,1])
+                         if ex == tree_x and ey == tree_y : ex, ey = tree_x+1, tree_y
+                elf = Elf(0,0, initial_x=ex, initial_y=ey, home_tree_id=test_tree.id)
+                self.all_npcs[elf.id] = elf
+                scene_0_0.add_npc(elf.id)
+                test_tree.elf_guardian_ids.append(elf.id)
+            test_tree.save_to_db() # Re-save tree with elf guardian IDs
+            app.logger.info(f"Spawned transient Elves for {test_tree.name}")
+        else:
+            app.logger.info("Trees already loaded from DB, skipping initial tree spawn.")
+
 
     def get_tree(self, tree_id): return self.all_trees.get(tree_id)
     def get_tree_at(self, x, y, scene_x, scene_y):
@@ -459,7 +624,8 @@ class GameManager:
     def get_visible_trees_for_observer(self, observer_player):
         visible_trees_data = []
         gm = get_game_manager()
-        for tree_id in gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y).get_tree_ids():
+        scene = gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
+        for tree_id in scene.get_tree_ids(): # Iterate only trees in current scene
             tree = gm.get_tree(tree_id)
             if tree and (tree.x, tree.y) in observer_player.visible_tiles_cache:
                 visible_trees_data.append(tree.get_public_data())
@@ -479,22 +645,44 @@ class GameManager:
     def get_or_create_scene(self, scene_x, scene_y):
         scene_coords = (scene_x, scene_y)
         gm = get_game_manager()
-        if scene_coords not in gm.scenes: # Access via gm
+        if scene_coords not in gm.scenes:
             new_scene = Scene(scene_x, scene_y)
-            # new_scene.game_manager_ref is set in Scene constructor now
             if scene_x == 0 and scene_y == 0:
-                gm.setup_spawn_shrine(new_scene) # Access via gm
+                gm.setup_spawn_shrine(new_scene)
             gm.scenes[scene_coords] = new_scene
             app.logger.info(f"Created new scene at ({scene_x},{scene_y}): {new_scene.name}")
         return gm.scenes[scene_coords]
-    def add_player(self, sid):
-        name = get_player_name(sid); player = Player(sid, name)
-        app.logger.info(f"GM Add Player: Creating player {name} ({sid}).")
+
+    def add_player(self, sid): # Modified to load/save player
+        name = get_player_name(sid)
         gm = get_game_manager()
+        player_data_from_db = None
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT scene_x, scene_y, x, y, char, current_health, max_health, current_mana, max_mana, potions, walls, gold, is_wet FROM players WHERE player_id = %s", (sid,))
+                    row = cur.fetchone()
+                    if row:
+                        keys = ['scene_x', 'scene_y', 'x', 'y', 'char', 'current_health', 'max_health', 'current_mana', 'max_mana', 'potions', 'walls', 'gold', 'is_wet']
+                        player_data_from_db = dict(zip(keys, row))
+                        app.logger.info(f"Loaded player {name} ({sid}) from DB.")
+            except Exception as e:
+                app.logger.error(f"Error loading player {name} ({sid}) from DB: {e}", exc_info=True)
+            finally:
+                if conn: conn.close()
+
+        player = Player(sid, name, db_data=player_data_from_db)
+        if not player_data_from_db: # New player
+            player.save_to_db() # Save initial state for new player
+            app.logger.info(f"Created new player {name} ({sid}) and saved to DB.")
+
         gm.players[sid] = player
-        scene = gm.get_or_create_scene(player.scene_x, player.scene_y); scene.add_player(sid)
+        scene = gm.get_or_create_scene(player.scene_x, player.scene_y)
+        scene.add_player(sid)
         player.visible_tiles_cache = gm.calculate_fov(player.x, player.y, scene, SENSE_SIGHT_RANGE)
-        app.logger.info(f"GM Add Player: Added {name} to scene ({player.scene_x},{player.scene_y}). Total players: {len(gm.players)}")
+        app.logger.info(f"Player {name} added to scene ({player.scene_x},{player.scene_y}). Total players: {len(gm.players)}")
+
         new_player_public_data = player.get_public_data()
         for other_sid_in_scene in scene.get_player_sids():
             if other_sid_in_scene != sid:
@@ -502,10 +690,17 @@ class GameManager:
                 if other_player and gm.is_player_visible_to_observer(other_player, player):
                      gm.socketio.emit('player_entered_your_scene', new_player_public_data, room=other_sid_in_scene)
         return player
-    def remove_player(self, sid):
+
+    def remove_player(self, sid): # Modified to save player on disconnect
         gm = get_game_manager()
-        player = gm.players.pop(sid, None)
+        player = gm.players.get(sid) # Get before pop to save
+        if player:
+            player.save_to_db() # Save player state before removing
+            app.logger.info(f"Player {player.name} state saved on disconnect.")
+        
+        player = gm.players.pop(sid, None) # Now pop
         if sid in gm.queued_actions: del gm.queued_actions[sid]
+
         if player:
             old_scene_coords = (player.scene_x, player.scene_y)
             if old_scene_coords in gm.scenes:
@@ -515,21 +710,22 @@ class GameManager:
                      gm.socketio.emit('player_exited_your_scene', {'id': sid, 'name': player.name}, room=other_sid_in_scene)
             return player
         return None
+
     def get_player(self, sid): return get_game_manager().players.get(sid)
     def get_npc(self, npc_id): return get_game_manager().all_npcs.get(npc_id)
-    def get_npc_at(self, x, y, scene_x, scene_y):
+    def get_npc_at(self, x, y, scene_x, scene_y): # ... (same) ...
         gm = get_game_manager()
         for npc_obj in gm.all_npcs.values():
             if npc_obj.scene_x == scene_x and npc_obj.scene_y == scene_y and npc_obj.x == x and npc_obj.y == y:
                 return npc_obj
         return None
-    def get_player_at(self, x, y, scene_x, scene_y):
+    def get_player_at(self, x, y, scene_x, scene_y): # ... (same) ...
         gm = get_game_manager()
         for player_obj in gm.players.values():
             if player_obj.scene_x == scene_x and player_obj.scene_y == scene_y and player_obj.x == x and player_obj.y == y:
                 return player_obj
         return None
-    def handle_player_scene_change(self, player, old_scene_x, old_scene_y):
+    def handle_player_scene_change(self, player, old_scene_x, old_scene_y): # ... (same) ...
         gm = get_game_manager()
         old_scene_coords = (old_scene_x, old_scene_y); new_scene_coords = (player.scene_x, player.scene_y)
         if old_scene_coords != new_scene_coords:
@@ -547,18 +743,18 @@ class GameManager:
                     other_player = gm.get_player(other_sid)
                     if other_player and gm.is_player_visible_to_observer(other_player, player):
                         gm.socketio.emit('player_entered_your_scene', player_public_data_for_new_scene, room=other_sid)
-    def is_player_visible_to_observer(self, obs_p, target_p):
+    def is_player_visible_to_observer(self, obs_p, target_p): # ... (same) ...
         if not obs_p or not target_p: return False
         if obs_p.id == target_p.id: return False
         if obs_p.scene_x != target_p.scene_x or obs_p.scene_y != target_p.scene_y: return False
         return (target_p.x, target_p.y) in obs_p.visible_tiles_cache
-    def is_npc_visible_to_observer(self, obs_p, target_npc):
+    def is_npc_visible_to_observer(self, obs_p, target_npc): # ... (same) ...
         if not obs_p or not target_npc: return False
         if obs_p.scene_x != target_npc.scene_x or obs_p.scene_y != target_npc.scene_y: return False
         if hasattr(target_npc, 'is_sneaking') and target_npc.is_sneaking:
              return False
         return (target_npc.x, target_npc.y) in obs_p.visible_tiles_cache
-    def get_visible_players_for_observer(self, observer_player):
+    def get_visible_players_for_observer(self, observer_player): # ... (same) ...
         visible_others = []
         gm = get_game_manager()
         scene = gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
@@ -568,7 +764,7 @@ class GameManager:
             if target_player and (target_player.x, target_player.y) in observer_player.visible_tiles_cache:
                 visible_others.append(target_player.get_public_data())
         return visible_others
-    def get_visible_npcs_for_observer(self, observer_player):
+    def get_visible_npcs_for_observer(self, observer_player): # ... (same) ...
         visible_npcs_data = []
         gm = get_game_manager()
         scene = gm.get_or_create_scene(observer_player.scene_x, observer_player.scene_y)
@@ -581,13 +777,13 @@ class GameManager:
                     npc.is_hidden_by_tree = True
                 else:
                     npc.is_hidden_by_tree = False
-            else:
-                npc.is_hidden_by_tree = False # Ensure attribute exists for all NPCs sent
+            #else: # Ensure attribute exists for non-elves if client expects it universally
+            #    npc.is_hidden_by_tree = False
             if gm.is_npc_visible_to_observer(observer_player, npc):
                    visible_npcs_data.append(npc.get_public_data())
         return visible_npcs_data
-    def get_target_coordinates(self, player, dx, dy): return player.x + dx, player.y + dy
-    def get_general_direction(self, observer, target):
+    def get_target_coordinates(self, player, dx, dy): return player.x + dx, player.y + dy # ... (same) ...
+    def get_general_direction(self, observer, target): # ... (same) ...
         dx = target.x - observer.x; dy = target.y - observer.y
         if abs(dx) > abs(dy): return "to the east" if dx > 0 else "to the west"
         elif abs(dy) > abs(dx): return "to the south" if dy > 0 else "to the north"
@@ -598,7 +794,7 @@ class GameManager:
             elif dx > 0 and dy < 0: return "to the northeast"
             elif dx < 0 and dy < 0: return "to the northwest"
             return "nearby"
-    def process_sensory_perception(self, player, scene):
+    def process_sensory_perception(self, player, scene): # ... (same) ...
         perceived_cues_this_tick = set()
         gm = get_game_manager()
         for npc_id in scene.get_npc_ids():
@@ -622,7 +818,7 @@ class GameManager:
                                 gm.socketio.emit('lore_message', {'messageKey': cue_key, 'placeholders': {'npcName': npc.name, 'direction': gm.get_general_direction(player, npc)}, 'type': f'sensory-{sense_type}'}, room=player.id)
                                 perceived_cues_this_tick.add(cue_key); break
                         if cue_key in perceived_cues_this_tick: break
-    def process_actions(self,):
+    def process_actions(self,): # ... (same chop_tree logic, just ensure it calls tree.save_to_db()) ...
         gm = get_game_manager()
         current_actions_to_process = dict(gm.queued_actions); gm.queued_actions.clear(); processed_sids = set()
         for sid_action, action_data in current_actions_to_process.items():
@@ -640,7 +836,7 @@ class GameManager:
                     can_move_to_tile = True
                     if 0 <= target_x < GRID_WIDTH and 0 <= target_y < GRID_HEIGHT:
                         if not scene_of_player.is_walkable(target_x, target_y):
-                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False
+                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ACTION_BLOCKED_WALL', 'type': 'event-bad'}, room=player.id); can_move_to_tile = False # Generic blocked message
                         else:
                             npc_at_target = gm.get_npc_at(target_x, target_y, player.scene_x, player.scene_y)
                             if npc_at_target and isinstance(npc_at_target, ManaPixie):
@@ -674,12 +870,13 @@ class GameManager:
                 else:
                     player.spend_mana(CHOP_TREE_MANA_COST)
                     tree_to_chop.is_chopped_down = True
+                    tree_to_chop.save_to_db() # Persist change
                     gm.socketio.emit('lore_message', {'messageKey': 'LORE.CHOP_SUCCESS', 'placeholders': {'treeName': tree_to_chop.name, 'manaCost': CHOP_TREE_MANA_COST}, 'type': 'event-good'}, room=player.id)
                     for elf_id in tree_to_chop.elf_guardian_ids:
                         elf = gm.get_npc(elf_id)
                         if elf and isinstance(elf, Elf):
                             elf.state = "distressed_no_tree"
-                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ELF_TREE_DESTROYED_REACTION', 'placeholders': {'elfName': elf.name}, 'type': 'system-event-negative'}, room=player.id)
+                            gm.socketio.emit('lore_message', {'messageKey': 'LORE.ELF_TREE_DESTROYED_REACTION', 'placeholders': {'elfName': elf.name, 'treeName': tree_to_chop.lore_name}, 'type': 'system-event-negative'}, room=player.id)
                     for p_sid in scene_of_player.get_player_sids():
                         p = gm.get_player(p_sid)
                         if p: p.visible_tiles_cache = gm.calculate_fov(p.x, p.y, scene_of_player, SENSE_SIGHT_RANGE)
@@ -728,19 +925,14 @@ class GameManager:
             processed_sids.add(sid_action)
 
 def get_game_manager():
-    """Ensures the GameManager instance is created and accessible."""
     global game_manager_instance
     if game_manager_instance is None:
-        # This context might be needed if GameManager constructor or sio uses app context features
         with app.app_context():
-            app.logger.info("GameManager is None, initializing now...")
-            game_manager_instance = GameManager(socketio_instance=sio)
-            # Optionally, attach to app if other parts of Flask need it via current_app
-            # However, for direct calls within this module, game_manager_instance global is fine
-            # setattr(current_app, 'game_manager', game_manager_instance)
+             app.logger.info("Initializing GameManager instance...")
+             game_manager_instance = GameManager(socketio_instance=sio)
     return game_manager_instance
 
-def _game_loop_iteration_content():
+def _game_loop_iteration_content(): # ... (same as last response) ...
     gm = get_game_manager()
     gm.loop_iteration_count += 1
     loop_count = gm.loop_iteration_count
@@ -811,19 +1003,19 @@ def _game_loop_iteration_content():
 
 
 def _persistent_game_loop_runner():
-    gm = get_game_manager() # Ensure gm is initialized for this greenlet
-    with app.app_context(): # For logger calls within this function
+    gm = get_game_manager()
+    with app.app_context():
         my_pid = os.getpid()
         app.logger.info(f"Persistent game loop runner starting in PID {my_pid}...")
+        init_db_tables() # Initialize DB tables at the start of the game loop runner
         gm.loop_is_actually_running_flag = True
         gm.spawn_initial_npcs_and_entities()
         app.logger.info(f"PID {my_pid}: Initial NPCs and entities spawned. Beginning persistent game loop.")
-
     while gm.loop_is_actually_running_flag:
         loop_start_time = time.time()
         try:
-            with app.app_context(): # For logger calls and current_app access within iteration
-                _game_loop_iteration_content() # This will use get_game_manager()
+            with app.app_context():
+                _game_loop_iteration_content()
         except Exception as e:
             with app.app_context():
                 app.logger.critical(f"PID {os.getpid()} Heartbeat {gm.loop_iteration_count}: CRITICAL UNCAUGHT EXCEPTION: {e}", exc_info=True)
@@ -840,7 +1032,7 @@ def _persistent_game_loop_runner():
 
 def start_game_loop_for_worker():
     global _game_loop_started_in_this_process
-    gm = get_game_manager() # Initialize/get GameManager for this worker
+    gm = get_game_manager()
     with app.app_context():
         my_pid = os.getpid()
         if not _game_loop_started_in_this_process:
@@ -864,7 +1056,7 @@ def health_check_route(): return "OK", 200
 
 @sio.on('connect')
 def handle_connect_event(auth=None):
-    gm = get_game_manager() # Ensure gm is available
+    gm = get_game_manager()
     with app.app_context():
         player = gm.add_player(request.sid)
         app.logger.info(f"Connect: {player.name} ({request.sid}). Total players: {len(gm.players)}")
@@ -884,18 +1076,18 @@ def handle_connect_event(auth=None):
         emit_ctx('lore_message', {'messageKey': "LORE.WELCOME_INITIAL", 'type': 'welcome-message'}, room=request.sid)
 
 @sio.on('disconnect')
-def handle_disconnect_event(*args): # Added *args to accept any arguments
-    gm = get_game_manager() # Ensure gm is available
+def handle_disconnect_event(*args):
+    gm = get_game_manager()
     with app.app_context():
-        player_left = gm.remove_player(request.sid)
+        player_left = gm.remove_player(request.sid) # remove_player now saves to DB
         if player_left:
-            app.logger.info(f"Disconnect: {player_left.name} ({request.sid}). Total players: {len(gm.players)}")
+            app.logger.info(f"Disconnect: {player_left.name} ({request.sid}) state saved. Total players: {len(gm.players)}")
         else:
             app.logger.info(f"Disconnect for SID {request.sid} (player not found or already removed).")
 
 @sio.on('queue_player_action')
 def handle_queue_player_action(data):
-    gm = get_game_manager() # Ensure gm is available
+    gm = get_game_manager()
     with app.app_context():
         player = gm.get_player(request.sid)
         if not player:
@@ -911,13 +1103,11 @@ def handle_queue_player_action(data):
 
 if __name__ == '__main__':
     app.logger.info(f"Starting Flask-SocketIO server for LOCAL DEVELOPMENT on PID {os.getpid()}...")
-    start_game_loop_for_worker() # This will call get_game_manager()
+    start_game_loop_for_worker()
     sio.run(app,
-            debug=app.debug,
+            debug=True, # Enable Flask debug for local dev
             host='0.0.0.0',
             port=int(os.environ.get('PORT', 5000)),
-            use_reloader=False)
+            use_reloader=False) # Important with eventlet.spawn
 else:
-    # When Gunicorn imports this, game_manager_instance is None.
-    # post_fork will call start_game_loop_for_worker, which calls get_game_manager().
     app.logger.info(f"App module loaded by WSGI server (e.g., Gunicorn) in PID {os.getpid()}. Game loop to be started by post_fork.")
