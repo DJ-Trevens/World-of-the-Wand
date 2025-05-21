@@ -12,7 +12,7 @@ const GAME_TEXTS = {
         "Your gaze shifts {direction} from your position at ({x},{y}).",
         "Oriented {direction}, you survey your surroundings from ({x},{y})."
     ],
-    ACTION_SENT_FEEDBACK: {
+    ACTION_FEEDBACK: {
         ACTION_QUEUED: [
             "The echoes of your command resonate...",
             "Action queued.",

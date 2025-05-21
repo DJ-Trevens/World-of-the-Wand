@@ -1227,10 +1227,10 @@ def handle_queue_player_action(data):
         valid_actions = ['move', 'look', 'drink_potion', 'say', 'shout', 'build_wall', 'destroy_wall', 'chop_tree']
         if action_type not in valid_actions:
             app.logger.warning(f"Player {player.name} sent invalid action: {action_type}")
-            emit_ctx('action_feedback', {'success': False, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_FAILED_UNKNOWN_COMMAND', 'placeholders': {'actionWord': action_type}})
+            emit_ctx('action_feedback', {'success': False, 'messageKey': 'ACTION_FAILED_UNKNOWN_COMMAND', 'placeholders': {'actionWord': action_type}})
             return
         gm.queued_actions[request.sid] = data
-        emit_ctx('action_feedback', {'success': True, 'messageKey': 'ACTION_SENT_FEEDBACK.ACTION_QUEUED'})
+        emit_ctx('action_feedback', {'success': True, 'messageKey': 'ACTION_QUEUED'})
 
 if __name__ == '__main__':
     app.logger.info(f"Starting Flask-SocketIO server for LOCAL DEVELOPMENT on PID {os.getpid()}...")
