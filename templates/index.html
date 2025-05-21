@@ -101,7 +101,7 @@
         const commandInput = document.getElementById('commandText');
 
         const serverHeartbeatIndicator = document.getElementById('serverHeartbeatIndicator');
-        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator');
+        const simulatedHeartbeatIndicator = document.getElementById('simulatedHeartbeatIndicator'); // Assuming this exists if used
         const debugInfoToggle = document.getElementById('debugInfoToggle');
         const rainIntensitySlider = document.getElementById('rainIntensitySlider');
         const themeToggleButton = document.getElementById('themeToggle');
@@ -127,7 +127,7 @@
         let selfPlayer = null;
         let otherPlayers = {};
         let visibleNPCs = [];
-        let visibleTrees = []; // To store tree data from server
+        let visibleTrees = []; 
         let visibleTerrain = { walls: [], water: [] };
         let serverVisibleTiles = new Set();
 
@@ -136,8 +136,8 @@
         let GRID_HEIGHT = 17;
         let GAME_HEARTBEAT_RATE = 0.75;
         let prevSelfPlayerState = null;
-        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" };
-        let globalWeather = { isRaining: true, intensity: 0.25 };
+        let currentSceneData = { InsideID: 0, name: "The Whispering Plains" }; // Will be updated by server
+        let globalWeather = { isRaining: true, intensity: 0.25 }; // Default, server can override initial
         let rainInterval = null;
         const RAIN_INTERVAL_DELAY = 50;
         let isDragging = false;
@@ -150,8 +150,9 @@
         const DEFAULT_CHAR_WIDTH_FALLBACK = (DEFAULT_FONT_SIZE_PX * 0.6) * X_STRETCH_FACTOR;
         const DEFAULT_CHAR_HEIGHT_FALLBACK = DEFAULT_FONT_SIZE_PX * 0.9;
 
-        let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK;
-        let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK;
+        let charRenderWidth = DEFAULT_CHAR_WIDTH_FALLBACK; // Used for rendering
+        let charRenderHeight = DEFAULT_CHAR_HEIGHT_FALLBACK; // Used for rendering
+        // The 'charWidth' and 'charHeight' from your previous snippet are now charRenderWidth/Height
         let charSizeEstimatedAtLeastOnce = false;
         let initialCenteringDone = false;
         let initialUIDone = false;
@@ -160,9 +161,9 @@
         const FLOOR_CHAR = '·';
         const WALL_CHAR = '▓';
         const WATER_CHAR = '~';
-        let PIXIE_CHAR_CLIENT = '*'; // Default, can be updated from server
-        let ELF_CHAR_CLIENT = 'E';   // Default
-        let TREE_CHAR_CLIENT = '\u2663'; // Default Club symbol ♣
+        let PIXIE_CHAR_CLIENT = '*'; 
+        let ELF_CHAR_CLIENT = 'E';  
+        let TREE_CHAR_CLIENT = '\u2663'; 
 
         let currentGameZoomFactor = 1.4;
         const MIN_ZOOM = 0.5;
@@ -181,7 +182,7 @@
             }
         }
 
-        function applyTheme(theme) { /* Same as before */
+        function applyTheme(theme) { 
             if (theme === 'light') {
                 document.body.classList.add('light-theme');
                 document.body.classList.remove('dark-theme');
@@ -196,18 +197,18 @@
             localStorage.setItem('worldOfTheWandTheme', theme);
             if(selfPlayer && charSizeEstimatedAtLeastOnce) drawGrid();
         }
-        function toggleTheme() { /* Same as before */
+        function toggleTheme() { 
             const currentThemeIsDark = document.body.classList.contains('dark-theme');
             applyTheme(currentThemeIsDark ? 'light' : 'dark');
         }
         themeToggleButton.addEventListener('click', toggleTheme);
-        function initializeTheme() { /* Same as before */
+        function initializeTheme() { 
             const savedTheme = localStorage.getItem('worldOfTheWandTheme');
             if (savedTheme) { applyTheme(savedTheme); }
             else { applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'); }
         }
 
-        function addLogMessage(message, type = 'lore') { /* Same as before */
+        function addLogMessage(message, type = 'lore') { 
             const logEntry = document.createElement('div');
             let displayStyle = 'ink';
             switch (type) {
@@ -225,11 +226,11 @@
             commandLog.appendChild(logEntry);
             requestAnimationFrame(() => { commandLog.scrollTop = commandLog.scrollHeight; });
         }
-        function logRandomizedEvent(mainKey, subKey, placeholders = {}, messageType = 'lore') { /* Same as before */
+        function logRandomizedEvent(mainKey, subKey, placeholders = {}, messageType = 'lore') { 
             const message = getRandomGameText(mainKey, subKey, placeholders);
             addLogMessage(message, messageType);
         }
-        function updateStatusAndDebugContext() { /* Same as before */
+        function updateStatusAndDebugContext() { 
             if (selfPlayer) {
                 let healthPercentage = selfPlayer.max_health > 0 ? Math.round((selfPlayer.current_health / selfPlayer.max_health) * 100) : 0;
                 mainHeaderStatus.textContent = `${healthPercentage}% Health | ${selfPlayer.current_mana} Mana | ${selfPlayer.gold || 0} Gold | ${selfPlayer.potions} Potions | ${selfPlayer.walls} Walls`;
@@ -245,7 +246,7 @@
                 if (dbgLocationType) dbgLocationType.textContent = "N/A";
             }
         }
-        function estimateCharacterSize(context = "unknown") { /* Same as before */
+        function estimateCharacterSize(context = "unknown") { 
             const testChar = 'M';
             const computedStyle = getComputedStyle(document.documentElement);
             const fontFamily = computedStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
@@ -268,19 +269,33 @@
             if (GRID_WIDTH > 0 && GRID_HEIGHT > 0 && charRenderWidth > 0 && charRenderHeight > 0) {
                 gameCanvas.width = GRID_WIDTH * charRenderWidth;
                 gameCanvas.height = GRID_HEIGHT * charRenderHeight;
+            } else { // Fallback if grid dimensions aren't known yet, use a sensible default canvas size
+                gameCanvas.width = 800; gameCanvas.height = 600;
             }
             charSizeEstimatedAtLeastOnce = true;
         }
 
-        function drawGrid() { // Updated for Trees and Elf hiding
+        function drawGrid() { 
             if (!ctx) return;
-            if (!charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.width === 0 || gameCanvas.height === 0) { /* ... loading ... */ return; }
+            if (!charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || gameCanvas.width === 0 || gameCanvas.height === 0) {
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--canvas-bg-consistent').trim();
+                ctx.fillRect(0, 0, gameCanvas.width || 800, gameCanvas.height || 600);
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary-consistent').trim();
+                ctx.font = "16px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("Awaiting manifestation...", (gameCanvas.width || 800) / 2, (gameCanvas.height || 600) / 2);
+                return;
+            }
 
             const bodyStyle = getComputedStyle(document.body);
             ctx.fillStyle = bodyStyle.getPropertyValue('--canvas-bg-consistent').trim();
             ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-            if (!selfPlayer) { /* ... awaiting player ... */ return; }
+            if (!selfPlayer) { 
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary-consistent').trim();
+                ctx.font = "16px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText("Awaiting player data...", gameCanvas.width / 2, gameCanvas.height / 2);
+                return;
+            }
 
             const gameFontFamily = bodyStyle.getPropertyValue('--font-game').trim() || "'Courier New', monospace";
             ctx.font = `${DEFAULT_FONT_SIZE_PX}px ${gameFontFamily}`;
@@ -293,11 +308,10 @@
             const selfPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-self-consistent').trim();
             const otherPlayerBaseColor = bodyStyle.getPropertyValue('--text-game-other-consistent').trim();
             const npcPixieColor = bodyStyle.getPropertyValue('--text-game-npc-pixie-consistent').trim();
-            const npcElfColor = bodyStyle.getPropertyValue('--text-game-npc-elf-consistent').trim() || otherPlayerBaseColor; // Fallback
-            const treeColor = bodyStyle.getPropertyValue('--text-game-tree-consistent').trim() || wallColor; // Fallback
+            const npcElfColor = bodyStyle.getPropertyValue('--text-game-npc-elf-consistent').trim() || otherPlayerBaseColor; 
+            const treeColor = bodyStyle.getPropertyValue('--text-game-tree-consistent').trim() || wallColor; 
             const wetPlayerTintColor = bodyStyle.getPropertyValue('--text-game-wet-tint-consistent').trim();
 
-            // 1. Draw Terrain (Floors, Walls, Water) based on FOV
             for (let gy = 0; gy < GRID_HEIGHT; gy++) {
                 for (let gx = 0; gx < GRID_WIDTH; gx++) {
                     let charToDraw = FOG_CHAR;
@@ -317,25 +331,22 @@
                 }
             }
 
-            // 2. Draw Visible Trees (can obscure other things if drawn later)
             if (visibleTrees) {
                 visibleTrees.forEach(tree => {
                     if (serverVisibleTiles.has(`${tree.x},${tree.y}`) && !tree.is_chopped_down) {
                         ctx.fillStyle = treeColor;
                         ctx.fillText(tree.char || TREE_CHAR_CLIENT, tree.x * charRenderWidth, tree.y * charRenderHeight);
                     }
-                    // If tree is chopped, it's effectively not there for rendering static part
                 });
             }
 
-            // 3. Draw Visible NPCs (Elves might be hidden by trees)
             if (visibleNPCs) {
                 visibleNPCs.forEach(npc => {
                     if (serverVisibleTiles.has(`${npc.x},${npc.y}`)) {
                         if (npc.type === "Elf" && npc.is_hidden_by_tree) {
-                            return; // Don't draw elf if hidden by tree, tree already drawn
+                            return; 
                         }
-                        let npcColor = npcPixieColor; // Default
+                        let npcColor = npcPixieColor; 
                         if (npc.type === "Elf") npcColor = npcElfColor;
 
                         ctx.fillStyle = npcColor;
@@ -344,26 +355,22 @@
                 });
             }
 
-            // 4. Draw Other Players
             for (const id in otherPlayers) {
                 const p = otherPlayers[id];
                 if (serverVisibleTiles.has(`${p.x},${p.y}`)) {
-                    ctx.fillStyle = otherPlayerBaseColor;
+                    ctx.fillStyle = p.is_wet ? wetPlayerTintColor : otherPlayerBaseColor;
                     ctx.fillText(p.char, p.x * charRenderWidth, p.y * charRenderHeight);
-                    if (p.is_wet) { /* ... wet tint ... */ }
                 }
             }
 
-            // 5. Draw Self Player
             if (serverVisibleTiles.has(`${selfPlayer.x},${selfPlayer.y}`)) {
-                ctx.fillStyle = selfPlayerBaseColor;
+                ctx.fillStyle = selfPlayer.is_wet ? wetPlayerTintColor : selfPlayerBaseColor;
                 ctx.fillText(selfPlayer.char, selfPlayer.x * charRenderWidth, selfPlayer.y * charRenderHeight);
-                if (selfPlayer.is_wet) { /* ... wet tint ... */ }
             }
         }
 
 
-        function startRainEffect(intensity) { /* Same as before */
+        function startRainEffect(intensity) { 
             if (rainInterval) clearInterval(rainInterval);
             rainOverlay.innerHTML = '';
             rainOverlay.style.display = 'block';
@@ -380,23 +387,31 @@
                 }
             }, RAIN_INTERVAL_DELAY);
         }
-        function stopRainEffect() { /* Same as before */
+        function stopRainEffect() { 
             if (rainInterval) clearInterval(rainInterval);
             rainInterval = null;
             rainOverlay.innerHTML = '';
             rainOverlay.style.display = 'none';
         }
-        function updateWeatherEffects() { /* Same as before */
+        // Placeholder for actual drawRainEffect logic if you want canvas-based rain
+        function drawRainEffectCanvas(intensity) {
+            // console.log("Pretending to draw canvas rain with intensity:", intensity);
+        }
+
+        function updateWeatherEffectsActual() { 
+            // This is the function that was previously named updateWeatherEffects
+            // The one inside socket.on('game_update') is now a local helper.
             if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
-                if (!rainInterval || rainIntensitySlider.valueAsNumber !== globalWeather.intensity) {
-                     globalWeather.intensity = rainIntensitySlider.valueAsNumber;
+                if (!rainInterval || (rainIntensitySlider && rainIntensitySlider.valueAsNumber !== globalWeather.intensity)) {
+                     if (rainIntensitySlider) globalWeather.intensity = rainIntensitySlider.valueAsNumber;
                 }
-                startRainEffect(globalWeather.intensity);
+                startRainEffect(globalWeather.intensity); // Uses the DOM-based rain
+                // if (typeof drawRainEffectCanvas === 'function') drawRainEffectCanvas(globalWeather.intensity); // If you had canvas rain
             } else {
                 stopRainEffect();
             }
         }
-        gameCanvasContainer.addEventListener('mousedown', (e) => { /* Same as before */
+        gameCanvasContainer.addEventListener('mousedown', (e) => { 
             if (e.button !== 0) return;
             isDragging = true; document.body.classList.add('is-dragging');
             gameCanvasContainer.style.cursor = 'grabbing';
@@ -404,23 +419,23 @@
             startDragY = e.clientY - currentPanY;
             gameCanvas.style.transition = 'none';
         });
-        window.addEventListener('mousemove', (e) => { /* Same as before */
+        window.addEventListener('mousemove', (e) => { 
             if (!isDragging) return;
             currentPanX = e.clientX - startDragX; currentPanY = e.clientY - startDragY;
             updateGameTransform();
         });
-        window.addEventListener('mouseup', (e) => { /* Same as before */
+        window.addEventListener('mouseup', (e) => { 
             if (e.button !== 0 || !isDragging) return;
             isDragging = false; document.body.classList.remove('is-dragging');
             gameCanvasContainer.style.cursor = 'grab';
         });
-        gameCanvasContainer.addEventListener('mouseleave', () => { /* Same as before */
+        gameCanvasContainer.addEventListener('mouseleave', () => { 
             if(isDragging){
                 isDragging = false; document.body.classList.remove('is-dragging');
                 gameCanvasContainer.style.cursor = 'grab';
             }
         });
-        function centerViewOnPlayer(context = "unknown") { /* Same as before */
+        function centerViewOnPlayer(context = "unknown") { 
             const containerRect = gameCanvasContainer.getBoundingClientRect();
             const containerHeight = containerRect.height; const containerWidth = containerRect.width;
             if (!selfPlayer || !charSizeEstimatedAtLeastOnce || GRID_WIDTH === 0 || GRID_HEIGHT === 0 || containerHeight <= 0 || containerWidth <=0 || charRenderWidth <=0 || charRenderHeight <=0 || gameCanvas.width === 0 || gameCanvas.height === 0) {
@@ -434,7 +449,7 @@
             updateGameTransform();
             setTimeout(() => { gameCanvas.style.transition = 'transform 0.05s linear'; }, 300);
         }
-        gameCanvasContainer.addEventListener('wheel', function(event) { /* Same as before */
+        gameCanvasContainer.addEventListener('wheel', function(event) { 
             event.preventDefault();
             const rect = gameCanvasContainer.getBoundingClientRect();
             const mouseX = event.clientX - rect.left; const mouseY = event.clientY - rect.top;
@@ -451,9 +466,8 @@
                 gameCanvas.style.transition = 'none'; updateGameTransform();
             }
         }, { passive: false });
-        // Touch zoom listeners remain the same
-
-        debugInfoToggle.addEventListener('change', (event) => { /* Same as before */
+        
+        debugInfoToggle.addEventListener('change', (event) => { 
             showDebugInfoState = event.target.checked;
             localStorage.setItem('worldOfTheWandShowDebug', JSON.stringify(showDebugInfoState));
             if (showDebugInfoState) {
@@ -465,21 +479,25 @@
             }
              updateStatusAndDebugContext();
         });
-        rainIntensitySlider.addEventListener('input', (event) => { /* Same as before */
+        rainIntensitySlider.addEventListener('input', (event) => { 
             const newIntensity = parseFloat(event.target.value);
             if (globalWeather.intensity !== newIntensity) {
                 globalWeather.intensity = newIntensity;
                 localStorage.setItem('rainIntensity', globalWeather.intensity.toString());
-                updateWeatherEffects();
+                updateWeatherEffectsActual(); // Call the renamed global weather update
             }
         });
-        simulateHeartbeatToggle.addEventListener('change', (event) => { /* Same as before */
+        simulateHeartbeatToggle.addEventListener('change', (event) => { 
             simulateServerHeartbeatEnabled = event.target.checked;
             localStorage.setItem('simulateServerHeartbeat', simulateServerHeartbeatEnabled);
             if (simulateServerHeartbeatEnabled) {
                 if (simulatedHeartbeatInterval) clearInterval(simulatedHeartbeatInterval);
                 simulatedHeartbeatInterval = setInterval(() => {
-                    if (simulatedHeartbeatIndicator) { /* Flash indicator */ }
+                    if (simulatedHeartbeatIndicator) { 
+                        simulatedHeartbeatIndicator.classList.add('flash');
+                        if (simulatedHeartbeatFlashTimeout) clearTimeout(simulatedHeartbeatFlashTimeout);
+                        simulatedHeartbeatFlashTimeout = setTimeout(() => simulatedHeartbeatIndicator.classList.remove('flash'), 200);
+                    }
                     if (selfPlayer) { drawGrid(); }
                 }, GAME_HEARTBEAT_RATE * 1000);
             } else {
@@ -487,17 +505,21 @@
                 simulatedHeartbeatInterval = null;
             }
         });
-        const resizeObserver = new ResizeObserver(entries => { /* Same as before */
+        const resizeObserver = new ResizeObserver(entries => { 
             for (let entry of entries) {
-                if (entry.target === gameCanvasContainer) { /* ... handle resize and centering ... */ }
+                if (entry.target === gameCanvasContainer) { 
+                    if (charSizeEstimatedAtLeastOnce && selfPlayer) {
+                        centerViewOnPlayer("resize_observer");
+                    }
+                 }
             }
         });
         if (gameCanvasContainer) resizeObserver.observe(gameCanvasContainer);
 
-        function initializeUIDisplayStates() { /* Same as before, ensure debugInfoToggle.checked is set */
+        function initializeUIDisplayStates() { 
             const savedDebugState = localStorage.getItem('worldOfTheWandShowDebug');
-            showDebugInfoState = savedDebugState !== null ? JSON.parse(savedDebugState) : false; // Default false
-            debugInfoToggle.checked = showDebugInfoState; // Set checkbox based on loaded state
+            showDebugInfoState = savedDebugState !== null ? JSON.parse(savedDebugState) : false; 
+            debugInfoToggle.checked = showDebugInfoState; 
             if (showDebugInfoState) {
                 commandLogContainer.style.display = 'none';
                 debugAndAuxiliaryPanel.style.display = 'flex';
@@ -521,137 +543,374 @@
         socket.on('connect', () => { logRandomizedEvent('LORE', 'CONNECTION_ESTABLISHED', {}, 'system'); });
         socket.on('connect_error', (err) => { addLogMessage(`Tome screams: Connection Error! ${err.message}`, 'event-bad');  updateStatusAndDebugContext(); });
         socket.on('initial_game_data', (data) => {
-            if (!data || !data.player_data ) { /* ... error handling ... */ return; }
+            if (!data || !data.player_data ) { 
+                addLogMessage("Tome whispers darkly: Initial manifestation data is corrupted or missing.", 'event-bad');
+                return; 
+            }
             selfPlayer = data.player_data; myPlayerID = selfPlayer.id;
             GRID_WIDTH = data.grid_width || 20; GRID_HEIGHT = data.grid_height || 15;
             GAME_HEARTBEAT_RATE = data.tick_rate || 0.75;
             PIXIE_CHAR_CLIENT = data.pixie_char || PIXIE_CHAR_CLIENT;
             ELF_CHAR_CLIENT = data.elf_char || ELF_CHAR_CLIENT;
             TREE_CHAR_CLIENT = data.tree_char || TREE_CHAR_CLIENT;
+            // Update currentSceneData if available
+            if (data.scene_data) { // Assuming server might send scene_data {name, InsideID}
+                currentSceneData.name = data.scene_data.name || `Area (${selfPlayer.scene_x}, ${selfPlayer.scene_y})`;
+                currentSceneData.InsideID = data.scene_data.InsideID || 0;
+            } else {
+                currentSceneData.name = `Area (${selfPlayer.scene_x}, ${selfPlayer.scene_y})`;
+                currentSceneData.InsideID = 0; // Default to outdoors
+            }
+
 
             otherPlayers = {};
             visibleTerrain = data.visible_terrain || { walls: [], water: [] };
             serverVisibleTiles = new Set((data.all_visible_tiles || []).map(t => `${t.x},${t.y}`));
             visibleNPCs = data.visible_npcs || [];
-            visibleTrees = data.visible_trees || []; // Store tree data
+            visibleTrees = data.visible_trees || []; 
             globalWeather.intensity = data.default_rain_intensity || 0.25;
+            globalWeather.isRaining = data.is_raining_initially !== undefined ? data.is_raining_initially : true; // Server can tell if it's raining initially
 
             if (data.other_players_in_scene) { data.other_players_in_scene.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });}
             prevSelfPlayerState = { ...selfPlayer };
-            initializeUIDisplayStates();
+            if(!initialUIDone) {
+                initializeUIDisplayStates();
+                initialUIDone = true;
+            }
             if (!charSizeEstimatedAtLeastOnce) { estimateCharacterSize("initial_data_pre_font_ready"); }
-            document.fonts.ready.then(() => { /* ... font ready logic ... */
+            
+            document.fonts.ready.then(() => { 
                 estimateCharacterSize("initial_data_fonts_ready");
-                if (selfPlayer) { drawGrid();  updateStatusAndDebugContext(); /* ... more init ... */ }
+                if (selfPlayer) { 
+                    updateStatusAndDebugContext(); 
+                    updateWeatherEffectsActual(); // Call the renamed global one
+                    drawGrid();  
+                    if (!initialCenteringDone) {
+                        centerViewOnPlayer("initial_data_fonts_ready");
+                        initialCenteringDone = true;
+                    }
+                }
             });
         });
-        socket.on('player_entered_your_scene', (newPlayerData) => { /* Same as before */ });
-        socket.on('player_exited_your_scene', (exitedPlayerData) => { /* Same as before */ });
-        socket.on('lore_message', (data) => { /* Same as before */ });
-        socket.on('chat_message', (data) => { /* Same as before */ });
-        socket.on('player_event', (data) => { /* Same as before */ });
+        socket.on('player_entered_your_scene', (newPlayerData) => { 
+            if (newPlayerData && newPlayerData.id !== myPlayerID) {
+                otherPlayers[newPlayerData.id] = newPlayerData;
+                logRandomizedEvent('LORE','PLAYER_ENTERED_VICINITY', {playerName: newPlayerData.name || 'A new wizard'}, 'system');
+                drawGrid();
+            }
+        });
+        socket.on('player_exited_your_scene', (exitedPlayerData) => { 
+            if (exitedPlayerData && exitedPlayerData.id !== myPlayerID) {
+                delete otherPlayers[exitedPlayerData.id];
+                logRandomizedEvent('LORE','PLAYER_LEFT_VICINITY', {playerName: exitedPlayerData.name || 'A wizard'}, 'system');
+                drawGrid();
+            }
+        });
+        socket.on('lore_message', (data) => { 
+            if (data && data.messageKey) {
+                logRandomizedEvent('LORE', data.messageKey, data.placeholders || {}, data.type || 'lore');
+            } else if (data && data.message) { // Direct message support
+                 addLogMessage(data.message, data.type || 'lore');
+            }
+        });
+        socket.on('chat_message', (data) => { 
+            if (data && data.message && data.sender_name) {
+                const chatType = data.type === 'shout' ? 'chat-shout' : 'chat-say';
+                const prefix = data.type === 'shout' ? `${data.sender_name} shouts from ${data.scene_coords || 'nearby'}: ` : `${data.sender_name} says: `;
+                addLogMessage(prefix + data.message, chatType);
+            }
+        });
+        socket.on('player_event', (data) => { 
+            if (data && data.type) {
+                if (data.type === 'stepped_in_water' && data.sid === myPlayerID) {
+                    // This specific event is now mostly handled by lore messages
+                    // but you could add specific sound/visual cues here if needed.
+                }
+                // Add more client-side reactions to player_event types if needed
+            }
+        });
         socket.on('game_update', (data) => {
              if (!selfPlayer || !myPlayerID || !data.self_player_data) { return; }
             if(dbgLastUpdate) dbgLastUpdate.textContent = new Date().toLocaleTimeString();
-            if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) { /* ... heartbeat flash ... */ }
+            if(serverHeartbeatIndicator && !simulateServerHeartbeatEnabled) { 
+                serverHeartbeatIndicator.classList.add('flash');
+                if (serverHeartbeatFlashTimeout) clearTimeout(serverHeartbeatFlashTimeout);
+                serverHeartbeatFlashTimeout = setTimeout(() => serverHeartbeatIndicator.classList.remove('flash'), 200);
+            }
 
             selfPlayer = data.self_player_data;
+            // Update currentSceneData if it changed (e.g., player moved scenes)
+            // Server should send scene_data if it changes or if it's relevant to current update.
+            if (data.scene_data) {
+                currentSceneData.name = data.scene_data.name || `Area (${selfPlayer.scene_x}, ${selfPlayer.scene_y})`;
+                currentSceneData.InsideID = data.scene_data.InsideID || 0;
+            } else if (prevSelfPlayerState && (prevSelfPlayerState.scene_x !== selfPlayer.scene_x || prevSelfPlayerState.scene_y !== selfPlayer.scene_y)) {
+                // If scene coords changed but no scene_data, make a best guess for name
+                currentSceneData.name = `Area (${selfPlayer.scene_x}, ${selfPlayer.scene_y})`;
+                // Assume outdoors if not specified on scene change
+                currentSceneData.InsideID = 0;
+            }
+
+            // Update global weather if server sends it
+            if (data.weather_update) {
+                globalWeather.isRaining = data.weather_update.isRaining !== undefined ? data.weather_update.isRaining : globalWeather.isRaining;
+                globalWeather.intensity = data.weather_update.intensity !== undefined ? data.weather_update.intensity : globalWeather.intensity;
+                if (rainIntensitySlider) rainIntensitySlider.value = globalWeather.intensity; // Sync slider
+            }
+
+
             otherPlayers = {};
             if(data.visible_other_players) data.visible_other_players.forEach(p => { if (p.id !== myPlayerID) otherPlayers[p.id] = p; });
             visibleTerrain = data.visible_terrain || { walls: [], water: [] };
             serverVisibleTiles = new Set((data.all_visible_tiles || []).map(t => `${t.x},${t.y}`));
             visibleNPCs = data.visible_npcs || [];
-            visibleTrees = data.visible_trees || []; // Update trees
+            visibleTrees = data.visible_trees || []; 
 
              updateStatusAndDebugContext();
             if(dbgSelfPlayer) dbgSelfPlayer.textContent = `(${selfPlayer.x},${selfPlayer.y}) ${selfPlayer.char} Wet: ${selfPlayer.is_wet}`;
             if(dbgOtherPlayersCount) dbgOtherPlayersCount.textContent = Object.keys(otherPlayers).length;
             if(dbgNpcsCount) dbgNpcsCount.textContent = visibleNPCs.length;
-            if(dbgTreesCount) dbgTreesCount.textContent = visibleTrees.length; // Update tree count
+            if(dbgTreesCount) dbgTreesCount.textContent = visibleTrees.length; 
 
+            // Logic for re-centering if player position changes significantly,
+            // or if the view was never centered.
+            const playerMovedSignificantly = prevSelfPlayerState && 
+                (Math.abs(prevSelfPlayerState.x - selfPlayer.x) > GRID_WIDTH / 3 ||
+                 Math.abs(prevSelfPlayerState.y - selfPlayer.y) > GRID_HEIGHT / 3 ||
+                 prevSelfPlayerState.scene_x !== selfPlayer.scene_x ||
+                 prevSelfPlayerState.scene_y !== selfPlayer.scene_y);
+
+            if (!initialCenteringDone || playerMovedSignificantly) {
+                 if(charSizeEstimatedAtLeastOnce) {
+                    centerViewOnPlayer("game_update_player_moved");
+                    initialCenteringDone = true; // Mark as done even if it was a re-center
+                 }
+            }
             prevSelfPlayerState = { ...selfPlayer };
-            drawGrid();
-            if (!charSizeEstimatedAtLeastOnce && GRID_WIDTH > 0 && GRID_HEIGHT > 0) { /* ... re-estimate and center ... */ }
-            updateWeatherEffects();
+            
+            // Moved the character estimation and weather update inside a local scope
+            // This block is for initial estimation if it somehow missed it.
+            if (!charSizeEstimatedAtLeastOnce && GRID_WIDTH > 0 && GRID_HEIGHT > 0) {
+                estimateCharacterSize("game_update_catchup_estimation");
+                if (selfPlayer && typeof centerViewOnPlayer === 'function') {
+                    centerViewOnPlayer("game_update_after_catchup_estimation");
+                    initialCenteringDone = true;
+                }
+            }
+
+            // Local scope for weather effects update during game_update
+            function localUpdateWeatherEffects() {
+                // Using globalWeather which might have been updated by this game_update packet
+                if (globalWeather.isRaining && currentSceneData.InsideID === 0) {
+                    if (typeof startRainEffect === 'function') {
+                        startRainEffect(globalWeather.intensity);
+                    }
+                } else {
+                    if (typeof stopRainEffect === 'function') {
+                        stopRainEffect();
+                    }
+                }
+            }
+            localUpdateWeatherEffects(); // Call the locally scoped weather update
+
+            drawGrid(); // Draw grid after all state updates
         });
-        socket.on('action_feedback', (data) => { /* Same as before */ });
-        socket.on('disconnect', (reason) => { /* Same as before, clear visibleTrees */
-             updateStatusAndDebugContext(); logRandomizedEvent('LORE', 'DISCONNECTED', { reason: reason }, 'event-bad');
-            selfPlayer = null; otherPlayers = {}; visibleTerrain = {walls:[], water:[]}; serverVisibleTiles.clear(); visibleNPCs = []; visibleTrees = []; prevSelfPlayerState = null;
-            stopRainEffect(); drawGrid();
+        // This event is emitted by the server after an action is queued or if there's an immediate validation error.
+        socket.on('action_feedback', (data) => {
+            if (!data) {
+                console.error('Received empty action_feedback data');
+                // Optionally, log a generic error to the user if appropriate
+                // logRandomizedEvent('SYSTEM_ERROR', 'FEEDBACK_ERROR_EMPTY', {}, 'event-bad');
+                return;
+            }
+
+            const messageKey = data.messageKey;
+            const directMessage = data.message; // For messages not using a key
+            const placeholders = data.placeholders || {};
+            const eventType = data.success ? 'event-good' : 'event-bad';
+            const category = 'ACTION_FEEDBACK'; // Or 'UI', 'SYSTEM', depending on your categorization
+
+            if (messageKey) {
+                logRandomizedEvent(category, messageKey, placeholders, eventType);
+            } else if (directMessage) {
+                // If logRandomizedEvent can handle direct strings, pass it.
+                // Otherwise, you might have a different function or just console.log it.
+                logRandomizedEvent(category, directMessage, placeholders, eventType);
+                // As a fallback, or if logRandomizedEvent expects a key:
+                // console.log(`Action Feedback (${eventType}): ${directMessage}`, placeholders);
+            } else {
+                // Fallback if no messageKey or directMessage is provided
+                const fallbackMessage = data.success ? 'Action Acknowledged.' : 'Action Failed.';
+                logRandomizedEvent(category, fallbackMessage, placeholders, eventType);
+                console.warn('Action feedback received without messageKey or directMessage:', data);
+            }
+
+            // You might have other UI updates based on action_feedback,
+            // for example, re-enabling UI elements if an action was successfully queued.
         });
 
-        const ACTION_ALIASES = { /* Updated for chop */
-            "move": ["move", "go", "walk", "step", "head", "run"], "look": ["look", "face", "turn"],
-            "cast": ["cast", "zap", "fire", "spell"], "drink": ["drink", "quaff", "use"],
-            "say": ["say", "tell", "whisper", "'"], "shout": ["shout", "yell", "scream", "!"],
+        // Handler for 'disconnect'
+        // This event fires when the client loses connection to the server.
+        socket.on('disconnect', (reason) => {
+            console.log(`Disconnected from server. Reason: ${reason}`);
+
+            // Update UI to reflect disconnected state
+            updateStatusAndDebugContext(); // Call this first if it updates generic status
+
+            // Log a lore/system message to the user
+            // Assuming 'LORE.DISCONNECTED_FROM_SERVER' is a key in your game_texts.js
+            // that might take 'reason' as a placeholder.
+            logRandomizedEvent('LORE', 'LORE.DISCONNECTED_FROM_SERVER', { reason: reason }, 'event-bad');
+
+            // Reset client-side game state variables
+            selfPlayer = null;
+            otherPlayers = {};
+            visibleTerrain = { walls: [], water: [] };
+            if (serverVisibleTiles && typeof serverVisibleTiles.clear === 'function') {
+                serverVisibleTiles.clear();
+            } else {
+                serverVisibleTiles = new Set(); // Or re-initialize as appropriate
+            }
+            visibleNPCs = [];
+            visibleTrees = []; // Clearing visibleTrees as per your original code
+            prevSelfPlayerState = null;
+
+            // Stop any ongoing visual effects like rain
+            if (typeof stopRainEffect === 'function') {
+                stopRainEffect();
+            }
+
+            // Redraw the game grid, which should now reflect the disconnected state
+            // (e.g., show a "Disconnected" message, clear entities, etc.)
+            if (typeof drawGrid === 'function') {
+                drawGrid();
+            }
+
+            // You might also want to:
+            // - Disable game input controls.
+            // - Show a "Reconnect" button or attempt automatic reconnection if not handled by Socket.IO.
+            // - Clear any pending UI updates or action queues on the client side.
+        });
+
+        const ACTION_ALIASES = {
+            "move": ["move", "go", "walk", "step", "head", "run"],
+            "look": ["look", "face", "turn"],
+            "cast": ["cast", "zap", "fire", "spell"],
+            "drink": ["drink", "quaff", "use"],
+            "say": ["say", "tell", "whisper", "'"],
+            "shout": ["shout", "yell", "scream", "!"],
             "help": ["help", "?"],
-            "build": ["build", "construct", "erect", "b"],
-            "destroy": ["destroy", "dismantle", "remove", "d"],
-            "chop": ["chop", "cut", "fell"] // New action: chop
+            "build": ["build", "construct", "erect"],
+            "destroy": ["destroy", "dismantle", "remove"],
+            "chop": ["chop", "cut", "fell"]
         };
-        // DIRECTION_ALIASES, parseAction, parseDirection remain the same
-        // ...
         const DIRECTION_ALIASES = {
-            "north": {char: '^', dx: 0,  dy: -1, aliases: ["north", "n", "up"]},
-            "south": {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "s", "down"]},
-            "west":  {char: '<', dx: -1, dy: 0,  aliases: ["west", "w", "left", "lft", "l"]},
-            "east":  {char: '>', dx: 1,  dy: 0,  aliases: ["east", "e", "right", "rght", "rgt", "r"]},
-            "forward":  {relative: true, aliases: ["forward", "forwards", "fwd", "f", "ahead", "straight", "onward", "onwards"]},
-            "backward": {relative: true, aliases: ["backward", "backwards", "back", "bck", "behind", "b"]},
+            "north": {char: '^', dx: 0,  dy: -1, aliases: ["north", "up"]},
+            "south": {char: 'v', dx: 0,  dy: 1,  aliases: ["south", "down"]},
+            "west":  {char: '<', dx: -1, dy: 0,  aliases: ["west", "left"]},
+            "east":  {char: '>', dx: 1,  dy: 0,  aliases: ["east", "right"]},
+            "forward":  {relative: true, aliases: ["forward", "forwards", "forth", "ahead", "straight", "onward", "onwards"]},
+            "backward": {relative: true, aliases: ["backward", "backwards", "back", "behind"]},
         };
         function parseAction(actionWord) {
             actionWord = actionWord.toLowerCase();
-            for (const canonicalAction in ACTION_ALIASES) if (ACTION_ALIASES[canonicalAction].includes(actionWord)) return canonicalAction;
+            for (const canonicalAction in ACTION_ALIASES) {
+                if (ACTION_ALIASES[canonicalAction].includes(actionWord)) {
+                    return canonicalAction;
+                }
+            }
             return null;
         }
         function parseDirection(directionStr, curFacing) {
-            directionStr = directionStr.toLowerCase(); let result = {char: curFacing, dx: 0, dy: 0, isValid: false};
-            for (const dirKey in DIRECTION_ALIASES) { const config = DIRECTION_ALIASES[dirKey];
+            directionStr = directionStr.toLowerCase();
+            let result = {
+                char: curFacing,
+                dx: 0,
+                dy: 0,
+                isValid: false
+            };
+            for (const dirKey in DIRECTION_ALIASES) {
+                const config = DIRECTION_ALIASES[dirKey];
                 if (config.aliases.includes(directionStr)) {
                     if (config.relative) {
                         result.isValid = true; const [currentDx, currentDy] = get_dx_dy_from_direction_str(curFacing);
                         if (currentDx === 0 && currentDy === 0 && !['^','v','<','>'].includes(curFacing)) { result.isValid = false; break; }
                         if (dirKey === "forward") { result.char = curFacing; result.dx = currentDx; result.dy = currentDy; }
                         else if (dirKey === "backward") {
-                            if (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true}; else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
-                            else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true}; else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
+                            if (curFacing === '^') result = {char: 'v', dx: 0,  dy: 1,  isValid: true};
+                            else if (curFacing === 'v') result = {char: '^', dx: 0,  dy: -1, isValid: true};
+                            else if (curFacing === '<') result = {char: '>', dx: 1,  dy: 0,  isValid: true};
+                            else if (curFacing === '>') result = {char: '<', dx: -1, dy: 0,  isValid: true};
                             else result.isValid = false;
                         }
-                    } else { result = {char: config.char, dx: config.dx, dy: config.dy, isValid: true}; }
+                    } else {
+                        result = {
+                            char: config.char,
+                            dx: config.dx,
+                            dy: config.dy,
+                            isValid: true
+                        };
+                    }
                     return result;
                 }
-            } return result;
+            }
+            return result;
         }
-        function get_dx_dy_from_direction_str(s) { // Already present, but for context
+        function get_dx_dy_from_direction_str(s) {
             const mapping = {'^': [0, -1], 'v': [0, 1], '<': [-1, 0], '>': [1, 0]};
             return mapping[s] || [0, 0];
         }
-        function get_direction_str_from_dx_dy(dx, dy) { // Already present
-            const mapping = {"0,-1": '^', "0,1": 'v', "-1,0": '<', "1,0": '>'};
-            return mapping[`${dx},${dy}`];
+        function get_direction_str_from_dx_dy(dx, dy) {
+            const mapping = {"0, -1": '^', "0, 1": 'v', "-1, 0": '<', "1, 0": '>'};
+            return mapping[`${dx}, ${dy}`];
         }
-        commandInput.addEventListener('keydown', (event) => { /* Same as before */
+        commandInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                if (typeof commandForm.requestSubmit === 'function') { commandForm.requestSubmit(); }
-                else { const submitButton = commandForm.querySelector('button[type="submit"]'); if (submitButton) { submitButton.click(); } }
+                if (typeof commandForm.requestSubmit === 'function') {
+                    commandForm.requestSubmit();
+                } else {
+                    const submitButton = commandForm.querySelector('button[type="submit"]');
+                    if (submitButton) {
+                        submitButton.click();
+                    }
+                }
             }
         });
-        commandForm.addEventListener('submit', (event) => { /* Updated for chop */
-            event.preventDefault(); if (!selfPlayer) { addLogMessage("Not fully manifest!", 'event-bad'); return; }
-            const inputText = commandInput.textContent.trim(); commandInput.innerHTML = ''; if (!inputText) return;
-            const parts = inputText.split(/\s+/); let actionWord = parts[0];
+        commandForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!selfPlayer) {
+                addLogMessage("Not fully manifest!", 'event-bad');
+                return;
+            }
+            const inputText = commandInput.textContent.trim();
+            commandInput.innerHTML = '';
+            if (!inputText) return;
+            const parts = inputText.split(/\s+/);
+            let actionWord = parts[0];
             let messageContent = parts.length > 1 ? parts.slice(1).join(' ') : null;
 
-            if (actionWord.startsWith("'") && actionWord.length >=1) { messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim(); actionWord = "say"; }
-            else if (actionWord.startsWith("!") && actionWord.length >=1) { messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim(); actionWord = "shout"; }
-            addLogMessage(`Tome jots down: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
+            if (actionWord.startsWith("'") && actionWord.length >=1) {
+                messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim();
+                actionWord = "say";
+            } else if (actionWord.startsWith("!") && actionWord.length >=1) {
+                messageContent = (actionWord.substring(1) + (messageContent ? " " + messageContent : "")).trim();
+                actionWord = "shout";
+            }
+            addLogMessage(`Tome scribbles: ${actionWord}${messageContent ? ' ' + messageContent : ''}`, 'user-input');
 
             const canonicalAction = parseAction(actionWord);
-            if (!canonicalAction) { logRandomizedEvent('ACTION_SENT_FEEDBACK', 'ACTION_FAILED_UNKNOWN_COMMAND', { actionWord: actionWord }, 'event-bad'); commandInput.focus(); return; }
+            if (!canonicalAction) {
+                logRandomizedEvent('ACTION_SENT_FEEDBACK', 'ACTION_FAILED_UNKNOWN_COMMAND', {actionWord: actionWord}, 'event-bad');
+                commandInput.focus();
+                return;
+            }
 
-            let commandToSend = { type: canonicalAction, details: {} }; let shouldEmitToServer = true;
+            let commandToSend = {
+                type: canonicalAction,
+                details: {}
+            };
+            let shouldEmitToServer = true;
 
             if (canonicalAction === "move" || canonicalAction === "look" || canonicalAction === "build" || canonicalAction === "destroy" || canonicalAction === "chop") {
                 const targetDirStr = messageContent || "forward"; // Default to forward if no direction specified
@@ -659,64 +918,105 @@
 
                 if (dirResult.isValid) {
                     if (canonicalAction === "move") {
-                        commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy, newChar: dirResult.char };
+                        commandToSend.details = {
+                            dx: dirResult.dx,
+                            dy: dirResult.dy,
+                            newChar: dirResult.char
+                        };
                     } else if (canonicalAction === "look") {
-                        commandToSend.details = { dx: 0, dy: 0, newChar: dirResult.char }; // Look only changes facing
+                        commandToSend.details = {
+                            dx: 0,
+                            dy: 0,
+                            newChar: dirResult.char
+                        };
                     } else if (canonicalAction === "build") {
-                        commandToSend.type = 'build_wall'; // Server expects this type
+                        commandToSend.type = 'build_wall';
                         if (dirResult.dx === 0 && dirResult.dy === 0 && targetDirStr.toLowerCase() !== "forward") { // Can't build on self unless "forward" on non-directional char
-                             addLogMessage(`Tome puzzles: Cannot build on your current location. Specify a direction.`, 'event-bad'); shouldEmitToServer = false;
-                        } else { commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy };}
+                             addLogMessage(`Tome puzzles: Cannot build on your current location. Specify a direction.`, 'event-bad');
+                             shouldEmitToServer = false;
+                        } else {
+                            commandToSend.details = {
+                                dx: dirResult.dx,
+                                dy: dirResult.dy
+                            };
+                        }
                     } else if (canonicalAction === "destroy") {
                         commandToSend.type = 'destroy_wall';
                          if (dirResult.dx === 0 && dirResult.dy === 0 && targetDirStr.toLowerCase() !== "forward") {
-                             addLogMessage(`Tome puzzles: Cannot destroy your current location. Specify a direction.`, 'event-bad'); shouldEmitToServer = false;
-                        } else { commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy }; }
+                             addLogMessage(`Tome is puzzled: Cannot destroy your current location. Specify a direction.`, 'event-bad');
+                             shouldEmitToServer = false;
+                        } else {
+                            commandToSend.details = {
+                                dx: dirResult.dx,
+                                dy: dirResult.dy
+                            };
+                        }
                     } else if (canonicalAction === "chop") {
-                        commandToSend.type = 'chop_tree'; // Specific type for server
+                        commandToSend.type = 'chop_tree';
                          if (dirResult.dx === 0 && dirResult.dy === 0 && targetDirStr.toLowerCase() !== "forward") {
-                             addLogMessage(`Tome puzzles: Cannot chop at your current location. Specify a direction.`, 'event-bad'); shouldEmitToServer = false;
-                        } else { commandToSend.details = { dx: dirResult.dx, dy: dirResult.dy }; }
+                             addLogMessage(`Tome puzzles: Cannot chop at your current location. Specify a direction.`, 'event-bad');
+                             shouldEmitToServer = false;
+                        } else {
+                            commandToSend.details = {
+                                dx: dirResult.dx,
+                                dy: dirResult.dy
+                            };
+                        }
                     }
                 } else {
                     addLogMessage(`Tome frowns: Cannot ${canonicalAction} towards "${targetDirStr}".`, 'event-bad');
                     shouldEmitToServer = false;
                 }
-            }
-            // ... (other actions: cast, drink, say, shout, help remain the same)
-            else if (canonicalAction === "help") {
-                 addLogMessage("Tome patiently explains:\nMOVE [direction]\nLOOK [direction]\nBUILD [direction]\nDESTROY [direction]\nCHOP [direction]\nCAST [spell] [target?]\nDRINK potion\nSAY [message] or '[message]\nSHOUT [message] or ![message]", 'system');
+            } else if (canonicalAction === "help") {
+                 addLogMessage("Tome explains:\nMOVE [direction]\nLOOK [direction]\nBUILD [direction]\nDESTROY [direction]\nCHOP [direction]\nCAST [spell] [target?]\nDRINK potion\nSAY [message] or '[message]\nSHOUT [message] or ![message]", 'system');
+                 shouldEmitToServer = false;
+            } else if (canonicalAction === "cast") {
+                 if (messageContent) {
+                    commandToSend.details = {
+                        spellName: messageContent.split(' ')[0],
+                        targetDirection: messageContent.split(' ').length > 1 ? messageContent.split(' ')[1] : null
+                    };
+                } else {
+                    addLogMessage(`Tome asks: Cast what, O Wizard?`, 'event-bad');
+                    shouldEmitToServer = false;
+                }
+            } else if (canonicalAction === "drink") {
+                if (messageContent && !(messageContent.toLowerCase().includes("potion"))) {
+                    addLogMessage(`Tome queries: Drink what specifically? (Try 'drink potion')`, 'event-bad');
+                    shouldEmitToServer = false;
+                } else {
+                    commandToSend.type = 'drink_potion';
+                }
+            } else if (canonicalAction === "say" || canonicalAction === "shout") {
+                if (messageContent && messageContent.length > 0){
+                    commandToSend.details = { message: messageContent };
+                } else {
+                    addLogMessage(`Tome asks: ${canonicalAction.charAt(0).toUpperCase() + canonicalAction.slice(1)} what, O Wizard?`, 'event-bad');
+                    shouldEmitToServer = false;
+                }
+            } else if (shouldEmitToServer) { // If it's an unknown action that wasn't caught above
+                 addLogMessage(`The arcane art of "${canonicalAction}" is unknown.`, 'event-bad');
                  shouldEmitToServer = false;
             }
-            else if (canonicalAction === "cast") {
-                 if (messageContent) commandToSend.details = { spellName: messageContent.split(' ')[0], targetDirection: messageContent.split(' ').length > 1 ? messageContent.split(' ')[1] : null };
-                 else { addLogMessage(`Tome asks: Cast what, O Wizard?`, 'event-bad'); shouldEmitToServer = false; }
-            } else if (canonicalAction === "drink") {
-                if (messageContent && !(messageContent.toLowerCase().includes("potion"))) { addLogMessage(`Tome queries: Drink what specifically? (Try 'drink potion')`, 'event-bad'); shouldEmitToServer = false; }
-                else commandToSend.type = 'drink_potion';
-            } else if (canonicalAction === "say" || canonicalAction === "shout") {
-                if (messageContent && messageContent.length > 0) commandToSend.details = { message: messageContent };
-                else { addLogMessage(`Tome asks: ${canonicalAction.charAt(0).toUpperCase() + canonicalAction.slice(1)} what, O Wizard?`, 'event-bad'); shouldEmitToServer = false; }
-            } else if (shouldEmitToServer) { // If it's an unknown action that wasn't caught above
-                 addLogMessage(`The arcane art of "${canonicalAction}" is unknown.`, 'event-bad'); shouldEmitToServer = false;
+
+            if (shouldEmitToServer) {
+                socket.emit('queue_player_action', commandToSend);
             }
-
-
-            if (shouldEmitToServer) { socket.emit('queue_player_action', commandToSend); }
             commandInput.focus();
         });
 
-        document.addEventListener('DOMContentLoaded', () => { /* Same as before */
+        document.addEventListener('DOMContentLoaded', () => {
             initializeTheme();
             initializeUIDisplayStates();
             estimateCharacterSize("dom_content_loaded");
             drawGrid();
              updateStatusAndDebugContext();
-            updateWeatherEffects(); // Ensure rain starts if applicable
+            updateWeatherEffects();
             logRandomizedEvent('LORE', 'WELCOME_INITIAL', {}, 'welcome-message');
-            if (commandInput) { commandInput.focus(); }
+            if (commandInput) {
+                commandInput.focus();
+            }
         });
-
     </script>
 </body>
 </html>
