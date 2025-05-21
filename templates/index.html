@@ -1,4 +1,40 @@
+<!DOCTYPE html>
+<html lang = "en">
+<head>
+    <meta charset = "UTF-8">
+    <meta name = "viewport" content = "width = device-width, initial-scale = 1.0, user-scalable=no">
+    <title>World of the Wand - Tome of Echoes</title>
+    <link rel = "stylesheet" href = "{{url_for('game.static', filename = 'style.css')}}">
 
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="{{url_for('game.static', filename='game_texts.js')}}"></script>
+    <script>
+        const socket = io({path: "/world-of-the-wand/socket.io"});
+    </script>
+</head>
+<body>
+    <div class="main-ui-container">
+        <div class="left-panel">
+            <div id="commandLogContainer">
+                <div id="commandLog"></div>
+            </div>
+            <div id="debugAndAuxiliaryPanel" style="display:none;">
+                <div class="debug-panel-content">
+                    <div class="debug-section debug-info-section">
+                        <h4>Debug Stats</h4>
+                        <div id="clientDebugInfo">
+                            <div>Self: <span id="dbgSelfPlayer">N/A</span></div>
+                            <div>Others: <span id="dbgOtherPlayersCount">0</span></div>
+                            <div>NPCs: <span id="dbgNpcsCount">0</span></div>
+                            <div>Trees: <span id="dbgTreesCount">0</span></div>
+                            <div>
+                                <span id="serverHeartbeatIndicator" class="heartbeat-indicator-inline"></span> Server Heartbeat: <span id="dbgLastUpdate">Never</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="debug-section debug-context-section">
+                        <h4>Context</h4>
+                        <div id="dbgContextInfo">
                             <div>Player Position: <span id="dbgPlayerPos">N/A</span></div>
                             <div>Scene: <span id="dbgSceneInfo">N/A</span></div>
                             <div>Player Status: <span id="dbgPlayerStatus">N/A</span></div>
