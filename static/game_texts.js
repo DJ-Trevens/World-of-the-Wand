@@ -14,10 +14,8 @@ const GAME_TEXTS = {
     ],
     ACTION_SENT_FEEDBACK: {
         ACTION_QUEUED: [
-            "Tome confirms: Your will has been noted. Awaiting cosmic alignment...",
-            "The Ethereal Plane acknowledges your intent. Processing...",
-            "Your command is recorded in the echoes of time.",
-            "Patience, wizard. The threads of fate are being woven..."
+            "Tome confirms: Your will has been noted...",
+            "Your command is recorded...",
         ],
         ACTION_FAILED_UNKNOWN_COMMAND: [
             "Tome seems puzzled: Your will \"{actionWord}\" is indecipherable. (Perhaps 'help' will illuminate the path?)",
