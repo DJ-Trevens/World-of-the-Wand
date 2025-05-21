@@ -14,6 +14,9 @@ const GAME_TEXTS = {
     ],
     ACTION_SENT_FEEDBACK: {
         ACTION_QUEUED: [
+            "The echoes of your command resonate...",
+            "Action queued.",
+            "The threads of fate shift according to your command.",
             "Tome confirms: Your will has been noted...",
             "Your command is recorded...",
         ],
@@ -191,55 +194,19 @@ const GAME_TEXTS = {
 };
 
 function getRandomGameText(mainKey, subKey, placeholders = {}) {
-    let textsArray;
-    let actualKeyForLog = mainKey + (subKey ? "." + subKey : "");
-
-    if (mainKey && GAME_TEXTS[mainKey]) {
-        if (subKey && typeof GAME_TEXTS[mainKey] === 'object' && GAME_TEXTS[mainKey][subKey] && Array.isArray(GAME_TEXTS[mainKey][subKey])) {
-            textsArray = GAME_TEXTS[mainKey][subKey];
-        } else if (Array.isArray(GAME_TEXTS[mainKey])) {
-            textsArray = GAME_TEXTS[mainKey];
-        }
+    let textPool = [];
+    if (GAME_TEXTS[mainKey] && GAME_TEXTS[mainKey][subKey]) {
+        textPool = GAME_TEXTS[mainKey][subKey];
+    } else if (GAME_TEXTS[subKey]) { // Fallback for direct subKey access if mainKey is just a general category
+        textPool = GAME_TEXTS[subKey];
     }
 
-    if (!textsArray) {
-        if (mainKey && GAME_TEXTS.GENERIC && GAME_TEXTS.GENERIC[mainKey.toUpperCase()] && Array.isArray(GAME_TEXTS.GENERIC[mainKey.toUpperCase()])) {
-            textsArray = GAME_TEXTS.GENERIC[mainKey.toUpperCase()];
+    if (textPool && textPool.length > 0) {
+        let chosenText = textPool[Math.floor(Math.random() * textPool.length)];
+        for (const ph in placeholders) {
+            chosenText = chosenText.replace(new RegExp(`{${ph}}`, 'g'), placeholders[ph]);
         }
-        else if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
-            return placeholders.message;
-        }
-        else {
-            console.warn(`No texts found for key: ${actualKeyForLog}. Placeholders:`, placeholders);
-            return `Missing text definition or content for: ${actualKeyForLog}`;
-        }
+        return chosenText;
     }
-
-    if (!textsArray || textsArray.length === 0) {
-        console.warn(`Empty text array for key: ${actualKeyForLog}`);
-        if (placeholders && typeof placeholders.message === 'string' && placeholders.message.trim() !== "") {
-            return placeholders.message;
-        }
-        return `No text variants for: ${actualKeyForLog}`;
-    }
-
-    const randomIndex = Math.floor(Math.random() * textsArray.length);
-    let selectedText = textsArray[randomIndex];
-
-    for (const placeholder in placeholders) {
-        if (placeholders.hasOwnProperty(placeholder) && typeof placeholders[placeholder] !== 'undefined') {
-             selectedText = selectedText.replace(new RegExp(`{${placeholder}}`, 'g'), String(placeholders[placeholder]));
-        }
-    }
-
-    // Remove any unused placeholders to avoid showing "{some_placeholder}"
-    selectedText = selectedText.replace(/{[a-zA-Z0-9_]+}/g, (match) => {
-        // console.warn(`Unfilled placeholder ${match} in text for key ${actualKeyForLog}`);
-        return ""; // Replace with empty string or a default like "[...]"
-    }).trim();
-    // Remove any double spaces that might result from empty placeholders
-    selectedText = selectedText.replace(/\s\s+/g, ' ');
-
-
-    return selectedText;
+    return `Missing text definition or content for: ${mainKey}.${subKey}`; // This is what you're seeing
 }
